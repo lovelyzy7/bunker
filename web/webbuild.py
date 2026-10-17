@@ -62,11 +62,6 @@ def build_android(apk, master, companion, output, log=print, port_offset=0, modm
     addresses(port_offset)  # Validate before the slow steps.
     release, package = region.region_of_apk(Path(apk))
     log(f"{region.REGIONS[release]['name']}: {package}")
-    if release != "en":
-        raise ValueError(
-            "日服 (JP) needs the desktop build: its client patch rewrites smali, which this builder cannot do. "
-            "Run scripts/build.py with the JP APK on macOS, Linux or Windows (WSL)."
-        )
     menu = menu_payload(modmenu, release)
     if modmenu and menu is None:
         log("The Mod Menu payload is missing; building without it.")

@@ -23,6 +23,15 @@ Archive now speaks Japanese.
   automatically — `FORMAT` 17 → 18.
 - `archive/schedule.py` formatted dates with `%-d`, which only glibc understands:
   building the index on Windows (and in the browser builder) crashed.
+- **A 日服 APK could only be built on the command line**: the web builder refused
+  it, because the JP patcher rewrites smali. Those steps only serve Facebook
+  login and the SQUARE ENIX BRIDGE account transfer, which no offline build uses.
+  The in-place assembler now patches the JP library, its metadata and the
+  `network_config` asset (API host **and** port), drops the dead Adjust/Firebase
+  providers, and leaves the smali alone — so the browser and a CI runner can
+  build JP. Verified on a phone: a fresh anonymous account reaches the story, and
+  the Mod Menu's JP payload works. `scripts/build.py` keeps the full apktool
+  route for anyone who wants the social login redirects.
 
 - **Profile / Mission / Quest editors were broken on the phone**: their services
   still called the desktop grant executable, whose path the device config never

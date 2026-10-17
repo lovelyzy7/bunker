@@ -10,9 +10,10 @@ pinned lunar-scripts code, edits the compiled manifest, appends the launcher
 and server from the companion APK, and writes an unsigned, aligned APK.
 Sign the result yourself, for example with apksigner or uber-apk-signer.
 
-The Facebook-login code patches need a decompiler, so they are not applied:
-the game's Facebook account link is unavailable. Offline play, Tools and save
-import do not use it.
+Both releases are supported. 日服 (JP) needs the smali patches only for
+Facebook login and account transfer; this builder skips them, because it does
+not run apktool. Offline play, Tools and save import do not use them — a fresh
+install reaches the story on its own anonymous account.
 """
 import argparse
 import hashlib
@@ -36,6 +37,7 @@ from axml import Attr, Element  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = ROOT / "upstream/lunar-scripts"
+SCRIPTS_JP = ROOT / "upstream/lunar-scripts-jp"
 GRPC, HTTP = "127.0.0.1:8003", "127.0.0.1:8080"
 
 
@@ -46,6 +48,9 @@ def addresses(port_offset=0):
     return f"127.0.0.1:{8003 + port_offset}", f"127.0.0.1:{8080 + port_offset}"
 MASTER = "20240404193219.bin.e"
 LIB, METADATA = "lib/arm64-v8a/libil2cpp.so", "assets/bin/Data/Managed/Metadata/global-metadata.dat"
+# 日服 keeps its API host and port in a small Unity asset. The metadata strings
+# only carry the host name, so the port has to be written here.
+NETWORK_CONFIG = "assets/bin/Data/deace60a64f3d4398a2db0f3d1a41195"
 
 # Android attribute resource IDs (stable across platform versions).
 NAME, VALUE, THEME, AUTHORITIES = 0x01010003, 0x01010024, 0x01010000, 0x01010018
@@ -98,6 +103,39 @@ def patch_game_files(lib, metadata, port_offset=0):
         return (work / LIB).read_bytes(), (work / METADATA).read_bytes()
 
 
+def patch_game_files_jp(lib, metadata, network_config, port_offset=0):
+    """The 日服 (JP) library, metadata and network_config patches, without the smali."""
+    jp = load("patch_apk_jp", SCRIPTS_JP / "android/patch_apk_jp.py")
+    grpc, http = addresses(port_offset)
+    host, port = grpc.rsplit(":", 1)
+    web = f"http://{http}"
+    # Same list as the command-line JP patcher, minus the Facebook/bridge
+    # redirects: those live in smali and only serve social login and transfer.
+    replacements = [
+        ("api.app.nierreincarnation.jp", host),
+        ("https://web.app.nierreincarnation.jp/assets/release/{0}/database.bin",
+         f"{web}/assets/release/{{0}}/database.bin"),
+        ("https://mama:na23R6uh7P@web.app.nierreincarnation.jp", web),
+        ("https://resources-api.app.nierreincarnation.jp/", f"{web}/"),
+        ("https://dev-web.dark.abot.sh", web),
+    ]
+    with tempfile.TemporaryDirectory() as work:
+        work = Path(work)
+        (work / LIB).parent.mkdir(parents=True)
+        (work / METADATA).parent.mkdir(parents=True)
+        (work / NETWORK_CONFIG).parent.mkdir(parents=True, exist_ok=True)
+        (work / LIB).write_bytes(lib)
+        (work / METADATA).write_bytes(metadata)
+        (work / NETWORK_CONFIG).write_bytes(network_config)
+        patched = jp.patch_metadata_strings(str(work / METADATA), replacements)
+        if patched != len(replacements):
+            raise RuntimeError(f"Only {patched}/{len(replacements)} JP metadata strings were patched")
+        jp.patch_network_config(str(work), host, int(port))
+        jp.patch_libil2cpp(str(work / LIB))
+        load("package_game", ROOT / "android/tools/package_game.py").patch_local_reachability(work)
+        return (work / LIB).read_bytes(), (work / METADATA).read_bytes(), (work / NETWORK_CONFIG).read_bytes()
+
+
 def patch_master(original):
     with tempfile.TemporaryDirectory() as work:
         source, target = Path(work) / "in.bin.e", Path(work) / "out.bin.e"
@@ -106,7 +144,7 @@ def patch_master(original):
         return target.read_bytes()
 
 
-def patch_manifest(game_manifest, companion_manifest, port_offset=0, menu=False):
+def patch_manifest(game_manifest, companion_manifest, port_offset=0, menu=False, release="en"):
     doc = axml.parse(game_manifest)
     companion = axml.parse(companion_manifest).root
     manifest = doc.root
@@ -126,6 +164,17 @@ def patch_manifest(game_manifest, companion_manifest, port_offset=0, menu=False)
     app.set(Attr.integer("appCategory", APP_CATEGORY_GAME, APP_CATEGORY))
     # The game's Unity libraries use 4 KB pages; ask Android for compatibility.
     app.set(Attr.integer("pageSizeCompat", PAGE_SIZE_COMPAT_ENABLED, PAGE_SIZE_COMPAT))
+    # The 日服 patcher removes these too: Adjust and Firebase are disabled in the
+    # library, and their startup receivers would only make dead network calls.
+    if release == "jp":
+        dead_components = ("com.adjust.sdk.AdjustReferrerReceiver",
+                           "com.google.firebase.provider.FirebaseInitProvider",
+                           "com.google.firebase.perf.provider.FirebasePerfProvider")
+        for child in list(app.children):
+            if child.name in ("receiver", "provider"):
+                name = child.get("name", ns=None)
+                if name and any(str(name.raw).endswith(dead) for dead in dead_components):
+                    app.children.remove(child)
     # The launcher replaces the game's launcher entry and opens the game itself.
     game_activity = None
     for activity in app.find_all("activity") + app.find_all("activity-alias"):
@@ -248,19 +297,24 @@ def assemble(apk, master, companion_apk, output, log=print, port_offset=0, menu=
         release = region.region_for_package(package)
         if release is None:
             raise RuntimeError(f"Not a game this build accepts: {package} ({', '.join(i['package'] for i in region.REGIONS.values())})")
-        if release != "en":
-            raise RuntimeError("日服 (JP) builds need the command line: the JP patcher rewrites smali, which this "
-                               "in-browser builder cannot do. Run scripts/build.py with the JP APK instead.")
+        if release == "jp" and NETWORK_CONFIG not in names:
+            raise RuntimeError(f"Not the 日服 (JP) game APK: {NETWORK_CONFIG} is missing")
         log("Patching the game library and metadata…")
-        lib, metadata = patch_game_files(game.read(LIB), game.read(METADATA), port_offset)
+        if release == "jp":
+            lib, metadata, network_config = patch_game_files_jp(
+                game.read(LIB), game.read(METADATA), game.read(NETWORK_CONFIG), port_offset)
+        else:
+            lib, metadata = patch_game_files(game.read(LIB), game.read(METADATA), port_offset)
         log("Updating the manifest…")
         manifest, game_activity = patch_manifest(game.read("AndroidManifest.xml"),
                                                  companion.read("AndroidManifest.xml"),
-                                                 port_offset, menu=bool(menu))
+                                                 port_offset, menu=bool(menu), release=release)
         log("Patching master data…")
         original_master = Path(master).read_bytes()
         patched_master = patch_master(original_master)
         replaced = {"AndroidManifest.xml": manifest, LIB: lib, METADATA: metadata}
+        if release == "jp":
+            replaced[NETWORK_CONFIG] = network_config
         dex = [n for n in names if re.fullmatch(r"classes\d*\.dex", n)]
         next_dex = max(int(n[7:-4] or 1) for n in dex) + 1
         temporary = Path(str(output) + ".partial")
@@ -321,7 +375,7 @@ def update(installed_apk, companion_apk, output, log=print):
             raise RuntimeError("This update needs the web builder: it changes how the game itself is patched")
         log("Updating the manifest…")
         manifest, _ = patch_manifest(game.read("assets/lunar/game-manifest.xml"), companion.read("AndroidManifest.xml"),
-                                     old["portOffset"])
+                                     old["portOffset"], release=release)
         kept = {"assets/lunar/" + MASTER, "assets/lunar/original-master.bin.e", "assets/lunar/LUNAR_TEAR_LICENSE.txt",
                 "assets/lunar/game-manifest.xml"}
         temporary = Path(str(output) + ".partial")

@@ -75,7 +75,7 @@ Light or dark follows the phone, or choose one in ⋮ → Display. Screenshots a
 
 **[Open the web builder](https://veritr1x.github.io/bunker/)**: choose your own 3.7.1 game APK and
 master data, and download the offline Android app. Everything runs in your browser; your files are
-never uploaded. No tools to install. (日服 APK needs the command line: see [Regions](#regions).)
+never uploaded. No tools to install. It builds 日服 and 全球服 APKs alike: see [Regions](#regions).
 
 Limitations:
 
@@ -183,8 +183,11 @@ one or the other. `scripts/build.py` reads the package name and picks the matchi
 client patcher; `--region` overrides it and is refused if it contradicts the APK.
 To serve both, keep two Bunker builds installed, or rebuild for the other region.
 
-- **JP is Android only.** The JP client patcher works on the APK's smali, so it
-  needs apktool: use the command line, not the web builder.
+- **JP is Android only.** Both routes build it: `scripts/build.py` (desktop,
+  apktool) and the web builder or CI, which patch the library, metadata and
+  `network_config` in place. What the browser cannot do is the JP patcher's
+  smali steps — Facebook login and the SQUARE ENIX BRIDGE account transfer.
+  Offline play creates its own anonymous account and does not use them.
 - An update never crosses regions: an installed EN build only accepts an EN
   update, and a JP build only a JP one.
 - **The build knows its region.** The launcher, the Pod Programs bar and the
