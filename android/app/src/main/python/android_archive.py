@@ -57,12 +57,15 @@ def original_master(asset_root: Path, archive_root: Path) -> tuple[Path, bool]:
     return asset_root / "assets" / "release" / "20240404193219.bin.e", False
 
 
-def create_app(asset_root: Path, archive_root: Path, token: str, origin: str, converters=None):
+def create_app(asset_root: Path, archive_root: Path, token: str, origin: str, converters=None, region: str = "en"):
     from fastapi.responses import JSONResponse
     from archive.app import create_app as archive_app
     master, original = original_master(asset_root, archive_root)
+    # The story text and voice clips come from the release's own folder: a JP
+    # build reads text/ja, not text/en.
+    lang = "ja" if region == "jp" else "en"
     app = archive_app(revision_root(asset_root), master, archive_root, packaged("web") / "static",
-                      original=original, **(converters or android_converters()))
+                      original=original, lang=lang, **(converters or android_converters()))
 
     @app.middleware("http")
     async def private_session(request, call_next):
@@ -78,7 +81,7 @@ def create_app(asset_root: Path, archive_root: Path, token: str, origin: str, co
     return app
 
 
-def start(asset_root: str, archive_root: str, converters=None) -> str:
+def start(asset_root: str, archive_root: str, region: str = "en", converters=None) -> str:
     global _server, _thread, _base_url, _token
     if _thread and _thread.is_alive():
         return json.dumps({"url": _base_url, "token": _token})
@@ -90,7 +93,7 @@ def start(asset_root: str, archive_root: str, converters=None) -> str:
     sock.bind(("127.0.0.1", 0))
     _base_url = "http://127.0.0.1:" + str(sock.getsockname()[1])
     _token = secrets.token_urlsafe(32)
-    app = create_app(Path(asset_root), Path(archive_root), _token, _base_url, converters)
+    app = create_app(Path(asset_root), Path(archive_root), _token, _base_url, converters, region)
     _server = uvicorn.Server(uvicorn.Config(app, log_config=None, access_log=False, loop="asyncio", http="h11", lifespan="off"))
     _thread = threading.Thread(target=lambda: _server.run(sockets=[sock]), name="lunar-archive", daemon=True)
     _thread.start()

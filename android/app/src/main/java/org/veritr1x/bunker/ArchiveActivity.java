@@ -83,13 +83,14 @@ public final class ArchiveActivity extends Activity {
         new Thread(()->{
             try{
                 if(!Python.isStarted())Python.start(new AndroidPlatform(getApplicationContext()));
-                JSONObject server=new JSONObject(Python.getInstance().getModule("android_archive").callAttr("start",assets.getAbsolutePath(),data.getAbsolutePath()).toString());
+                JSONObject server=new JSONObject(Python.getInstance().getModule("android_archive").callAttr("start",assets.getAbsolutePath(),data.getAbsolutePath(),Region.of(ArchiveActivity.this)).toString());
                 final String url=server.getString("url"),token=server.getString("token");
                 runOnUiThread(()->{
                     if(isFinishing())return;
                     origin=url;
                     // WebView takes light or dark from the app's theme, not the launcher's choice; tell the page.
                     CookieManager.getInstance().setCookie(origin,"lunar_theme="+(look.dark?"dark":"light")+"; Path=/; SameSite=Strict");
+                    CookieManager.getInstance().setCookie(origin,"lunar_region="+Region.of(ArchiveActivity.this)+"; Path=/; SameSite=Strict");
                     CookieManager.getInstance().setCookie(origin,"lunar_archive="+token+"; Path=/; HttpOnly; SameSite=Strict",ok->web.loadUrl(origin+"/"));
                 });
             }catch(Exception|LinkageError error){

@@ -68,7 +68,7 @@ def fingerprint(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def configure(data_root, asset_root, tools_root, native, reporter=None):
+def configure(data_root, asset_root, tools_root, native, reporter=None, region="en"):
     global _native, _data_root, _asset_root, _report
     _native = native
     _data_root, _asset_root = str(data_root), str(asset_root)
@@ -84,6 +84,7 @@ def configure(data_root, asset_root, tools_root, native, reporter=None):
     config.RELEASE_DIR = config.ASSETS_DIR / "release"
     config.REVISIONS_DIR = config.ASSETS_DIR / "revisions"
     config.OTHER_LUNAR_TEAR_DIRS = []
+    config.BUILD_REGION = region if region in ("en", "jp") else "en"
     config.SHIM_LUNAR_TEAR_REF = "Bundled Android server (63df7d7)"
     config.find_master_data_bin = lambda: config.RELEASE_DIR / "20240404193219.bin.e"
     config.DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -297,6 +298,8 @@ def create_app(token, origin):
                 response = await call_next(request)
             except Exception as exc:
                 return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+        if "lunar_region" not in request.cookies:
+            response.set_cookie("lunar_region", config.BUILD_REGION, path="/", samesite="strict")
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'; form-action 'self'; base-uri 'none'"
@@ -304,13 +307,13 @@ def create_app(token, origin):
     return app
 
 
-def start(data_root, asset_root, tools_root, reporter):
+def start(data_root, asset_root, tools_root, reporter, region="en"):
     global _server, _thread, _base_url, _token
     if _thread and _thread.is_alive():
         return json.dumps({"url": _base_url, "token": _token})
     from java import jclass
     native = jclass("org.veritr1x.bunker.NativeBridge")
-    configure(data_root, asset_root, tools_root, native.edit, reporter.report)
+    configure(data_root, asset_root, tools_root, native.edit, reporter.report, region)
     prepare_data()
     import uvicorn
     sock = socket.socket()

@@ -18,7 +18,7 @@ from pathlib import Path
 from . import schedule
 import extract_names  # lunar-base: a pure-Python reader for Unity text bundles
 
-FORMAT = 17
+FORMAT = 18  # 18: the index records which text/voice language it was built from
 SCENE_AREAS = ("main", "sub", "side")
 MASTER_TABLES = ("m_report", "m_cage_memory", "m_library_movie", "m_library_movie_category", "m_movie",
                  "m_character", "m_main_quest_season", "m_event_quest_chapter", "m_costume",
@@ -573,29 +573,33 @@ def load_master(master_path: Path) -> dict[str, list[dict]]:
     return tables
 
 
-def signature(revision: Path, master: Path) -> dict:
+def signature(revision: Path, master: Path, lang: str = "en") -> dict:
     stat = lambda p: [p.stat().st_size, int(p.stat().st_mtime)] if p.exists() else None
-    return {"format": FORMAT, "catalog": stat(revision / "list.bin"), "master": stat(master)}
+    return {"format": FORMAT, "lang": lang, "catalog": stat(revision / "list.bin"), "master": stat(master)}
 
 
-def is_current(db_path: Path, revision: Path, master: Path) -> bool:
+def is_current(db_path: Path, revision: Path, master: Path, lang: str = "en") -> bool:
     try:
         with contextlib.closing(sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)) as db:
             row = db.execute("SELECT value FROM meta WHERE key='signature'").fetchone()
-        return bool(row) and json.loads(row[0]) == signature(revision, master)
+        return bool(row) and json.loads(row[0]) == signature(revision, master, lang)
     except sqlite3.Error:
         return False
 
 
-def build(revision: Path, master: Path, db_path: Path, progress=lambda done, total, step: None, scenario=None) -> dict:
+def build(revision: Path, master: Path, db_path: Path, progress=lambda done, total, step: None, scenario=None,
+          lang: str = "en") -> dict:
     """Write the index next to db_path, then swap it in. Returns a summary.
 
     scenario(event_map_folder, target_json) returns "" or an error, writing what ScenarioToJSON in the
     Go library writes; with it, main-story chapters follow the game's quests and lines get speakers."""
     assetbundle = revision / "assetbundle"
-    text_root = assetbundle / "text" / "en"
+    # The JP client must read its own text: the imported bundle carries en/ja/ko
+    # side by side, and reading "en" there is why a JP build showed English.
+    text_root = assetbundle / "text" / lang
     if not text_root.is_dir():
-        raise FileNotFoundError("The game files have no English text. Choose the game files in the Bunker first.")
+        raise FileNotFoundError(
+            f"The game files have no '{lang}' text. Choose the game files in the Bunker first.")
     if not master.is_file():
         raise FileNotFoundError("Master data is missing.")
     started = time.time()
@@ -619,7 +623,7 @@ def build(revision: Path, master: Path, db_path: Path, progress=lambda done, tot
         CREATE TABLE music_use(track TEXT, section INT, sort INT, place TEXT);
     """)
     # Spoken lines: voice/en/…/<line key>.assetbundle, named like the text line they voice.
-    voice_root = assetbundle / "voice" / "en"
+    voice_root = assetbundle / "voice" / lang
     voices = {f.stem.lower(): f.relative_to(assetbundle).as_posix() for f in voice_root.rglob("*.assetbundle")} if voice_root.is_dir() else {}
     bundles = sorted(text_root.rglob("*.assetbundle"))
     failures = 0
@@ -737,7 +741,7 @@ def build(revision: Path, master: Path, db_path: Path, progress=lambda done, tot
                "voiced": db.execute("SELECT count(*) FROM line WHERE voice IS NOT NULL").fetchone()[0],
                "tracks": db.execute("SELECT count(DISTINCT track) FROM music").fetchone()[0],
                "speakers": speakers}
-    db.execute("INSERT INTO meta VALUES ('signature', ?)", (json.dumps(signature(revision, master)),))
+    db.execute("INSERT INTO meta VALUES ('signature', ?)", (json.dumps(signature(revision, master, lang)),))
     db.execute("INSERT INTO meta VALUES ('summary', ?)", (json.dumps(summary),))
     db.execute("INSERT INTO meta VALUES ('built', ?)", (time.strftime("%Y-%m-%d %H:%M"),))
     db.commit()

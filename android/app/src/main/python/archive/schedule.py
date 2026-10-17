@@ -84,7 +84,9 @@ QUEST_CAMPAIGNS = {1: "Increased Drop Rate", 2: "Increased Drops", 3: "Half Stam
 
 
 def day(ms: int) -> str:
-    return datetime.fromtimestamp(ms / 1000, timezone.utc).strftime("%-d %b %Y")
+    # "%-d" is glibc-only: Windows and the browser build crash on it.
+    moment = datetime.fromtimestamp(ms / 1000, timezone.utc)
+    return f"{moment.day} {moment.strftime('%b %Y')}"
 
 
 def month(ms: int) -> str:

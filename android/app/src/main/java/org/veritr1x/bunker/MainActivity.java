@@ -87,7 +87,17 @@ public final class MainActivity extends Activity {
         LinearLayout top=new LinearLayout(this);top.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout titles=new LinearLayout(this);titles.setOrientation(LinearLayout.VERTICAL);
         TextView caption=look.monoText(Text.of("LUNAR TEAR // 127.0.0.1"),10,look.mid);caption.setLetterSpacing(.2f);titles.addView(caption);
-        TextView title=look.text(Text.of("BUNKER"),22,look.ink);title.setTypeface(null,Typeface.BOLD);title.setLetterSpacing(.28f);titles.addView(title);
+        LinearLayout nameRow=new LinearLayout(this);nameRow.setGravity(Gravity.CENTER_VERTICAL);
+        TextView title=look.text(Text.of("BUNKER"),22,look.ink);title.setTypeface(null,Typeface.BOLD);title.setLetterSpacing(.28f);
+        nameRow.addView(title);
+        String region=Region.of(this);
+        TextView regionChip=look.chip();
+        look.chip(regionChip,region.toUpperCase(java.util.Locale.ROOT),
+                "jp".equals(region)?look.alert:look.chip,
+                "jp".equals(region)?look.onOk:look.onButton);
+        LinearLayout.LayoutParams rcp=new LinearLayout.LayoutParams(-2,-2);rcp.setMargins(dp(10),dp(2),0,0);
+        nameRow.addView(regionChip,rcp);
+        titles.addView(nameRow);
         top.addView(titles,new LinearLayout.LayoutParams(0,-2,1));
         Button more=look.outlined("⋮");more.setTextSize(20);more.setLetterSpacing(0);more.setPadding(0,0,0,0);more.setContentDescription(Text.of("Options"));more.setOnClickListener(this::showOptions);
         top.addView(more,new LinearLayout.LayoutParams(dp(44),dp(44)));
@@ -310,7 +320,7 @@ public final class MainActivity extends Activity {
             case 4: showLog();break;
             case 5: startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName())));break;
             case 6: help();break;
-            case 7: dialog().setTitle(Text.of("Bunker")).setMessage(Text.of("Version ")+BuildConfig.BUNKER_VERSION+Text.of("\nOffline NieR Re[in]carnation, all in one app.\nOriginal Bunker by veritr1x · this fork: github.com/lovelyzy7/bunker-jp-en\n\nCREDITS\nLunar Tear by Walter-Sparrow: the offline server.\nMIT License · Copyright 2026 Ilya Groshev.\nLunar Scripts by Walter-Sparrow: APK and master data patches.\nLunar Base by NMeliksah: the save editors.\nMasterdata Patcher by NavHobbyDev: the content patcher.\nthree.js: the Archive's 3D viewer.\nChaquopy: Python on Android.\n\nNieR Re[in]carnation © SQUARE ENIX. Bunker is a fan project, not affiliated with Square Enix.")).setNeutralButton(Text.of("Open GitHub"),(d,w)->startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse("https://github.com/lovelyzy7/bunker-jp-en")))).setPositiveButton(Text.of("Close"),null).show();break;
+            case 7: dialog().setTitle(Text.of("Bunker")).setMessage(Text.of("Version ")+BuildConfig.BUNKER_VERSION+" · "+("jp".equals(Region.of(this))?"日服 (JP)":"全球服 (EN)")+Text.of("\nOffline NieR Re[in]carnation, all in one app.\nOriginal Bunker by veritr1x · this fork: github.com/lovelyzy7/bunker-jp-en\n\nCREDITS\nLunar Tear by Walter-Sparrow: the offline server.\nMIT License · Copyright 2026 Ilya Groshev.\nLunar Scripts by Walter-Sparrow: APK and master data patches.\nLunar Base by NMeliksah: the save editors.\nMasterdata Patcher by NavHobbyDev: the content patcher.\nthree.js: the Archive's 3D viewer.\nChaquopy: Python on Android.\n\nNieR Re[in]carnation © SQUARE ENIX. Bunker is a fan project, not affiliated with Square Enix.")).setNeutralButton(Text.of("Open GitHub"),(d,w)->startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse("https://github.com/lovelyzy7/bunker-jp-en")))).setPositiveButton(Text.of("Close"),null).show();break;
             case 9: confirmSaveImport();break;
             case 10: query(3);break;
             case 11: {Intent i=new Intent(Intent.ACTION_CREATE_DOCUMENT).setType("application/zip").addCategory(Intent.CATEGORY_OPENABLE);i.putExtra(Intent.EXTRA_TITLE,"lunar-tear-log-"+new SimpleDateFormat("yyyyMMdd-HHmm",Locale.US).format(new Date())+".zip");startActivityForResult(i,LOGS);break;}

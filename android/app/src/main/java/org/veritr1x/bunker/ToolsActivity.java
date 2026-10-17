@@ -38,6 +38,7 @@ public final class ToolsActivity extends Activity {
             loaded=true;origin=ToolsRuntime.url;
             // WebView takes light or dark from the game's theme, not the phone; tell the page instead.
             CookieManager.getInstance().setCookie(origin,"lunar_theme="+(look.dark?"dark":"light")+"; Path=/; SameSite=Strict");
+            CookieManager.getInstance().setCookie(origin,"lunar_region="+Region.of(ToolsActivity.this)+"; Path=/; SameSite=Strict");
             CookieManager.getInstance().setCookie(origin,"lunar_tools="+ToolsRuntime.token+"; Path=/; HttpOnly; SameSite=Strict",ok->web.loadUrl(origin+"/"));
         }
         if(!loaded||closing)message.setText(ServerService.detail);
