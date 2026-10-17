@@ -118,6 +118,33 @@ to return to it. **Open Pod Programs** and **Open Archive** sit on the Bunker; P
 game while it is open, so close it and tap **Deploy** to resume. Tap **⋮** for save backup and
 import, the Lunar Tear log and its export, Display (light/dark/system), settings, help and about.
 
+## The Mod Menu
+
+An optional in-game memory menu, built from
+[bunker-modmenu](https://github.com/lovelyzy7/bunker-modmenu): damage and defense
+multipliers, no skill cooldown, God mode, forced hit, and the BigHunt cap lift.
+The HP patches switch themselves off inside BigHunt battles, where they would
+freeze the wave-end animation.
+
+```sh
+git clone https://github.com/lovelyzy7/bunker-modmenu vendor/bunker-modmenu
+python3.11 scripts/build.py --apk <game.apk> --master <master.bin.e> --mod-menu
+```
+
+- **Command line only.** The menu rewrites the game's launcher activity and adds
+  a native library, so the in-browser builder cannot produce it: its page shows
+  the option and points here.
+- **One workspace per release**: `jp-client` for 日服, `en-client` for 全球服. The
+  menu is picked from the same package name the rest of the build uses.
+- **Signed with your key**: Bunker injects the menu into the finished APK and
+  re-signs with the build's own keystore, so updates keep working.
+- **No server hot-switch.** The menu used to rewrite the game's connections to
+  another server; the server is always on this device, so that was removed.
+- The checkout is found at `vendor/bunker-modmenu`; use `--mod-menu-root` or
+  `$BUNKER_MODMENU` when it lives elsewhere. Its build needs JDK 17+, Android
+  SDK platform 34 and the NDK (ndk-build); details in its README.
+- For offline, single-player use only.
+
 ## Build it yourself, step by step
 
 Everything below runs on your computer once. Playing needs only the phone or tablet.

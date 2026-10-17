@@ -6,7 +6,7 @@ let building = false;  // One build at a time, however fast the button is presse
 
 // The Bunker version this site builds (version.json, written by build_site.py).
 fetch("version.json").then((r) => r.ok ? r.json() : null).then((v) => {
-  if (v && v.version) $("bunker-version").textContent = "BUILDS BUNKER " + v.version;
+  if (v && v.version) $("bunker-version").textContent = tr("BUILDS BUNKER " + v.version);
 }).catch(() => {});
 
 function update() {
@@ -67,6 +67,15 @@ worker.onmessage = ({ data }) => {
 // 页面以英文撰写；这里按「英文原文 → 中文」替换文本、placeholder 与 aria-label，
 // 并把动态文案（日志、下载按钮）包一层。文件名为玩家数据，保持原样。
 const ZH = {
+  "The optional memory menu (damage and defense multipliers, no skill cooldown, God mode, forced hit, BigHunt cap lift) is built on the command line: it rewrites the game's launcher activity and installs a native library, which this browser cannot do.": "可选的内存菜单（伤害与防御倍率、技能无 CD、God 免伤、强制命中、讨伐战上限解除）需要在命令行构建：它会改写游戏的启动 Activity 并放入原生库，浏览器内做不到。",
+  "Build it with": "构建命令：",
+  "The Mod Menu section": "「Mod 菜单」一节",
+  ", password and alias": "，密码与别名",
+  "ADVANCED :: MOD MENU": "进阶选项 :: MOD 菜单",
+  "The optional memory menu (damage and defense multipliers, no skill cooldown, God mode, forced hit, BigHunt cap lift) is built on the command line: it rewrites the game's launcher activity and installs a native library, which this browser cannot do. Build with scripts/build.py --mod-menu instead. See the Mod Menu section.": "可选的内存菜单（伤害与防御倍率、技能无 CD、God 免伤、强制命中、讨伐战上限解除）需要在命令行构建：它会改写游戏的启动 Activity 并放入原生库，浏览器内做不到。请改用 scripts/build.py --mod-menu 构建，详见「Mod 菜单」一节。",
+  "Include the Mod Menu (command line only)": "包含 Mod 菜单（仅命令行可用）",
+  "the Mod Menu section": "「Mod 菜单」一节",
+  "ADVANCED": "进阶选项",
   "Bunker · Lunar Tear builder": "Bunker · Lunar Tear 构建器",
   "The original master data,": "原版主数据，",
   "NOT CHOSEN": "未选择",
@@ -130,19 +139,13 @@ const ZH = {
 };
 
 const ZH_PATTERNS = [
-  [/^BUILDS BUNKER (.+)$/, "Bunker 版本 $1"],
   [/^Download (.+) \((\d+) MB\)$/, "下载 $1（$2 MB）"],
+  [/^BUILDS BUNKER (.+)$/, "构建 Bunker $1"],
 ];
 
-const SKIP_IDS = new Set(["game-name", "master-name"]);   // 玩家选择的文件名原样显示
 const LANG_KEY = "bunker_lang";
-const originals = new WeakMap();
-
-/** 动态文案（日志、下载按钮）也走词典；英文环境原样返回。 */
-function tr(text) {
-  if (currentLang() !== "zh") return text;
-  return zhText(text) ?? text;
-}
+const translatedNodes = [];   // {node, original}
+const translatedAttrs = [];   // {el, attr, original}
 
 function zhText(text) {
   const t = text.replace(/\s+/g, " ").trim();
@@ -154,42 +157,50 @@ function zhText(text) {
   return null;
 }
 
+/** 动态文案（日志、下载按钮）也走词典；英文环境原样返回。 */
+function tr(text) {
+  if (currentLang() !== "zh") return text;
+  return zhText(text) ?? text;
+}
+
+function restore() {
+  for (const item of translatedNodes) item.node.nodeValue = item.original;
+  for (const item of translatedAttrs) item.el.setAttribute(item.attr, item.original);
+  translatedNodes.length = 0;
+  translatedAttrs.length = 0;
+}
+
 function translatePage(on) {
+  restore();
+  if (!on) return;
+
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
       const p = node.parentElement;
       if (!p || ["SCRIPT", "STYLE", "CODE"].includes(p.tagName)) return NodeFilter.FILTER_REJECT;
       const chip = p.closest("#game-name, #master-name");
       if (chip && /[·.]/.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;  // 文件名原样
-      return on && zhText(node.nodeValue) !== null ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+      return zhText(node.nodeValue) !== null ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
     }
   });
   const nodes = [];
   while (walker.nextNode()) nodes.push(walker.currentNode);
   for (const node of nodes) {
-    if (on) {
-      if (!originals.has(node)) originals.set(node, node.nodeValue);
-      const raw = node.nodeValue;
-      const lead = raw.match(/^\s*/)[0], trail = raw.match(/\s*$/)[0];
-      node.nodeValue = lead + zhText(raw) + trail;
-    } else if (originals.has(node)) {
-      node.nodeValue = originals.get(node);
-    }
+    const raw = node.nodeValue, zh = zhText(raw);
+    if (zh === null) continue;
+    translatedNodes.push({node, original: raw});
+    const lead = raw.match(/^\s*/)[0], trail = raw.match(/\s*$/)[0];
+    node.nodeValue = lead + zh + trail;
   }
+
   document.querySelectorAll("[aria-label],[placeholder],[title]").forEach(el => {
     for (const attr of ["aria-label", "placeholder", "title"]) {
       const value = el.getAttribute(attr);
       if (!value) continue;
-      const key = "zh:" + attr;
-      if (on) {
-        const zh = zhText(value);
-        if (zh === null) continue;
-        if (!el.dataset[key]) el.dataset[key] = value;
-        el.setAttribute(attr, zh);
-      } else if (el.dataset[key]) {
-        el.setAttribute(attr, el.dataset[key]);
-        delete el.dataset[key];
-      }
+      const zh = zhText(value);
+      if (zh === null) continue;
+      translatedAttrs.push({el, attr, original: value});
+      el.setAttribute(attr, zh);
     }
   });
 }
@@ -200,9 +211,9 @@ function currentLang() {
 
 function setLang(lang) {
   try { localStorage.setItem(LANG_KEY, lang); } catch (e) {}
-  translatePage(lang === "zh");
   const toggle = document.getElementById("lang");
   if (toggle) toggle.textContent = lang === "zh" ? "EN" : "中文";
+  translatePage(lang === "zh");
   // 动态文案（日志、下载按钮）在下次写入时按当前语言生成
   if (typeof update === "function") update();
 }
