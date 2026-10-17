@@ -297,6 +297,19 @@
   signed with the same public key then installed over it as an update
   (first-install time kept) and opened with its server running.
 
+## Pod Programs editors on the device, dark theme — 2026-10-17
+
+- Rooted Xiaomi (Android 16, 2520x1080) with the built APK installed over the
+  game's signature. Verified through the app's own WebView (Chrome DevTools over
+  `adb forward`): the Profile page's Account Info row measured 321px wide by 44px
+  tall at a 392px viewport (it was ~50px wide before), SAVE took a
+  `profile-editor` snapshot and reported "已保存 1 个字段，用时 0.04s", Tutorial
+  Prep wrote a `tutorial-prep` snapshot, and the mission/quest endpoints answered
+  with their own validation errors instead of `Internal Server Error`.
+- The ◐ button now switches the panel: body background `rgb(207,199,176)` ->
+  `rgb(27,26,23)`, panels to `rgb(35,33,25)`. `check_ui.py --theme light` and
+  `--theme dark` both report 0 problems across 14 pages x 3 widths.
+
 ## Web builder redesign and rename to Bunker — 2026-10-04
 
 - The site was assembled as CI does (`web/build_site.py` with a fresh Android
