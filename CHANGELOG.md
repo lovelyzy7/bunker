@@ -6,6 +6,26 @@ sections it contains; its notes run down to the previous release.
 
 ## Unreleased
 
+### 中文为主 (Chinese first)
+
+- **Pod Programs** (the save editors) is Chinese by default. `base.html` now
+  loads lunar-base's i18n and Bunker's own phrase table, hides the page for the
+  first paint unless English was chosen, and keeps a 中文/EN toggle. 310 phrases
+  and 32 patterns cover the nav, home grid, content patcher, display, summon
+  rates, save data, players and every editor; game data names are never touched.
+- **The Android launcher** speaks Chinese: a new `Text.java` holds 224 entries
+  and `Text.of()` (Chinese by default, the English original when the language is
+  en, unchanged for strings it does not know). Every user-visible string in the
+  launcher, service notifications, updater, file import and the Archive window
+  goes through it, while state keys, preferences and file names stay English.
+- **The web builder page** is Chinese by default with a 中文/EN toggle, including
+  the log lines and the download button.
+- **The Archive** is Chinese by default with a toggle: 83 phrases and plural/
+  season patterns over its own pages, with character, costume, track and line
+  names left as the game has them.
+- iPhone and iPad are not translated yet: the iOS launcher needs Xcode to
+  verify, and there is no JP client for iOS.
+
 ### Regions (日服 / 全球服)
 
 - `scripts/build.py` reads the APK's package name and builds for that release:
