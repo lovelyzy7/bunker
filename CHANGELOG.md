@@ -4,7 +4,10 @@ What changed in Bunker, newest first. Each day lists its changes by area.
 Commit ids are in brackets. Each release's heading sits above the dated
 sections it contains; its notes run down to the previous release.
 
-## Unreleased
+## 1.1.0 (2026-10-17)
+
+日服 and 全球服 from one app, Chinese first, and an optional Mod Menu.
+
 
 ### Mod Menu in the browser, and the web builder page
 
