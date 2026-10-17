@@ -6,6 +6,39 @@
 
 # Validation
 
+## 日服 (JP) builds, the region badge and the Archive's language — 2026-10-18
+
+- **Nav compression, measured on the device**: the bar and nav went from 48+39px
+  to 36+29px on desktop and from 56+43px to 52+35px on a phone, so `main` starts
+  at 97px instead of 131px; the narrow bar keeps only `POD PROGRAMS` and the
+  page-level text, so the title stays on one line. `check_ui.py` over 15 pages ×
+  3 widths reports 0 problems, and every nav target stays at 44px or wider.
+- **Region badge**: on the 全球服 install the launcher shows `地堡 [EN]` and the
+  Pod Programs bar `POD PROGRAMS [EN]`; on the 日服 install both read `JP`, in
+  dark red. The launcher reads `assets/lunar/build.json`, the web apps get the
+  region as a `lunar_region` cookie, and the About dialog names the release.
+- **Archive language**: a 日服 build's index was rebuilt from `text/ja` and shows
+  Japanese chapter titles (`一章: 風砂の章『荒野の三人』`) and Japanese side-story
+  previews. The 全球服 build still builds from `text/en`, and both indices carry
+  the language in their signature, so the first start after an update rebuilds
+  once (`FORMAT` 17 → 18). Measured on the phone: about 20 s for 二十 GB of
+  assets.
+- **A 日服 APK without any smali patch boots and plays**: a clean APK patched
+  only through the library, metadata and `network_config` (no Facebook SDK,
+  CustomTab, WebDialog, UniWebView or AuthHost changes) started, accepted the
+  Terms of Service, signed in and entered the Cage. The local server created a
+  complete second account for it (all `user_*` tables, 42 tutorials, 819
+  missions), so the first-run path does not need the web login page. What the
+  smali adds is Facebook login and the SQUARE ENIX BRIDGE transfer.
+- **The web builder now builds 日服 too**: `web/webbuild.py --apk …game-jp.apk`
+  produced a signed APK with the JP Mod Menu payload; it installed over the
+  existing 日服 build, kept its data and booted with the menu.
+- **Cloud build**: Actions run 39052873101 finished in 3.5 minutes; the artifact
+  (164 MB for a 296 MB APK) installed on the phone, showed `JP` and the new
+  version, and `SHA256SUMS` matched the downloaded APK.
+- `archive/schedule.py` no longer uses `%-d` in `strftime`, which crashed index
+  builds on Windows and in the browser.
+
 ## Arena against computer players — 2026-10-08
 
 - The Arena had no server at all: the nine PvP calls, the defense deck,
