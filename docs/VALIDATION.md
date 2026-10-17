@@ -21,8 +21,7 @@
   Japanese chapter titles (`一章: 風砂の章『荒野の三人』`) and Japanese side-story
   previews. The 全球服 build still builds from `text/en`, and both indices carry
   the language in their signature, so the first start after an update rebuilds
-  once (`FORMAT` 17 → 18). Measured on the phone: about 20 s for 二十 GB of
-  assets.
+  once (`FORMAT` 17 → 18). Measured on the phone: about 20 s for 20 GB of assets.
 - **A 日服 APK without any smali patch boots and plays**: a clean APK patched
   only through the library, metadata and `network_config` (no Facebook SDK,
   CustomTab, WebDialog, UniWebView or AuthHost changes) started, accepted the
