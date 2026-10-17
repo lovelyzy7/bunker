@@ -61,6 +61,24 @@ func sameFile(t *testing.T, a, b string) bool {
 	return os.SameFile(ai, bi)
 }
 
+// requireSymlinks skips a test about symbolic links when the host cannot make
+// them: Windows without Developer Mode answers "a required privilege is not
+// held by the client". The behaviour under test stays covered on the platforms
+// Bunker runs on.
+func requireSymlinks(t *testing.T) {
+	t.Helper()
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target")
+	if err := os.WriteFile(target, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "link")
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("symbolic links are unavailable on this host: %v", err)
+	}
+	os.Remove(link)
+}
+
 func TestOctoLinksSweepLinksMatchingFiles(t *testing.T) {
 	data := []byte("asset bundle bytes")
 	links, server, cached := newLinkFixture(t, data)
@@ -143,6 +161,7 @@ func TestOctoLinksIgnoresOtherRequests(t *testing.T) {
 }
 
 func TestOctoLinksSymbolicWhenHardLinksRefused(t *testing.T) {
+	requireSymlinks(t)
 	data := bytes.Repeat([]byte("asset bundle bytes "), 400)
 	links, server, cached := newLinkFixture(t, data)
 	links.symbolic = true // as on Android, where SELinux refuses hard links
@@ -189,6 +208,7 @@ func TestOctoLinksLeavesSmallFilesWhenSymbolic(t *testing.T) {
 }
 
 func TestOctoLinksSymbolicLinksAreRelative(t *testing.T) {
+	requireSymlinks(t)
 	data := bytes.Repeat([]byte("asset bundle bytes "), 400)
 	links, server, cached := newLinkFixture(t, data)
 	links.symbolic = true
@@ -203,6 +223,7 @@ func TestOctoLinksSymbolicLinksAreRelative(t *testing.T) {
 }
 
 func TestOctoLinksRepairsLinksIntoAMovedFolder(t *testing.T) {
+	requireSymlinks(t)
 	data := bytes.Repeat([]byte("asset bundle bytes "), 400)
 	links, server, cached := newLinkFixture(t, data)
 	// iOS moved the app's data folder: the old absolute link points nowhere.
@@ -221,6 +242,7 @@ func TestOctoLinksRepairsLinksIntoAMovedFolder(t *testing.T) {
 }
 
 func TestOctoLinksUnlinksBrokenLinkBeforeServing(t *testing.T) {
+	requireSymlinks(t)
 	data := []byte("asset bundle bytes")
 	links, _, cached := newLinkFixture(t, data)
 	links.find = func(string, string) []assetCandidate { return nil } // no server copy to repair with

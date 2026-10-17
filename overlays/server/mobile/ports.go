@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"google.golang.org/grpc"
@@ -61,7 +60,7 @@ func Ports() string {
 // listen opens one of the server's ports, explaining the usual failure.
 func listen(addr string) (net.Listener, error) {
 	l, e := net.Listen("tcp", addr)
-	if errors.Is(e, syscall.EADDRINUSE) {
+	if errors.Is(e, errAddrInUse) {
 		_, port, _ := net.SplitHostPort(addr)
 		return nil, fmt.Errorf("Port %s is already used by another app on this device, so the game cannot reach its server. "+
 			"Close or uninstall that app, or build with a different --port-offset", port)
