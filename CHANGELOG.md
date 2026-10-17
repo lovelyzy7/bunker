@@ -4,6 +4,26 @@ What changed in Bunker, newest first. Each day lists its changes by area.
 Commit ids are in brackets. Each release's heading sits above the dated
 sections it contains; its notes run down to the previous release.
 
+## Unreleased
+
+The Special Gift Roulette now pays gems, and both rate tables moved to the panel.
+
+- **Special Gift Roulette** (Global client only): a spin pays free gems instead of
+  materials — 10, 30, 50, 100 or 3000 with Lunar Tear's weighting (60/25/10/4.7/0.3),
+  at most six spins a day. The video ad is skipped by answering the ad SDK's
+  rewarded/closed events, so the wheel plays offline. The wheel's amounts are fixed:
+  the client only animates those five.
+- **Rates page** (`/rates` in Lunar Base, Pod Programs > Rates on the device)
+  replaces the old Summon rates page: summon odds on one card, the roulette's
+  chances on the other. Both write `gacha_rates.json` / `roulette_rates.json` next
+  to the save, which the server polls, so a save applies to the next summon or spin
+  with no restart; Reset restores Lunar Tear's values. The page validates the same
+  rules the server does and flags a broken file.
+- The rates tables and roulette logic now live in **lunar-tear-jp_en** itself
+  (`internal/gacha/rates.go`, `roulette.go`), so a standalone Lunar Tear server
+  reads the same files the panel edits. Bunker keeps only the pages that need its
+  Archive.
+
 ## 1.1.1 (2026-10-17)
 
 The update channel belongs to this fork.

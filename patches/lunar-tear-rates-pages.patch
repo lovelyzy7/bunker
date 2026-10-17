@@ -1,0 +1,34 @@
+diff --git a/server/internal/service/octo.go b/server/internal/service/octo.go
+index 4742d42..d3aa041 100644
+--- a/server/internal/service/octo.go
++++ b/server/internal/service/octo.go
+@@ -257,6 +257,12 @@ func (s *OctoHTTPServer) handleAll(w http.ResponseWriter, r *http.Request) {
+ 		return
+ 	}
+ 
++	// The summon rates page the game opens from a banner
++	if strings.Contains(path, "/gacha-rate") {
++		serveGachaRatePage(w)
++		return
++	}
++
+ 	// In-game information / news page
+ 	if strings.Contains(path, "/information") {
+ 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+@@ -483,6 +489,16 @@ func (s *OctoHTTPServer) handleWebAPI(w http.ResponseWriter, r *http.Request, pa
+ 		return
+ 	}
+ 
++	if strings.Contains(path, "gacha-rate") {
++		serveGachaRatePage(w)
++		return
++	}
++
++	if strings.Contains(path, "gacha-detail") {
++		serveGachaDetailsPage(w, r)
++		return
++	}
++
+ 	if strings.Contains(path, "termsofuse") {
+ 		language := staticPageLanguage(path)
+ 		s.serveLocalizedStaticPage(w, "terms", "Terms of Service", language, termsVersionMarker)

@@ -32,6 +32,10 @@ MIN_TARGET = 44
 CHROME_CANDIDATES = (
     r"C:/Program Files/Google/Chrome/Application/chrome.exe",
     r"C:/Program Files (x86)/Google/Chrome/Application/chrome.exe",
+    "/mnt/c/Program Files/Google/Chrome/Application/chrome.exe",
+    "/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe",
+    r"C:/Program Files/Microsoft/Edge/Application/msedge.exe",
+    "/mnt/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
     "/usr/bin/google-chrome",
     "/usr/bin/chromium",

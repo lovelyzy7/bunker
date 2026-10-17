@@ -23,7 +23,8 @@ Run the game and its Lunar Tear server on the same Android phone or tablet. Afte
   - **Save data**: automatic snapshots, backups and restore.
   - **Players**: choose which player the game signs in as, or start a new one.
   - **Editors**: items, costumes, weapons, companions, upgrades, memoirs and more.
-  - **Summon rates**: the odds of the next summons.
+  - **Rates**: summon odds (★4/★3, costume and featured shares, the 10-draw guarantee,
+    the multi-step boost) and the Global client's Special Gift Roulette chances.
   - **Display**: frame rate up to the screen's maximum refresh rate, and resolution up to the
     screen's own. Walking and battles keep their normal speed. Experimental: it uses more battery,
     and at 120 fps 1080p is easier on the GPU than the screen's own resolution.
@@ -41,7 +42,13 @@ Run the game and its Lunar Tear server on the same Android phone or tablet. Afte
   quest 61, as in the original. Season rewards are not paid: seasons never end.
 - **Summon rates** (Pod Programs, experimental): the ★4 and ★3 rates, the
   costume and featured shares, the 10-draw guarantee and the multi-step boost;
-  the game's Rates page shows them.
+  the game's Rates page shows them. Both files live next to the save
+  (`gacha_rates.json`, `roulette_rates.json`), so the panel reads and writes the
+  same values the server uses.
+- **Special Gift Roulette** (Global client only): a spin after the (skipped) video
+  pays free gems — 10, 30, 50, 100 or 3000 — with editable chances, up to six
+  spins a day. The wheel's amounts stay fixed because the client only animates
+  those five.
 - **Summon details**: each banner's Details page lists its dates, cost,
   medal exchange, featured items and every item with its rate (names come
   from the Archive once it has been built).
