@@ -204,6 +204,12 @@ submodule entries and `upstream.lock.json`; update them together only after
 testing an upstream upgrade. Do not use `git submodule update --remote` for a
 normal build.
 
+The Android app never runs the desktop grant helper: `android_runtime`
+routes every editor write through the same Go engine compiled into the APK
+(`test_services.py` proves each service is wired to that bridge). The desktop
+panel still calls `tools/grant/grant`; `tools/grant/README.md` explains how to
+drop in a prebuilt binary so the panel needs no Go toolchain.
+
 For optional editor integration checks, use a disposable copy of a save with
 player 1 and the prepared resources. The test makes its own working copies:
 
