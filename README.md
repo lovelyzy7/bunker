@@ -131,11 +131,18 @@ git clone https://github.com/lovelyzy7/bunker-modmenu vendor/bunker-modmenu
 python3.11 scripts/build.py --apk <game.apk> --master <master.bin.e> --mod-menu
 ```
 
-- **Command line only.** The menu rewrites the game's launcher activity and adds
-  a native library, so the in-browser builder cannot produce it: its page shows
-  the option and points here.
+- **In the browser or on the command line.** The web builder's
+  **进阶选项 :: MOD 菜单** adds it too: the game's launcher entry points at a
+  prebuilt class (`tools/menu/MenuShim.java`) that starts the menu and then the
+  game, so nothing needs a dex compiler. The command line injects it into the
+  smali instead; both end up the same.
+- **Overlay permission.** A menu is a floating window: the first launch asks to
+  allow drawing over other apps (**Settings → Apps → NieR → Display over other
+  apps**). Without it the game starts normally, without the menu.
 - **One workspace per release**: `jp-client` for 日服, `en-client` for 全球服. The
-  menu is picked from the same package name the rest of the build uses.
+  menu is picked from the same package name the rest of the build uses. The web
+  builder ships `web/modmenu/`, built by
+  `python3.11 scripts/make_menu_payload.py --modmenu <checkout>`.
 - **Signed with your key**: Bunker injects the menu into the finished APK and
   re-signs with the build's own keystore, so updates keep working.
 - **No server hot-switch.** The menu used to rewrite the game's connections to

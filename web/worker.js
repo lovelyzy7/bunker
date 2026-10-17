@@ -47,7 +47,7 @@ async function setup() {
 }
 
 self.onmessage = async ({ data }) => {
-  const { game, master, portOffset = 0 } = data;
+  const { game, master, portOffset = 0, modMenu = false } = data;
   try {
     ready = ready || setup();
     const pyodide = await ready;
@@ -60,9 +60,14 @@ self.onmessage = async ({ data }) => {
     const log = (line) => post("log", line);
     const builder = pyodide.globals.get("webbuild");
     writeFile(pyodide, "/bundles/android.zip", await fetchBytes("bundles/android.zip", "the launcher"));
+    let payload = null;
+    if (modMenu) {
+      writeFile(pyodide, "/bundles/modmenu.zip", await fetchBytes("bundles/modmenu.zip", "the Mod Menu"));
+      payload = "/bundles/modmenu.zip";
+    }
     const output = "/output/bunker.apk";
     FS.mkdirTree("/output");
-    builder.build_android(gamePath, masterPath, "/bundles/android.zip", output, log, portOffset);
+    builder.build_android(gamePath, masterPath, "/bundles/android.zip", output, log, portOffset, payload);
     const bytes = FS.readFile(output);
     FS.unlink(output);
     for (const name of FS.readdir("/bundles")) if (name !== "." && name !== "..") FS.unlink("/bundles/" + name);

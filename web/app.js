@@ -42,7 +42,7 @@ $("build").addEventListener("click", () => {
   $("result").style.display = "none";
   $("log").textContent = "";
   if (url) URL.revokeObjectURL(url);
-  worker.postMessage({ game, master, portOffset });
+  worker.postMessage({ game, master, portOffset, modMenu: !!document.getElementById("mod-menu").checked });
 });
 
 worker.onmessage = ({ data }) => {
@@ -67,13 +67,15 @@ worker.onmessage = ({ data }) => {
 // 页面以英文撰写；这里按「英文原文 → 中文」替换文本、placeholder 与 aria-label，
 // 并把动态文案（日志、下载按钮）包一层。文件名为玩家数据，保持原样。
 const ZH = {
+  "The optional memory menu (damage and defense multipliers, no skill cooldown, God mode, forced hit, BigHunt cap lift) is added by pointing the game's launcher at a prebuilt class that starts the menu and then the game.": "可选的内存菜单（伤害与防御倍率、技能无 CD、God 免伤、强制命中、讨伐战上限解除）通过把游戏的启动入口指向一个预编译类实现：它先拉起菜单，再进入游戏。",
+  "Experimental: the first launch asks to allow drawing over other apps, and a menu that fails to start leaves the game untouched.": "实验性：首次启动会请求「显示在其他应用上层」权限；菜单启动失败也不会影响游戏本身。",
   "The optional memory menu (damage and defense multipliers, no skill cooldown, God mode, forced hit, BigHunt cap lift) is built on the command line: it rewrites the game's launcher activity and installs a native library, which this browser cannot do.": "可选的内存菜单（伤害与防御倍率、技能无 CD、God 免伤、强制命中、讨伐战上限解除）需要在命令行构建：它会改写游戏的启动 Activity 并放入原生库，浏览器内做不到。",
   "Build it with": "构建命令：",
   "The Mod Menu section": "「Mod 菜单」一节",
   ", password and alias": "，密码与别名",
   "ADVANCED :: MOD MENU": "进阶选项 :: MOD 菜单",
   "The optional memory menu (damage and defense multipliers, no skill cooldown, God mode, forced hit, BigHunt cap lift) is built on the command line: it rewrites the game's launcher activity and installs a native library, which this browser cannot do. Build with scripts/build.py --mod-menu instead. See the Mod Menu section.": "可选的内存菜单（伤害与防御倍率、技能无 CD、God 免伤、强制命中、讨伐战上限解除）需要在命令行构建：它会改写游戏的启动 Activity 并放入原生库，浏览器内做不到。请改用 scripts/build.py --mod-menu 构建，详见「Mod 菜单」一节。",
-  "Include the Mod Menu (command line only)": "包含 Mod 菜单（仅命令行可用）",
+  "Include the Mod Menu (experimental)": "包含 Mod 菜单（实验性）",
   "the Mod Menu section": "「Mod 菜单」一节",
   "ADVANCED": "进阶选项",
   "Bunker · Lunar Tear builder": "Bunker · Lunar Tear 构建器",

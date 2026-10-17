@@ -93,5 +93,59 @@ class BuildToolsTest(unittest.TestCase):
         self.assertIn("build-tools", str(caught.exception))
 
 
+
+class ManifestTest(unittest.TestCase):
+    """The menu's manifest edits, on a real binary manifest."""
+
+    def _manifest(self, menu):
+        sys.path.insert(0, str(ROOT / "android/tools"))
+        import assemble_apk
+        game = ROOT / ".build/jp-e2e/game-en.apk"
+        if not game.is_file():
+            self.skipTest("the game APK is not available")
+        with zipfile.ZipFile(game) as apk, zipfile.ZipFile(ROOT / "android/app/build/outputs/apk/debug/app-debug.apk") as companion:
+            manifest, activity = assemble_apk.patch_manifest(apk.read("AndroidManifest.xml"),
+                                                             companion.read("AndroidManifest.xml"),
+                                                             0, menu=menu)
+        import axml
+        return axml.parse(manifest).root, activity
+
+    def test_without_the_menu_nothing_changes(self):
+        root, activity = self._manifest(False)
+        app = [c for c in root.children if getattr(c, "name", None) == "application"][0]
+        names = [s.get("name").raw for s in app.children if getattr(s, "name", None) == "service"]
+        self.assertNotIn("com.android.support.Launcher", names)
+        self.assertEqual(activity, "com.google.firebase.MessagingUnityPlayerActivity")
+
+    def test_with_the_menu_the_launcher_becomes_the_shim(self):
+        root, activity = self._manifest(True)
+        app = [c for c in root.children if getattr(c, "name", None) == "application"][0]
+        self.assertEqual(activity, "org.veritr1x.bunker.MenuShim")
+        services = {s.get("name").raw: s for s in app.children if getattr(s, "name", None) == "service"}
+        self.assertIn("com.android.support.Launcher", services)
+        self.assertEqual(services["com.android.support.Launcher"].get("stopWithTask").data, 0xFFFFFFFF)
+        permissions = [p.get("name").raw for p in root.children if getattr(p, "name", None) == "uses-permission"]
+        self.assertIn("android.permission.SYSTEM_ALERT_WINDOW", permissions)
+        meta = {m.get("name").raw: m for m in app.children if getattr(m, "name", None) == "meta-data"}
+        self.assertEqual(meta["org.veritr1x.bunker.GAME_ACTIVITY"].get("value").raw, "org.veritr1x.bunker.MenuShim")
+        self.assertEqual(meta["org.veritr1x.bunker.MOD_MENU"].get("value").raw, "true")
+
+
+class PayloadTest(unittest.TestCase):
+    def test_payload_has_both_releases_and_the_shim(self):
+        sys.path.insert(0, str(ROOT / "web"))
+        import webbuild
+        for release in ("jp", "en"):
+            menu = webbuild.menu_payload(ROOT / "web/modmenu", release)
+            self.assertIsNotNone(menu)
+            self.assertGreaterEqual(len(menu["dex"]), 2, release)  # shim + the menu's own
+            self.assertTrue(menu["lib"].startswith(b"\x7fELF"), release)
+
+    def test_a_missing_payload_is_reported_not_fatal(self):
+        sys.path.insert(0, str(ROOT / "web"))
+        import webbuild
+        self.assertIsNone(webbuild.menu_payload(None, "en"))
+        self.assertIsNone(webbuild.menu_payload(ROOT / "nope.zip", "en"))
+
 if __name__ == "__main__":
     unittest.main()

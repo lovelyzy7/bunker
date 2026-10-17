@@ -174,6 +174,18 @@ its injector on the finished APK and then re-signs with the build's key, because
 the launcher only updates from APKs signed with the key it was built with. Use
 `--mod-menu-root` or `$BUNKER_MODMENU` when the checkout lives elsewhere.
 
+The web builder adds the same menu without a dex compiler: `tools/menu/` holds
+the subclass that starts the menu and then the game, and `web/modmenu/` holds
+its dex plus the menu's per release. Rebuild that folder after changing the menu:
+
+```sh
+JAVA_HOME=<jdk> ANDROID_HOME=<sdk> python3.11 scripts/make_menu_payload.py \
+    --modmenu vendor/bunker-modmenu
+```
+
+A menu is a floating window, so the first launch asks for **Display over other
+apps**. Without it the game starts normally, without the menu.
+
 ## Source layout and checks
 
 - `upstream/`: pinned, unmodified submodules.

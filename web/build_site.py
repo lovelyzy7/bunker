@@ -72,6 +72,13 @@ def main():
         shutil.copy2(ROOT / name, target)
     (out / "py/manifest.json").write_text(json.dumps(PYTHON))
     android_bundle(args.companion_apk, out / "bundles/android.zip")
+    # The optional Mod Menu payload (prebuilt, per release), if present.
+    payload = ROOT / "web/modmenu"
+    if payload.is_dir():
+        with zipfile.ZipFile(out / "bundles/modmenu.zip", "w", zipfile.ZIP_DEFLATED) as bundle:
+            for path in sorted(payload.rglob("*")):
+                if path.is_file():
+                    bundle.write(path, str(path.relative_to(payload)))
     # The version this site builds, shown in the page header.
     with zipfile.ZipFile(args.companion_apk) as companion:
         version = companion.read("assets/lunar/bunker-version.txt").decode().strip()

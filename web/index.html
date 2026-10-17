@@ -150,13 +150,14 @@
         <details>
           <summary>ADVANCED :: MOD MENU</summary>
           <p style="margin:8px 0">The optional memory menu (damage and defense multipliers, no skill cooldown,
-            God mode, forced hit, BigHunt cap lift) is built on the command line: it rewrites the game's launcher
-            activity and installs a native library, which this browser cannot do.</p>
-          <p style="margin:8px 0">Build it with <code>scripts/build.py --mod-menu</code>.</p>
+            God mode, forced hit, BigHunt cap lift) is added by pointing the game's launcher at a prebuilt class
+            that starts the menu and then the game.</p>
+          <p style="margin:8px 0">Experimental: the first launch asks to allow drawing over other apps, and a menu
+            that fails to start leaves the game untouched.</p>
           <p style="margin:8px 0"><a href="https://github.com/lovelyzy7/bunker-jp-en#the-mod-menu">The Mod Menu section</a></p>
-          <label style="display:flex;gap:10px;align-items:center;opacity:.55">
-            <input type="checkbox" id="mod-menu" disabled>
-            <span>Include the Mod Menu (command line only)</span>
+          <label style="display:flex;gap:10px;align-items:center">
+            <input type="checkbox" id="mod-menu">
+            <span>Include the Mod Menu (experimental)</span>
           </label>
         </details>
         <details>

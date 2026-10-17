@@ -52,6 +52,13 @@ NAME, VALUE, THEME, AUTHORITIES = 0x01010003, 0x01010024, 0x01010000, 0x01010018
 MIN_SDK, EXTRACT_NATIVE, CLEARTEXT, PAGE_SIZE_COMPAT = 0x0101020C, 0x010104EA, 0x010104EC, 0x010106AB
 APP_CATEGORY, APP_CATEGORY_GAME = 0x01010545, 0
 THEME_MATERIAL_LIGHT_NO_ACTION_BAR = 0x01030241
+# Attributes the Mod Menu's service needs, as resource ids (aapt writes these;
+# Android reads them by id, so a manifest without them would ignore the values).
+ENABLED, EXPORTED, STOP_WITH_TASK = 0x0101000E, 0x01010010, 0x0101036A  # android.R$attr
+# The prebuilt class that starts the menu and then the game (web/modmenu/shim.dex).
+MENU_SHIM = "org.veritr1x.bunker.MenuShim"
+MENU_SERVICE = "com.android.support.Launcher"
+OVERLAY_PERMISSION = "android.permission.SYSTEM_ALERT_WINDOW"
 PAGE_SIZE_COMPAT_ENABLED = 32
 
 
@@ -99,7 +106,7 @@ def patch_master(original):
         return target.read_bytes()
 
 
-def patch_manifest(game_manifest, companion_manifest, port_offset=0):
+def patch_manifest(game_manifest, companion_manifest, port_offset=0, menu=False):
     doc = axml.parse(game_manifest)
     companion = axml.parse(companion_manifest).root
     manifest = doc.root
@@ -128,8 +135,15 @@ def patch_manifest(game_manifest, companion_manifest, port_offset=0):
                 activity.children.remove(intent)
     if not game_activity:
         raise RuntimeError("Cannot find the game's launcher activity")
+    launcher = next(a for a in app.find_all("activity") + app.find_all("activity-alias")
+                    if a.get("name") and a.get("name").raw == game_activity)
     if game_activity.startswith("."):
         game_activity = package + game_activity
+    if menu:
+        # The menu runs inside the game's process, so the game's launcher entry
+        # points at a prebuilt subclass that starts the menu and then the game.
+        launcher.set(Attr.string("name", MENU_SHIM, NAME))
+        game_activity = MENU_SHIM
     app.children.append(Element("meta-data", [Attr.string("name", "org.veritr1x.bunker.GAME_ACTIVITY", NAME),
                                               Attr.string("value", game_activity, VALUE)]))
     # The launcher and server read the ports the game was built for.
@@ -138,6 +152,19 @@ def patch_manifest(game_manifest, companion_manifest, port_offset=0):
     # Which release this build is, so an update never crosses regions.
     app.children.append(Element("meta-data", [Attr.string("name", "org.veritr1x.bunker.REGION", NAME),
                                               Attr.string("value", region.region_for_package(package) or "", VALUE)]))
+    if menu:
+        # The menu draws an overlay, and its service is the launcher it starts.
+        if OVERLAY_PERMISSION not in have:
+            element = Element("uses-permission", [Attr.string("name", OVERLAY_PERMISSION, NAME)])
+            permissions = manifest.find_all("uses-permission")
+            at = manifest.children.index(permissions[-1]) + 1 if permissions else 0
+            manifest.children.insert(at, element)
+        app.children.append(Element("service", [Attr.string("name", MENU_SERVICE, NAME),
+                                                Attr.boolean("enabled", True, ENABLED),
+                                                Attr.boolean("exported", False, EXPORTED),
+                                                Attr.boolean("stopWithTask", True, STOP_WITH_TASK)]))
+        app.children.append(Element("meta-data", [Attr.string("name", "org.veritr1x.bunker.MOD_MENU", NAME),
+                                                  Attr.string("value", "true", VALUE)]))
     for source in companion.find_all("application")[0].children:
         if isinstance(source, Element) and source.name in ("activity", "service", "provider"):
             if source.name == "activity":
@@ -210,7 +237,8 @@ class ApkWriter:
         self.out.write(struct.pack("<IHHHHIIH", 0x06054B50, 0, 0, count, count, end - directory, directory, 0))
 
 
-def assemble(apk, master, companion_apk, output, log=print, port_offset=0):
+def assemble(apk, master, companion_apk, output, log=print, port_offset=0, menu=None):
+    """Build the APK. menu=(dex files, libniermenu.so) adds the Mod Menu."""
     with zipfile.ZipFile(apk) as game, zipfile.ZipFile(companion_apk) as companion, open(apk, "rb") as raw:
         names = set(game.namelist())
         for required in ("AndroidManifest.xml", LIB, METADATA, "resources.arsc"):
@@ -226,7 +254,9 @@ def assemble(apk, master, companion_apk, output, log=print, port_offset=0):
         log("Patching the game library and metadata…")
         lib, metadata = patch_game_files(game.read(LIB), game.read(METADATA), port_offset)
         log("Updating the manifest…")
-        manifest, game_activity = patch_manifest(game.read("AndroidManifest.xml"), companion.read("AndroidManifest.xml"), port_offset)
+        manifest, game_activity = patch_manifest(game.read("AndroidManifest.xml"),
+                                                 companion.read("AndroidManifest.xml"),
+                                                 port_offset, menu=bool(menu))
         log("Patching master data…")
         original_master = Path(master).read_bytes()
         patched_master = patch_master(original_master)
@@ -254,11 +284,17 @@ def assemble(apk, master, companion_apk, output, log=print, port_offset=0):
             for name in sorted(companion.namelist()):
                 if name.startswith(("lib/arm64-v8a/", "assets/chaquopy/", "assets/lunar/")) and name not in ours:
                     writer.add(name, companion.read(name))
+            if menu:
+                # The menu's classes and its native library, after the game's own.
+                log("Adding the Mod Menu…")
+                for blob in menu["dex"]:
+                    writer.add("classes%d.dex" % next_dex, blob); next_dex += 1
+                writer.add("lib/arm64-v8a/libniermenu.so", menu["lib"])
             writer.add("assets/lunar/" + MASTER, patched_master)
             writer.add("assets/lunar/original-master.bin.e", original_master)
             writer.add("assets/lunar/LUNAR_TEAR_LICENSE.txt", (ROOT / "LICENSE").read_bytes())
             # What an update in place needs (build_info.py).
-            info = build_info.describe(companion, len(dex), port_offset, release)
+            info = build_info.describe(companion, len(dex), port_offset, release, menu=bool(menu))
             writer.add("assets/lunar/build.json", json.dumps(info, indent=1).encode())
             writer.add("assets/lunar/game-manifest.xml", game.read("AndroidManifest.xml"))
             writer.close()

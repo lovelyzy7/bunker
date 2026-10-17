@@ -6,6 +6,27 @@ sections it contains; its notes run down to the previous release.
 
 ## Unreleased
 
+### Mod Menu in the browser, and the web builder page
+
+- The web builder can add the Mod Menu: **进阶选项 :: MOD 菜单**. The game's
+  launcher entry points at a prebuilt subclass (`tools/menu/MenuShim.java`)
+  that starts the menu and then the game, so the browser needs no dex compiler;
+  the menu's dex files and `libniermenu.so` are appended the same way the
+  launcher's own are. The CLI `--mod-menu` path is unchanged.
+- The menu is a floating window: the first launch asks for **Display over other
+  apps**. If it cannot start, the game starts anyway (the shim catches it and
+  writes `files/menushim.log`).
+- `scripts/make_menu_payload.py` rebuilds `web/modmenu/` (shim dex + both
+  releases' menu dex and library) from a bunker-modmenu checkout.
+- Web builder fixes: the page stopped translating and the language button was
+  blank because attribute originals were kept in `dataset` with a `:` key,
+  which throws; the toggle label is now set before translating, so it can never
+  be blank, and 中/EN round-trips restore every string and attribute.
+- The page's links (GUIDE, TROUBLESHOOTING, SOURCE, the guide sentence and the
+  footer) point at this fork's README sections instead of the upstream repo.
+- Narrow screens keep the toggle readable; the header, frames and labels shrink
+  below 720 px.
+
 ### Mod Menu (optional)
 
 - The menu now lives in its own repository,

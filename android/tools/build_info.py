@@ -13,12 +13,12 @@ GAME_PATCH = 1
 VERSION_ENTRY = "assets/lunar/bunker-version.txt"
 
 
-def describe(companion, game_dex, port_offset, region="en"):
+def describe(companion, game_dex, port_offset, region="en", menu=False):
     """build.json for an APK made from the companion (launcher) APK."""
     names = companion.namelist()
     version = companion.read(VERSION_ENTRY).decode().strip() if VERSION_ENTRY in names else "dev"
     return {"version": version, "gamePatch": GAME_PATCH, "portOffset": int(port_offset), "gameDex": int(game_dex),
-            "region": region,
+            "region": region, "modMenu": bool(menu),
             "bunkerLibs": sorted(n for n in names if n.startswith("lib/arm64-v8a/"))}
 
 
