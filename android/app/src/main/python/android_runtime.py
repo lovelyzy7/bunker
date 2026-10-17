@@ -188,7 +188,14 @@ def adapt_services():
         finally:
             selected.unlink(missing_ok=True)
     backup_service.restore_backup = restore
-    for name, error in (("grant", "GrantError"), ("costume", "CostumeError"), ("weapon", "WeaponError"), ("upgrade", "UpgradeError"), ("memoir", "MemoirError")):
+    # Every service that talks to the desktop grant executable instead routes its
+    # payload through the native bridge (the same lunarbase actions the shim CLI
+    # exposes). profile/mission/quest were missing, which made the Profile page's
+    # SAVE, the mission editor and the quest editor fail with a 500 ("Internal
+    # Server Error") the moment they were used on the device.
+    for name, error in (("grant", "GrantError"), ("costume", "CostumeError"), ("weapon", "WeaponError"),
+                        ("upgrade", "UpgradeError"), ("memoir", "MemoirError"), ("profile", "ProfileError"),
+                        ("mission", "MissionError"), ("quest", "QuestError")):
         module = importlib.import_module("web.services." + name + "_service")
         exception = getattr(module, error)
         def invoke(payload, *, timeout=300, exception=exception):
@@ -198,6 +205,16 @@ def adapt_services():
             return result
         module._ensure_shim_available = lambda: None
         module._invoke_shim = invoke
+    # tutorial_service predates the shared helper names, so it needs its own glue;
+    # without it Tutorial Prep failed on the device the same way Profile did.
+    from web.services import tutorial_service
+    def tutorial_invoke(payload):
+        result = json.loads(_native(_data_root, _asset_root, json.dumps(payload)))
+        if not result.get("ok"):
+            raise tutorial_service.TutorialError(result.get("error", "Tutorial edit failed"))
+        return result
+    tutorial_service._ensure_shim = lambda: None
+    tutorial_service._invoke = tutorial_invoke
 
 
 def prepare_data():

@@ -185,6 +185,8 @@ def main():
     parser.add_argument("--pages", nargs="+", default=["/"], help="paths to check")
     parser.add_argument("--widths", nargs="+", type=int, default=list(WIDTHS))
     parser.add_argument("--out", type=Path, help="write the report as JSON here")
+    parser.add_argument("--theme", choices=("system", "light", "dark"), default=None,
+                        help="pin the page theme before measuring (localStorage lb_theme)")
     args = parser.parse_args()
     base = args.base.rstrip("/")
 
@@ -212,8 +214,16 @@ def main():
             try:
                 session.call("Page.enable")
                 session.call("Runtime.enable")
+                if args.theme:
+                    # Pin the palette once per page; the profile keeps it across
+                    # the re-navigations measure() does for each width.
+                    measure(session, url, args.widths[0])
+                    session.evaluate("localStorage.setItem('lb_theme', %r)" % args.theme)
                 for width in args.widths:
                     problems = measure(session, url, width)
+                    if args.theme and args.theme != "system" and session.evaluate(
+                            "document.documentElement.dataset.theme") != args.theme:
+                        problems.append("theme: lb_theme=%s not applied" % args.theme)
                     status = "ok" if not problems else f"{len(problems)} problem(s)"
                     print(f"{width:>5}px {page:<28} {status}")
                     for problem in problems:

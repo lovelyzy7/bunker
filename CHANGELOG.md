@@ -6,6 +6,28 @@ sections it contains; its notes run down to the previous release.
 
 ## Unreleased
 
+Pod Programs' save editors work again on the device, and the panel gained a dark
+theme.
+
+- **Profile / Mission / Quest editors were broken on the phone**: their services
+  still called the desktop grant executable, whose path the device config never
+  defines, so every save ended in `Internal Server Error`. They now go through the
+  same native bridge as the item/costume/weapon editors; Tutorial Prep, which used
+  its own helper names, was patched the same way.
+- **Account Info inputs were unusably narrow**: the row kept its fixed desktop
+  column inside a phone viewport (`grid-template-columns` in the page's own style
+  beat the mobile breakpoint), leaving a ~50px box. Phone layout is now one column
+  with a full-width field and a 44px save button; on desktop the field grows with
+  the panel instead of stopping at 260px. `.op-input` also referenced two variables
+  that never existed, so the boxes had no fill or border.
+- **The ◐ theme button did nothing**: it set `data-theme` while the stylesheet had
+  no dark rules. Added the dark palette (tokens, row rules, rarity colours).
+- **Windows builds silently dropped the Mod Menu** in the browser builder: payload
+  names were compared with `\` against `/` keys. `prepare.py` had the matching
+  line-ending/encoding bug, which made every patch fail to apply on a fresh tree.
+- `check_ui.py --theme light|dark` measures either palette.
+- The profile page's back link printed two arrows (← ← All users).
+
 The Special Gift Roulette now pays gems, and both rate tables moved to the panel.
 
 - **Special Gift Roulette** (Global client only): a spin pays free gems instead of

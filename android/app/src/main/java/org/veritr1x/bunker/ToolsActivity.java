@@ -16,7 +16,11 @@ import java.net.URL;
 public final class ToolsActivity extends Activity {
     private static boolean webInitialized;
     /** Pod Programs and the Archive share one WebView profile; its folder can be set only once per process. */
-    static synchronized void initWebView(){if(!webInitialized){WebView.setDataDirectorySuffix("lunar_tools");webInitialized=true;}}
+    static synchronized void initWebView(){if(!webInitialized){WebView.setDataDirectorySuffix("lunar_tools");
+        // Debug builds only: lets `chrome://inspect` attach over adb so a page's
+        // console (the menu of last resort when a button stays silent) is readable.
+        if(BuildConfig.DEBUG)WebView.setWebContentsDebuggingEnabled(true);
+        webInitialized=true;}}
     private final Handler handler=new Handler(Looper.getMainLooper());
     private WebView web;
     private TextView message;

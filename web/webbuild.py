@@ -39,7 +39,10 @@ def menu_payload(resources, release):
     bundle = Path(resources)
     if bundle.is_dir():
         read = lambda name: (bundle / name).read_bytes()
-        names = {str(p.relative_to(bundle)) for p in bundle.rglob("*") if p.is_file()}
+        # as_posix(): on Windows relative_to() yields "en\\libniermenu.so", which
+        # never matched the "en/…" keys below — the menu was silently dropped
+        # from every Windows build.
+        names = {p.relative_to(bundle).as_posix() for p in bundle.rglob("*") if p.is_file()}
     elif bundle.is_file():
         with zipfile.ZipFile(bundle) as payload:
             names = set(payload.namelist())

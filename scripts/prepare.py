@@ -25,7 +25,7 @@ def export(name, target, *paths):
 
 
 def prepare():
-    pins = json.loads((ROOT / "upstream.lock.json").read_text())
+    pins = json.loads((ROOT / "upstream.lock.json").read_text(encoding="utf-8"))
     for name, expected in pins.items():
         module = ROOT / "upstream" / name
         if not (module / ".git").exists():
@@ -40,7 +40,7 @@ def prepare():
     work = ROOT / ".build"
     work.mkdir(exist_ok=True)
     marker = work / "prepared.json"
-    previous = json.loads(marker.read_text()) if marker.exists() else {}
+    previous = json.loads(marker.read_text(encoding="utf-8")) if marker.exists() else {}
     for name, expected in previous.items():
         path = ROOT / name
         if path.exists() and digest(path) != expected:
@@ -73,19 +73,26 @@ def prepare():
         grant = output / "server/internal/lunarbase"
         grant.mkdir()
         for path in (base / "tools/grant/src").glob("*.go"):
-            (grant / path.name).write_text(path.read_text().replace("package main", "package lunarbase"))
+            # Byte-for-byte: text mode decoded with the locale codec (GBK on this
+            # host) and rewrote LF as CRLF, which made every patch fail to apply.
+            (grant / path.name).write_bytes(
+                path.read_bytes().replace(b"package main", b"package lunarbase"))
         shutil.copy2(base / "LICENSE", grant / "LICENSE")
         shutil.copytree(ROOT / "overlays/server", output / "server", dirs_exist_ok=True)
         shutil.copytree(ROOT / "overlays/python", python, dirs_exist_ok=True)
         for patch in sorted((ROOT / "patches").glob("*.patch")):
-            subprocess.run(["git", "apply", "--directory=" + str(output.relative_to(ROOT)), str(patch)], cwd=ROOT, check=True)
+            applied = subprocess.run(["git", "apply", "--directory=" + output.relative_to(ROOT).as_posix(),
+                                      str(patch)], cwd=ROOT, capture_output=True, text=True)
+            if applied.returncode:
+                raise RuntimeError(f"{patch.name} did not apply: {applied.stderr.strip()[:800]}")
 
         files = {str(path.relative_to(output)): digest(path) for path in output.rglob("*") if path.is_file()}
         # Validate the entire update before replacing any generated source.
-        for name, expected in files.items():
-            target = ROOT / name
-            if target.exists() and name not in previous and digest(target) != expected:
-                raise RuntimeError(f"Refusing to replace an unowned file: {name}")
+        unowned = [name for name, expected in files.items()
+                   if name not in previous and (ROOT / name).exists()
+                   and digest(ROOT / name) != expected]
+        if unowned:
+            raise RuntimeError("Refusing to replace unowned files: " + ", ".join(unowned[:10]))
         for name in previous.keys() - files.keys():
             (ROOT / name).unlink(missing_ok=True)
         for name in files:
@@ -93,7 +100,7 @@ def prepare():
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(output / name, target)
         pending = marker.with_suffix(".tmp")
-        pending.write_text(json.dumps(files, indent=2) + "\n")
+        pending.write_text(json.dumps(files, indent=2) + "\n", encoding="utf-8")
         pending.replace(marker)
     print(f"Prepared {len(files)} files from five pinned submodules.")
 

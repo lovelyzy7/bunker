@@ -52,7 +52,7 @@ def folder_bundle(folder, target, prefix=""):
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as out:
         for path in sorted(folder.rglob("*")):
             if path.is_file() and not is_master(path.name):
-                out.write(path, prefix + str(path.relative_to(folder)))
+                out.write(path, prefix + path.relative_to(folder).as_posix())
 
 
 def main():
@@ -78,7 +78,10 @@ def main():
         with zipfile.ZipFile(out / "bundles/modmenu.zip", "w", zipfile.ZIP_DEFLATED) as bundle:
             for path in sorted(payload.rglob("*")):
                 if path.is_file():
-                    bundle.write(path, str(path.relative_to(payload)))
+                    # POSIX names inside the zip: Windows relative_to() inserts
+                    # backslashes, and the builder looks the payload up as
+                    # "en/libniermenu.so".
+                    bundle.write(path, path.relative_to(payload).as_posix())
     # The version this site builds, shown in the page header.
     with zipfile.ZipFile(args.companion_apk) as companion:
         version = companion.read("assets/lunar/bunker-version.txt").decode().strip()
