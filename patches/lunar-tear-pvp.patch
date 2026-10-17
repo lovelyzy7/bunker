@@ -26,10 +26,10 @@ index 890cfc3..fda7b26 100644
 -	}, nil
 -}
 diff --git a/server/internal/service/user.go b/server/internal/service/user.go
-index 7b4bdbc..b369760 100644
+index f1eae1a..ac51310 100644
 --- a/server/internal/service/user.go
 +++ b/server/internal/service/user.go
-@@ -167,6 +167,9 @@ func (s *UserServiceServer) GetUserProfile(ctx context.Context, req *pb.GetUserP
+@@ -172,6 +172,9 @@ func (s *UserServiceServer) GetUserProfile(ctx context.Context, req *pb.GetUserP
  	if userId == 0 {
  		userId = CurrentUserId(ctx, s.users, s.sessions)
  	}
@@ -39,7 +39,7 @@ index 7b4bdbc..b369760 100644
  	user, err := s.users.LoadUser(userId)
  	if err != nil {
  		return &pb.GetUserProfileResponse{}, nil
-@@ -203,7 +206,7 @@ func (s *UserServiceServer) GetUserProfile(ctx context.Context, req *pb.GetUserP
+@@ -208,7 +211,7 @@ func (s *UserServiceServer) GetUserProfile(ctx context.Context, req *pb.GetUserP
  			Power:         100,
  			DeckCharacter: deckCharacters,
  		},

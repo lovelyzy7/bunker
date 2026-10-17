@@ -11,6 +11,7 @@ chaquopy {
             install 'jinja2==3.1.6'
             install 'python-multipart==0.0.20'
             install 'pycryptodome==3.21.0'
+            install 'itsdangerous==2.2.0'
             install '../vendor/wheels/msgpack-1.1.1-py3-none-any.whl'
             install 'lz4==4.3.2'
         }

@@ -1,4 +1,5 @@
 diff --git a/server/cmd/lunar-tear/grpc.go b/server/cmd/lunar-tear/grpc.go
+index a9a432e..63e0a03 100644
 --- a/server/cmd/lunar-tear/grpc.go
 +++ b/server/cmd/lunar-tear/grpc.go
 @@ -4,6 +4,7 @@ import (
@@ -48,6 +49,7 @@ diff --git a/server/cmd/lunar-tear/grpc.go b/server/cmd/lunar-tear/grpc.go
  	pb.RegisterQuestServiceServer(srv, service.NewQuestServiceServer(userStore, userStore, holder))
  	pb.RegisterNotificationServiceServer(srv, service.NewNotificationServiceServer(userStore, userStore))
 diff --git a/server/internal/database/database.go b/server/internal/database/database.go
+index 06330fd..66663be 100644
 --- a/server/internal/database/database.go
 +++ b/server/internal/database/database.go
 @@ -17,23 +17,15 @@ func Open(path string) (*sql.DB, error) {
@@ -80,6 +82,7 @@ diff --git a/server/internal/database/database.go b/server/internal/database/dat
  		db.Close()
  		return nil, fmt.Errorf("ping sqlite %q: %w", path, err)
 diff --git a/server/internal/gacha/handler.go b/server/internal/gacha/handler.go
+index 251087f..700f4ba 100644
 --- a/server/internal/gacha/handler.go
 +++ b/server/internal/gacha/handler.go
 @@ -61,10 +61,33 @@ func (h *GachaHandler) HandleDraw(
@@ -292,6 +295,7 @@ diff --git a/server/internal/gacha/handler.go b/server/internal/gacha/handler.go
 +	return st.Count
 +}
 diff --git a/server/internal/gametime/gametime.go b/server/internal/gametime/gametime.go
+index 8ce2b33..d234902 100644
 --- a/server/internal/gametime/gametime.go
 +++ b/server/internal/gametime/gametime.go
 @@ -2,26 +2,84 @@ package gametime
@@ -386,6 +390,7 @@ diff --git a/server/internal/gametime/gametime.go b/server/internal/gametime/gam
 +	return StartOfDay(min(v+dayMillis-1, max(v, now)))
 +}
 diff --git a/server/internal/masterdata/bighunt.go b/server/internal/masterdata/bighunt.go
+index 87f5296..75aed20 100644
 --- a/server/internal/masterdata/bighunt.go
 +++ b/server/internal/masterdata/bighunt.go
 @@ -3,8 +3,8 @@ package masterdata
@@ -479,6 +484,7 @@ diff --git a/server/internal/masterdata/bighunt.go b/server/internal/masterdata/
 +	return id
 +}
 diff --git a/server/internal/masterdata/config.go b/server/internal/masterdata/config.go
+index 5b8eb35..e279515 100644
 --- a/server/internal/masterdata/config.go
 +++ b/server/internal/masterdata/config.go
 @@ -33,6 +33,17 @@ type GameConfig struct {
@@ -517,6 +523,7 @@ diff --git a/server/internal/masterdata/config.go b/server/internal/masterdata/c
  }
  
 diff --git a/server/internal/masterdata/costume.go b/server/internal/masterdata/costume.go
+index 148eef6..3a33372 100644
 --- a/server/internal/masterdata/costume.go
 +++ b/server/internal/masterdata/costume.go
 @@ -2,9 +2,11 @@ package masterdata
@@ -622,6 +629,7 @@ diff --git a/server/internal/masterdata/costume.go b/server/internal/masterdata/
 +	log.Printf("[CostumeCatalog] awaken: granted thought id=%d", acq.PossessionId)
 +}
 diff --git a/server/internal/masterdata/dup_exchange.go b/server/internal/masterdata/dup_exchange.go
+index 5c442d9..6082b6c 100644
 --- a/server/internal/masterdata/dup_exchange.go
 +++ b/server/internal/masterdata/dup_exchange.go
 @@ -2,6 +2,7 @@ package masterdata
@@ -695,6 +703,7 @@ diff --git a/server/internal/masterdata/dup_exchange.go b/server/internal/master
 +	return t, nil
 +}
 diff --git a/server/internal/masterdata/gacha.go b/server/internal/masterdata/gacha.go
+index af16a08..6e4d5e4 100644
 --- a/server/internal/masterdata/gacha.go
 +++ b/server/internal/masterdata/gacha.go
 @@ -17,7 +17,50 @@ type GachaMedalInfo struct {
@@ -1172,6 +1181,7 @@ diff --git a/server/internal/masterdata/gacha.go b/server/internal/masterdata/ga
 +	return out
 +}
 diff --git a/server/internal/masterdata/gacha_pool.go b/server/internal/masterdata/gacha_pool.go
+index 436278a..afed9a7 100644
 --- a/server/internal/masterdata/gacha_pool.go
 +++ b/server/internal/masterdata/gacha_pool.go
 @@ -5,6 +5,7 @@ import (
@@ -1227,6 +1237,7 @@ diff --git a/server/internal/masterdata/gacha_pool.go b/server/internal/masterda
 +	return out
 +}
 diff --git a/server/internal/masterdata/gimmick.go b/server/internal/masterdata/gimmick.go
+index 74f0c9b..c2d52c3 100644
 --- a/server/internal/masterdata/gimmick.go
 +++ b/server/internal/masterdata/gimmick.go
 @@ -26,7 +26,7 @@ type gimmickScheduleEntry struct {
@@ -1266,6 +1277,7 @@ diff --git a/server/internal/masterdata/gimmick.go b/server/internal/masterdata/
  			if !ok || q.QuestStateType != model.UserQuestStateTypeCleared {
  				continue
 diff --git a/server/internal/masterdata/quest.go b/server/internal/masterdata/quest.go
+index 7e0143f..1c404cd 100644
 --- a/server/internal/masterdata/quest.go
 +++ b/server/internal/masterdata/quest.go
 @@ -39,6 +39,10 @@ type QuestCatalog struct {
@@ -1325,6 +1337,7 @@ diff --git a/server/internal/masterdata/quest.go b/server/internal/masterdata/qu
  		UserExpThresholds:       BuildExpThresholds(paramMapRows, 1),
  		CharacterExpThresholds:  BuildExpThresholds(paramMapRows, 31),
 diff --git a/server/internal/masterdata/shop.go b/server/internal/masterdata/shop.go
+index 65f30be..9d21bb4 100644
 --- a/server/internal/masterdata/shop.go
 +++ b/server/internal/masterdata/shop.go
 @@ -13,12 +13,26 @@ type ExchangeShopCell struct {
@@ -1381,6 +1394,7 @@ diff --git a/server/internal/masterdata/shop.go b/server/internal/masterdata/sho
  
  	shops, err := utils.ReadTable[EntityMShop]("m_shop")
 diff --git a/server/internal/model/gacha.go b/server/internal/model/gacha.go
+index d25d975..be919bf 100644
 --- a/server/internal/model/gacha.go
 +++ b/server/internal/model/gacha.go
 @@ -64,10 +64,11 @@ const MomBannerDomainGacha int32 = 1
@@ -1414,6 +1428,7 @@ diff --git a/server/internal/model/gacha.go b/server/internal/model/gacha.go
 +
 +const ConsumableIdPremiumTicket int32 = 1002 // m_config CONSUMABLE_ITEM_ID_FOR_PREMIUM_GACHA_TICKET
 diff --git a/server/internal/model/quest.go b/server/internal/model/quest.go
+index dfec2d4..37330b6 100644
 --- a/server/internal/model/quest.go
 +++ b/server/internal/model/quest.go
 @@ -170,9 +170,10 @@ const (
@@ -1431,6 +1446,7 @@ diff --git a/server/internal/model/quest.go b/server/internal/model/quest.go
  
  type SideStoryQuestStateType int32
 diff --git a/server/internal/questflow/bighunt_quest.go b/server/internal/questflow/bighunt_quest.go
+index 53d8307..21df113 100644
 --- a/server/internal/questflow/bighunt_quest.go
 +++ b/server/internal/questflow/bighunt_quest.go
 @@ -14,10 +14,11 @@ func (h *QuestHandler) HandleBigHuntQuestStart(user *store.UserState, questId, u
@@ -1470,7 +1486,49 @@ diff --git a/server/internal/questflow/bighunt_quest.go b/server/internal/questf
  
  	return outcome
  }
+diff --git a/server/internal/questflow/campaign.go b/server/internal/questflow/campaign.go
+index 203175c..47679a4 100644
+--- a/server/internal/questflow/campaign.go
++++ b/server/internal/questflow/campaign.go
+@@ -3,6 +3,7 @@ package questflow
+ import (
+ 	"lunar-tear/server/internal/campaign"
+ 	"lunar-tear/server/internal/model"
++	"lunar-tear/server/internal/store"
+ )
+ 
+ func (h *QuestHandler) targetForMain(questId int32) campaign.QuestTarget {
+@@ -30,22 +31,22 @@ func (h *QuestHandler) targetForBigHunt(questId int32) campaign.QuestTarget {
+ 	return campaign.QuestTarget{QuestId: questId, QuestType: campaign.QuestTypeBigHunt}
+ }
+ 
+-func (h *QuestHandler) campaignFilter(nowMillis int64) campaign.Filter {
+-	return campaign.Filter{NowMillis: nowMillis, UserStatus: campaign.TargetUserStatusAll}
++func (h *QuestHandler) campaignFilter(user *store.UserState, nowMillis int64) campaign.Filter {
++	return campaign.FilterFor(user, nowMillis)
+ }
+ 
+-func (h *QuestHandler) staminaWithCampaign(baseStamina int32, t campaign.QuestTarget, nowMillis int64) int32 {
++func (h *QuestHandler) staminaWithCampaign(user *store.UserState, baseStamina int32, t campaign.QuestTarget, nowMillis int64) int32 {
+ 	if h.Campaigns == nil {
+ 		return baseStamina
+ 	}
+-	return h.Campaigns.QuestStamina(t, h.campaignFilter(nowMillis)).Apply(baseStamina)
++	return h.Campaigns.QuestStamina(t, h.campaignFilter(user, nowMillis)).Apply(baseStamina)
+ }
+ 
+-func (h *QuestHandler) appendBonusDrops(drops []RewardGrant, t campaign.QuestTarget, nowMillis int64) []RewardGrant {
++func (h *QuestHandler) appendBonusDrops(user *store.UserState, drops []RewardGrant, t campaign.QuestTarget, nowMillis int64) []RewardGrant {
+ 	if h.Campaigns == nil {
+ 		return drops
+ 	}
+-	for _, bd := range h.Campaigns.QuestBonusDrops(t, h.campaignFilter(nowMillis)) {
++	for _, bd := range h.Campaigns.QuestBonusDrops(t, h.campaignFilter(user, nowMillis)) {
+ 		drops = append(drops, RewardGrant{
+ 			PossessionType: model.PossessionType(bd.PossessionType),
+ 			PossessionId:   bd.PossessionId,
 diff --git a/server/internal/questflow/event_quest.go b/server/internal/questflow/event_quest.go
+index 6c67cef..b1ec9d4 100644
 --- a/server/internal/questflow/event_quest.go
 +++ b/server/internal/questflow/event_quest.go
 @@ -15,10 +15,11 @@ func (h *QuestHandler) HandleEventQuestStart(user *store.UserState, eventQuestCh
@@ -1522,6 +1580,7 @@ diff --git a/server/internal/questflow/event_quest.go b/server/internal/questflo
  }
  
 diff --git a/server/internal/questflow/extra_quest.go b/server/internal/questflow/extra_quest.go
+index db4e830..0de07a9 100644
 --- a/server/internal/questflow/extra_quest.go
 +++ b/server/internal/questflow/extra_quest.go
 @@ -15,10 +15,11 @@ func (h *QuestHandler) HandleExtraQuestStart(user *store.UserState, questId, use
@@ -1569,6 +1628,7 @@ diff --git a/server/internal/questflow/extra_quest.go b/server/internal/questflo
  }
  
 diff --git a/server/internal/questflow/handler.go b/server/internal/questflow/handler.go
+index 30c6cc8..ad3b81b 100644
 --- a/server/internal/questflow/handler.go
 +++ b/server/internal/questflow/handler.go
 @@ -25,6 +25,8 @@ type FinishOutcome struct {
@@ -1581,6 +1641,7 @@ diff --git a/server/internal/questflow/handler.go b/server/internal/questflow/ha
  
  type QuestHandler struct {
 diff --git a/server/internal/questflow/quest.go b/server/internal/questflow/quest.go
+index 90790d4..b06c352 100644
 --- a/server/internal/questflow/quest.go
 +++ b/server/internal/questflow/quest.go
 @@ -1,14 +1,28 @@
@@ -1854,6 +1915,7 @@ diff --git a/server/internal/questflow/quest.go b/server/internal/questflow/ques
  	}
  }
 diff --git a/server/internal/questflow/rewards.go b/server/internal/questflow/rewards.go
+index 1cc9d00..bd0966b 100644
 --- a/server/internal/questflow/rewards.go
 +++ b/server/internal/questflow/rewards.go
 @@ -43,7 +43,9 @@ func (h *QuestHandler) firstClearRewardGroupId(user *store.UserState, questDef m
@@ -1974,6 +2036,7 @@ diff --git a/server/internal/questflow/rewards.go b/server/internal/questflow/re
  		}
  	}
 diff --git a/server/internal/runtime/build.go b/server/internal/runtime/build.go
+index 4c85501..4b84ba2 100644
 --- a/server/internal/runtime/build.go
 +++ b/server/internal/runtime/build.go
 @@ -115,6 +115,10 @@ func buildCatalogs() (*Catalogs, error) {
@@ -1988,6 +2051,7 @@ diff --git a/server/internal/runtime/build.go b/server/internal/runtime/build.go
  	if err != nil {
  		return nil, fmt.Errorf("load weapon catalog: %w", err)
 diff --git a/server/internal/service/banner.go b/server/internal/service/banner.go
+index 4e3328d..34f6d3b 100644
 --- a/server/internal/service/banner.go
 +++ b/server/internal/service/banner.go
 @@ -2,25 +2,40 @@ package service
@@ -2052,6 +2116,7 @@ diff --git a/server/internal/service/banner.go b/server/internal/service/banner.
 +	}
  }
 diff --git a/server/internal/service/battle.go b/server/internal/service/battle.go
+index d54320f..bc7b9d4 100644
 --- a/server/internal/service/battle.go
 +++ b/server/internal/service/battle.go
 @@ -6,6 +6,7 @@ import (
@@ -2080,6 +2145,7 @@ diff --git a/server/internal/service/battle.go b/server/internal/service/battle.
  	return &pb.FinishWaveResponse{}, nil
  }
 diff --git a/server/internal/service/cageornament.go b/server/internal/service/cageornament.go
+index bea0b67..4b6ef0e 100644
 --- a/server/internal/service/cageornament.go
 +++ b/server/internal/service/cageornament.go
 @@ -62,20 +62,10 @@ func (s *CageOrnamentServiceServer) ReceiveReward(ctx context.Context, req *pb.R
@@ -2107,6 +2173,7 @@ diff --git a/server/internal/service/cageornament.go b/server/internal/service/c
  	return &pb.RecordAccessResponse{}, nil
  }
 diff --git a/server/internal/service/characterviewer.go b/server/internal/service/characterviewer.go
+index e39f8f7..cc9f3d4 100644
 --- a/server/internal/service/characterviewer.go
 +++ b/server/internal/service/characterviewer.go
 @@ -6,6 +6,7 @@ import (
@@ -2159,7 +2226,21 @@ diff --git a/server/internal/service/characterviewer.go b/server/internal/servic
 +	}
 +	return released
 +}
+diff --git a/server/internal/service/consumableitem.go b/server/internal/service/consumableitem.go
+index b4f14a0..5b3e68e 100644
+--- a/server/internal/service/consumableitem.go
++++ b/server/internal/service/consumableitem.go
+@@ -53,6 +53,8 @@ func (s *ConsumableItemServiceServer) UseEffectItem(ctx context.Context, req *pb
+ 			case model.EffectTargetStaminaRecovery:
+ 				millis := store.ResolveStaminaEffectMillis(effect.EffectValueType, effect.EffectValue, maxStaminaMillis)
+ 				store.RecoverStamina(user, millis*req.Count, maxStaminaMillis, nowMillis)
++			case model.EffectTargetBattlePointRecovery:
++				recoverBattlePoints(user, effect.EffectValueType, effect.EffectValue, req.Count, nowMillis)
+ 			default:
+ 				log.Printf("[ConsumableItemService] UseEffectItem: unhandled effect targetType=%d valueType=%d value=%d itemId=%d",
+ 					effect.EffectTargetType, effect.EffectValueType, effect.EffectValue, req.ConsumableItemId)
 diff --git a/server/internal/service/costume.go b/server/internal/service/costume.go
+index e2d8b3c..1731a5f 100644
 --- a/server/internal/service/costume.go
 +++ b/server/internal/service/costume.go
 @@ -6,14 +6,11 @@ import (
@@ -2319,6 +2400,7 @@ diff --git a/server/internal/service/costume.go b/server/internal/service/costum
  	log.Printf("[CostumeService] EnhanceActiveSkill: uuid=%s addLevel=%d", req.UserCostumeUuid, req.AddLevelCount)
  
 diff --git a/server/internal/service/deck.go b/server/internal/service/deck.go
+index 6212af9..ab6cda2 100644
 --- a/server/internal/service/deck.go
 +++ b/server/internal/service/deck.go
 @@ -8,6 +8,9 @@ import (
@@ -2361,6 +2443,7 @@ diff --git a/server/internal/service/deck.go b/server/internal/service/deck.go
  	return &pb.RefreshDeckPowerResponse{}, nil
  }
 diff --git a/server/internal/service/explore.go b/server/internal/service/explore.go
+index 538f1e8..0391c1d 100644
 --- a/server/internal/service/explore.go
 +++ b/server/internal/service/explore.go
 @@ -4,20 +4,14 @@ import (
@@ -2477,6 +2560,7 @@ diff --git a/server/internal/service/explore.go b/server/internal/service/explor
  		AssetGradeIconId:    assetGradeIconId,
  	}, nil
 diff --git a/server/internal/service/friend.go b/server/internal/service/friend.go
+index ebb53da..405d767 100644
 --- a/server/internal/service/friend.go
 +++ b/server/internal/service/friend.go
 @@ -20,19 +20,7 @@ func NewFriendServiceServer(users store.UserRepository, sessions store.SessionRe
@@ -2512,6 +2596,7 @@ diff --git a/server/internal/service/friend.go b/server/internal/service/friend.
 -	}, nil
 -}
 diff --git a/server/internal/service/gacha.go b/server/internal/service/gacha.go
+index 2d7aebe..0eb7cfb 100644
 --- a/server/internal/service/gacha.go
 +++ b/server/internal/service/gacha.go
 @@ -9,10 +9,13 @@ import (
@@ -2939,7 +3024,48 @@ diff --git a/server/internal/service/gacha.go b/server/internal/service/gacha.go
  func buildProtoPromotionItems(entry store.GachaCatalogEntry) []*pb.GachaOddsItem {
  	if len(entry.PromotionItems) == 0 {
  		return nil
+diff --git a/server/internal/service/gameplay.go b/server/internal/service/gameplay.go
+index ff4a089..40a2acc 100644
+--- a/server/internal/service/gameplay.go
++++ b/server/internal/service/gameplay.go
+@@ -5,22 +5,32 @@ import (
+ 	"log"
+ 
+ 	pb "lunar-tear/server/gen/proto"
++	"lunar-tear/server/internal/gametime"
++	"lunar-tear/server/internal/runtime"
++	"lunar-tear/server/internal/store"
+ )
+ 
+ type GameplayServiceServer struct {
+ 	pb.UnimplementedGamePlayServiceServer
++	users    store.UserRepository
++	sessions store.SessionRepository
++	holder   *runtime.Holder
+ }
+ 
+-func NewGameplayServiceServer() *GameplayServiceServer {
+-	return &GameplayServiceServer{}
++func NewGameplayServiceServer(users store.UserRepository, sessions store.SessionRepository, holder *runtime.Holder) *GameplayServiceServer {
++	return &GameplayServiceServer{users: users, sessions: sessions, holder: holder}
+ }
+ 
+ func (s *GameplayServiceServer) CheckBeforeGamePlay(ctx context.Context, req *pb.CheckBeforeGamePlayRequest) (*pb.CheckBeforeGamePlayResponse, error) {
+ 	log.Printf("[GamePlayService] CheckBeforeGamePlay: tr=%s voiceLang=%d textLang=%d",
+ 		req.Tr, req.VoiceClientSystemLanguageTypeId, req.TextClientSystemLanguageTypeId)
+ 
++	badges := []*pb.MenuGachaBadgeInfo{}
++	if user, err := s.users.LoadUser(CurrentUserId(ctx, s.users, s.sessions)); err == nil {
++		badges = freeSummonBadges(s.holder.Get().GachaEntries, &user, gametime.NowMillis())
++	}
+ 	return &pb.CheckBeforeGamePlayResponse{
+ 		IsExistUnreadPop:   false,
+-		MenuGachaBadgeInfo: []*pb.MenuGachaBadgeInfo{},
++		MenuGachaBadgeInfo: badges,
+ 	}, nil
+ }
 diff --git a/server/internal/service/gift.go b/server/internal/service/gift.go
+index 0b72ff5..83921fc 100644
 --- a/server/internal/service/gift.go
 +++ b/server/internal/service/gift.go
 @@ -10,107 +10,308 @@ import (
@@ -3329,6 +3455,7 @@ diff --git a/server/internal/service/gift.go b/server/internal/service/gift.go
 +	return out
 +}
 diff --git a/server/internal/service/gimmick.go b/server/internal/service/gimmick.go
+index 0bd59f8..141f39d 100644
 --- a/server/internal/service/gimmick.go
 +++ b/server/internal/service/gimmick.go
 @@ -50,6 +50,12 @@ func (s *GimmickServiceServer) UpdateGimmickProgress(ctx context.Context, req *p
@@ -3344,7 +3471,66 @@ diff --git a/server/internal/service/gimmick.go b/server/internal/service/gimmic
  		nowMillis := gametime.NowMillis()
  		progressKey := store.GimmickKey{
  			GimmickSequenceScheduleId: req.GimmickSequenceScheduleId,
+diff --git a/server/internal/service/labyrinth.go b/server/internal/service/labyrinth.go
+index 9a0b28a..4ad5a64 100644
+--- a/server/internal/service/labyrinth.go
++++ b/server/internal/service/labyrinth.go
+@@ -111,28 +111,34 @@ func (s *LabyrinthServiceServer) ReceiveStageClearReward(ctx context.Context, re
+ 	return &pb.ReceiveStageClearRewardResponse{}, nil
+ }
+ 
++// UpdateSeasonData is called when the player opens a labyrinth whose open
++// season they haven't joined: it pays the ended season's reward (the client
++// plays it as the "reach reward") and joins the new season, which starts the
++// climb again (see bunker_labyrinth.go).
+ func (s *LabyrinthServiceServer) UpdateSeasonData(ctx context.Context, req *pb.UpdateSeasonDataRequest) (*pb.UpdateSeasonDataResponse, error) {
+-	laby := s.holder.Get().Labyrinth
+-
+-	var seasonResult []*pb.LabyrinthSeasonResult
+-	for _, m := range laby.SeasonMilestones(req.EventQuestChapterId) {
+-		rewards := make([]*pb.LabyrinthReward, 0, len(m.Rewards))
+-		for _, it := range m.Rewards {
+-			rewards = append(rewards, &pb.LabyrinthReward{
+-				PossessionType: it.PossessionType,
+-				PossessionId:   it.PossessionId,
+-				Count:          it.Count,
+-			})
++	cat := s.holder.Get()
++	laby := cat.Labyrinth
++	granter := cat.QuestHandler.Granter
++	now := gametime.NowMillis()
++	userId := CurrentUserId(ctx, s.users, s.sessions)
++
++	seasonResult := []*pb.LabyrinthSeasonResult{}
++	joined := false
++	if _, err := s.users.UpdateUser(userId, func(u *store.UserState) {
++		for _, ch := range laby.ChaptersByOrder {
++			if ch.EventQuestChapterId != req.EventQuestChapterId {
++				continue
++			}
++			if result := settleLabyrinthSeason(laby, granter, u, ch, now); result != nil {
++				seasonResult = append(seasonResult, result)
++			}
++			joined = joinLabyrinthSeason(u, ch.EventQuestChapterId, now)
+ 		}
+-		seasonResult = append(seasonResult, &pb.LabyrinthSeasonResult{
+-			EventQuestChapterId: req.EventQuestChapterId,
+-			HeadQuestId:         m.HeadQuestId,
+-			SeasonReward:        rewards,
+-			HeadStageOrder:      m.HeadStageOrder,
+-		})
++	}); err != nil {
++		return nil, err
+ 	}
+ 
+-	log.Printf("[LabyrinthService] UpdateSeasonData: chapter=%d -> %d milestone(s)",
+-		req.EventQuestChapterId, len(seasonResult))
++	log.Printf("[LabyrinthService] UpdateSeasonData: chapter=%d paid %d season reward(s), new season %v",
++		req.EventQuestChapterId, len(seasonResult), joined)
+ 	return &pb.UpdateSeasonDataResponse{SeasonResult: seasonResult}, nil
+ }
 diff --git a/server/internal/service/loginbonus.go b/server/internal/service/loginbonus.go
+index 1e45cfb..379dcd3 100644
 --- a/server/internal/service/loginbonus.go
 +++ b/server/internal/service/loginbonus.go
 @@ -19,6 +19,9 @@ import (
@@ -3444,6 +3630,7 @@ diff --git a/server/internal/service/loginbonus.go b/server/internal/service/log
  	bonusId := lb.LoginBonusId
  	curPage := lb.CurrentPageNumber
 diff --git a/server/internal/service/notification.go b/server/internal/service/notification.go
+index b4c78b6..7e96486 100644
 --- a/server/internal/service/notification.go
 +++ b/server/internal/service/notification.go
 @@ -5,6 +5,7 @@ import (
@@ -3463,7 +3650,34 @@ diff --git a/server/internal/service/notification.go b/server/internal/service/n
  		FriendRequestReceiveCount: user.Notifications.FriendRequestReceiveCount,
  		IsExistUnreadInformation:  user.Notifications.IsExistUnreadInformation,
  	}, nil
+diff --git a/server/internal/service/omikuji.go b/server/internal/service/omikuji.go
+index 169d27c..393487e 100644
+--- a/server/internal/service/omikuji.go
++++ b/server/internal/service/omikuji.go
+@@ -36,7 +36,7 @@ func (s *OmikujiServiceServer) OmikujiDraw(ctx context.Context, req *pb.OmikujiD
+ 	}
+ 
+ 	return &pb.OmikujiDrawResponse{
+-		OmikujiResultAssetId: s.holder.Get().Omikuji.LookupAssetId(req.OmikujiId),
++		OmikujiResultAssetId: s.holder.Get().Omikuji.DrawFortune(req.OmikujiId),
+ 		OmikujiItem:          []*pb.OmikujiItem{},
+ 	}, nil
+ }
+diff --git a/server/internal/service/parts.go b/server/internal/service/parts.go
+index df3df00..03b74c2 100644
+--- a/server/internal/service/parts.go
++++ b/server/internal/service/parts.go
+@@ -187,7 +187,7 @@ func (s *PartsServiceServer) Enhance(ctx context.Context, req *pb.PartsEnhanceRe
+ 			PartsId:      part.PartsId,
+ 			PartsGroupId: partDef.PartsGroupId,
+ 			Rarity:       model.RarityType(partDef.RarityType),
+-		}, campaign.Filter{NowMillis: nowMillis, UserStatus: campaign.TargetUserStatusAll}).Apply(baseRate)
++		}, campaign.FilterFor(user, nowMillis)).Apply(baseRate)
+ 
+ 		if rand.Intn(1000) < int(successRate) {
+ 			part.Level++
 diff --git a/server/internal/service/quest_bighunt.go b/server/internal/service/quest_bighunt.go
+index 1f71c02..c27e5ec 100644
 --- a/server/internal/service/quest_bighunt.go
 +++ b/server/internal/service/quest_bighunt.go
 @@ -1,8 +1,10 @@
@@ -3590,6 +3804,7 @@ diff --git a/server/internal/service/quest_bighunt.go b/server/internal/service/
  				PossessionType: item.PossessionType,
  				PossessionId:   item.PossessionId,
 diff --git a/server/internal/service/quest_event.go b/server/internal/service/quest_event.go
+index 8b58be1..b6fac03 100644
 --- a/server/internal/service/quest_event.go
 +++ b/server/internal/service/quest_event.go
 @@ -10,6 +10,8 @@ import (
@@ -3621,6 +3836,7 @@ diff --git a/server/internal/service/quest_event.go b/server/internal/service/qu
  	drops := engine.BattleDropRewards(req.QuestId)
  	pbDrops := make([]*pb.BattleDropReward, len(drops))
 diff --git a/server/internal/service/quest_main.go b/server/internal/service/quest_main.go
+index 49c3269..ed979af 100644
 --- a/server/internal/service/quest_main.go
 +++ b/server/internal/service/quest_main.go
 @@ -2,7 +2,9 @@ package service
@@ -3753,6 +3969,7 @@ diff --git a/server/internal/service/quest_main.go b/server/internal/service/que
  				LatestVersion: nowMillis,
  			}
 diff --git a/server/internal/service/reward.go b/server/internal/service/reward.go
+index fda7b26..d961590 100644
 --- a/server/internal/service/reward.go
 +++ b/server/internal/service/reward.go
 @@ -54,13 +54,13 @@ func (s *RewardServiceServer) ReceiveBigHuntReward(ctx context.Context, _ *empty
@@ -3785,6 +4002,7 @@ diff --git a/server/internal/service/reward.go b/server/internal/service/reward.
  					granter.GrantFull(user, model.PossessionType(item.PossessionType), item.PossessionId, item.Count, nowMillis)
  					weeklyRewards = append(weeklyRewards, &pb.BigHuntReward{
 diff --git a/server/internal/service/shop.go b/server/internal/service/shop.go
+index 4859363..1c39697 100644
 --- a/server/internal/service/shop.go
 +++ b/server/internal/service/shop.go
 @@ -4,6 +4,7 @@ import (
@@ -4030,6 +4248,7 @@ diff --git a/server/internal/service/shop.go b/server/internal/service/shop.go
  			log.Printf("[ShopService] unhandled effect: shopItemId=%d targetType=%d", shopItemId, effect.EffectTargetType)
  		}
 diff --git a/server/internal/service/user.go b/server/internal/service/user.go
+index ac51310..7262ce1 100644
 --- a/server/internal/service/user.go
 +++ b/server/internal/service/user.go
 @@ -6,6 +6,7 @@ import (
@@ -4040,9 +4259,9 @@ diff --git a/server/internal/service/user.go b/server/internal/service/user.go
  	"net/http"
  	"strconv"
  	"strings"
-@@ -18,7 +19,9 @@ import (
- 	"google.golang.org/protobuf/types/known/emptypb"
- 	"google.golang.org/protobuf/types/known/timestamppb"
+@@ -21,7 +22,9 @@ import (
+ 	"github.com/google/uuid"
+ 
  	pb "lunar-tear/server/gen/proto"
 +	"lunar-tear/server/internal/campaign"
  	"lunar-tear/server/internal/gametime"
@@ -4050,7 +4269,7 @@ diff --git a/server/internal/service/user.go b/server/internal/service/user.go
  	"lunar-tear/server/internal/model"
  	"lunar-tear/server/internal/runtime"
  	"lunar-tear/server/internal/store"
-@@ -107,6 +110,23 @@ func (s *UserServiceServer) GameStart(ctx context.Context, _ *emptypb.Empty) (*p
+@@ -111,6 +114,23 @@ func (s *UserServiceServer) GameStart(ctx context.Context, _ *emptypb.Empty) (*p
  	userId := CurrentUserId(ctx, s.users, s.sessions)
  	s.users.UpdateUser(userId, func(user *store.UserState) {
  		user.GameStartDatetime = gametime.NowMillis()
@@ -4074,7 +4293,7 @@ diff --git a/server/internal/service/user.go b/server/internal/service/user.go
  	})
  
  	return &pb.GameStartResponse{}, nil
-@@ -175,45 +195,63 @@ func (s *UserServiceServer) GetUserProfile(ctx context.Context, req *pb.GetUserP
+@@ -180,45 +200,63 @@ func (s *UserServiceServer) GetUserProfile(ctx context.Context, req *pb.GetUserP
  		return &pb.GetUserProfileResponse{}, nil
  	}
  
@@ -4121,6 +4340,7 @@ diff --git a/server/internal/service/user.go b/server/internal/service/user.go
  	}, nil
  }
  
++
 +// playHistory is the profile's play history counters. The Greed/Vice/Mania/Zeal
 +// graph (historyCategoryGraphItem) is left empty: how the game weighs it is not known.
 +func playHistory(u *store.UserState) *pb.GamePlayHistory {
@@ -4164,11 +4384,10 @@ diff --git a/server/internal/service/user.go b/server/internal/service/user.go
 +	}
 +	return out
 +}
-+
  func (s *UserServiceServer) SetBirthYearMonth(ctx context.Context, req *pb.SetBirthYearMonthRequest) (*pb.SetBirthYearMonthResponse, error) {
  	log.Printf("[UserService] SetBirthYearMonth: %d/%d", req.BirthYear, req.BirthMonth)
  	userId := CurrentUserId(ctx, s.users, s.sessions)
-@@ -268,8 +306,18 @@ func (s *UserServiceServer) CheckTransferSetting(ctx context.Context, _ *emptypb
+@@ -297,8 +335,18 @@ func (s *UserServiceServer) CheckTransferSetting(ctx context.Context, _ *emptypb
  	return &pb.CheckTransferSettingResponse{}, nil
  }
  
@@ -4188,7 +4407,131 @@ diff --git a/server/internal/service/user.go b/server/internal/service/user.go
  }
  
  func (s *UserServiceServer) resolveAuthToken(token string) (facebookId int64, err error) {
+diff --git a/server/internal/service/weapon.go b/server/internal/service/weapon.go
+index 4ee8539..4bedb1d 100644
+--- a/server/internal/service/weapon.go
++++ b/server/internal/service/weapon.go
+@@ -79,6 +79,7 @@ func (s *WeaponServiceServer) EnhanceByMaterial(ctx context.Context, req *pb.Enh
+ 	userId := CurrentUserId(ctx, s.users, s.sessions)
+ 	nowMillis := gametime.NowMillis()
+ 
++	var great bool
+ 	_, err := s.users.UpdateUser(userId, func(user *store.UserState) {
+ 		weapon, ok := user.Weapons[req.UserWeaponUuid]
+ 		if !ok {
+@@ -92,11 +93,11 @@ func (s *WeaponServiceServer) EnhanceByMaterial(ctx context.Context, req *pb.Enh
+ 			return
+ 		}
+ 
+-		expBonus := cat.Campaign.WeaponExpBonus(campaign.WeaponTarget{
++		greatRate := cat.Campaign.WeaponGreatSuccessBonus(campaign.WeaponTarget{
+ 			WeaponId:      weapon.WeaponId,
+ 			WeaponType:    wm.WeaponType,
+ 			AttributeType: wm.AttributeType,
+-		}, campaign.Filter{NowMillis: nowMillis, UserStatus: campaign.TargetUserStatusAll})
++		}, campaign.FilterFor(user, nowMillis))
+ 
+ 		totalExp := int32(0)
+ 		totalMaterialCount := int32(0)
+@@ -119,7 +120,7 @@ func (s *WeaponServiceServer) EnhanceByMaterial(ctx context.Context, req *pb.Enh
+ 			if mat.WeaponType != 0 && mat.WeaponType == wm.WeaponType {
+ 				expPerUnit = expPerUnit * config.MaterialSameWeaponExpCoefficientPermil / 1000
+ 			}
+-			totalExp += expBonus.Apply(expPerUnit * count)
++			totalExp += expPerUnit * count
+ 		}
+ 
+ 		if costFunc, ok := catalog.GoldCostByEnhanceId[wm.WeaponSpecificEnhanceId]; ok && totalMaterialCount > 0 {
+@@ -128,6 +129,7 @@ func (s *WeaponServiceServer) EnhanceByMaterial(ctx context.Context, req *pb.Enh
+ 			log.Printf("[WeaponService] EnhanceByMaterial: gold cost=%d (materials=%d)", goldCost, totalMaterialCount)
+ 		}
+ 
++		totalExp, great = rollGreatSuccess(totalExp, greatRate.Apply(greatSuccessBasePermil), greatSuccessRand)
+ 		weapon.Exp += totalExp
+ 		levelingEnhanceId := catalog.LevelingEnhanceIdByWeaponId[weapon.WeaponId]
+ 		if thresholds, ok := catalog.ExpByEnhanceId[levelingEnhanceId]; ok {
+@@ -157,7 +159,7 @@ func (s *WeaponServiceServer) EnhanceByMaterial(ctx context.Context, req *pb.Enh
+ 	}
+ 
+ 	return &pb.EnhanceByMaterialResponse{
+-		IsGreatSuccess:         false,
++		IsGreatSuccess:         great,
+ 		SurplusEnhanceMaterial: map[int32]int32{},
+ 	}, nil
+ }
+@@ -309,12 +311,21 @@ func (s *WeaponServiceServer) Evolve(ctx context.Context, req *pb.EvolveRequest)
+ 		evolvedMaster, ok := catalog.Weapons[evolvedId]
+ 		if ok {
+ 			if slots, ok := catalog.AbilitySlots[evolvedMaster.WeaponAbilityGroupId]; ok {
++				// Evolving keeps each slot's ability level; a new slot starts at 1.
++				levels := map[int32]int32{}
++				for _, a := range user.WeaponAbilities[req.UserWeaponUuid] {
++					levels[a.SlotNumber] = a.Level
++				}
+ 				abilities := make([]store.WeaponAbilityState, len(slots))
+ 				for i, slot := range slots {
++					level := levels[slot]
++					if level < 1 {
++						level = 1
++					}
+ 					abilities[i] = store.WeaponAbilityState{
+ 						UserWeaponUuid: req.UserWeaponUuid,
+ 						SlotNumber:     slot,
+-						Level:          1,
++						Level:          level,
+ 					}
+ 				}
+ 				user.WeaponAbilities[req.UserWeaponUuid] = abilities
+@@ -691,6 +702,7 @@ func (s *WeaponServiceServer) EnhanceByWeapon(ctx context.Context, req *pb.Enhan
+ 	userId := CurrentUserId(ctx, s.users, s.sessions)
+ 	nowMillis := gametime.NowMillis()
+ 
++	var great bool
+ 	_, err := s.users.UpdateUser(userId, func(user *store.UserState) {
+ 		weapon, ok := user.Weapons[req.UserWeaponUuid]
+ 		if !ok {
+@@ -704,11 +716,11 @@ func (s *WeaponServiceServer) EnhanceByWeapon(ctx context.Context, req *pb.Enhan
+ 			return
+ 		}
+ 
+-		expBonus := cat.Campaign.WeaponExpBonus(campaign.WeaponTarget{
++		greatRate := cat.Campaign.WeaponGreatSuccessBonus(campaign.WeaponTarget{
+ 			WeaponId:      weapon.WeaponId,
+ 			WeaponType:    wm.WeaponType,
+ 			AttributeType: wm.AttributeType,
+-		}, campaign.Filter{NowMillis: nowMillis, UserStatus: campaign.TargetUserStatusAll})
++		}, campaign.FilterFor(user, nowMillis))
+ 
+ 		totalExp := int32(0)
+ 		consumedCount := int32(0)
+@@ -730,7 +742,7 @@ func (s *WeaponServiceServer) EnhanceByWeapon(ctx context.Context, req *pb.Enhan
+ 			if matMaster.WeaponType != 0 && matMaster.WeaponType == wm.WeaponType {
+ 				baseExp = baseExp * config.MaterialSameWeaponExpCoefficientPermil / 1000
+ 			}
+-			totalExp += expBonus.Apply(baseExp)
++			totalExp += baseExp
+ 
+ 			if medals, ok := catalog.MedalsByWeaponId[matWeapon.WeaponId]; ok {
+ 				for itemId, count := range medals {
+@@ -751,6 +763,7 @@ func (s *WeaponServiceServer) EnhanceByWeapon(ctx context.Context, req *pb.Enhan
+ 			log.Printf("[WeaponService] EnhanceByWeapon: gold cost=%d (weapons=%d)", goldCost, consumedCount)
+ 		}
+ 
++		totalExp, great = rollGreatSuccess(totalExp, greatRate.Apply(greatSuccessBasePermil), greatSuccessRand)
+ 		weapon.Exp += totalExp
+ 		levelingEnhanceId := catalog.LevelingEnhanceIdByWeaponId[weapon.WeaponId]
+ 		if thresholds, ok := catalog.ExpByEnhanceId[levelingEnhanceId]; ok {
+@@ -780,7 +793,7 @@ func (s *WeaponServiceServer) EnhanceByWeapon(ctx context.Context, req *pb.Enhan
+ 	}
+ 
+ 	return &pb.EnhanceByWeaponResponse{
+-		IsGreatSuccess:       false,
++		IsGreatSuccess:       great,
+ 		SurplusEnhanceWeapon: []string{},
+ 	}, nil
+ }
 diff --git a/server/internal/store/helpers.go b/server/internal/store/helpers.go
+index 6ed700e..b8c995b 100644
 --- a/server/internal/store/helpers.go
 +++ b/server/internal/store/helpers.go
 @@ -4,6 +4,7 @@ import (
@@ -4659,6 +5002,7 @@ diff --git a/server/internal/store/helpers.go b/server/internal/store/helpers.go
  	return grantWeaponStoryUnlock(user, weaponId, storyIndex, nowMillis)
  }
 diff --git a/server/internal/store/sqlite/load.go b/server/internal/store/sqlite/load.go
+index 10b1d70..e704376 100644
 --- a/server/internal/store/sqlite/load.go
 +++ b/server/internal/store/sqlite/load.go
 @@ -5,11 +5,21 @@ import (
@@ -4684,6 +5028,7 @@ diff --git a/server/internal/store/sqlite/load.go b/server/internal/store/sqlite
  	var fbId sql.NullInt64
  
 diff --git a/server/internal/store/sqlite/save.go b/server/internal/store/sqlite/save.go
+index 764d64b..c72f086 100644
 --- a/server/internal/store/sqlite/save.go
 +++ b/server/internal/store/sqlite/save.go
 @@ -718,8 +718,12 @@ func diffAndSave(tx *sql.Tx, uid int64, before, after *store.UserState) error {
@@ -4701,6 +5046,7 @@ diff --git a/server/internal/store/sqlite/save.go b/server/internal/store/sqlite
  		if after.Gacha.ConvertedGachaMedal.ObtainPossession != nil {
  			obtainItemId = sql.NullInt64{Int64: int64(after.Gacha.ConvertedGachaMedal.ObtainPossession.ConsumableItemId), Valid: true}
 diff --git a/server/internal/store/sqlite/user.go b/server/internal/store/sqlite/user.go
+index 0a904e1..b16670a 100644
 --- a/server/internal/store/sqlite/user.go
 +++ b/server/internal/store/sqlite/user.go
 @@ -3,7 +3,11 @@ package sqlite
@@ -4763,6 +5109,7 @@ diff --git a/server/internal/store/sqlite/user.go b/server/internal/store/sqlite
  
  	tx, err := s.db.Begin()
 diff --git a/server/internal/store/types.go b/server/internal/store/types.go
+index 4b404b2..79557f1 100644
 --- a/server/internal/store/types.go
 +++ b/server/internal/store/types.go
 @@ -1080,6 +1080,17 @@ type GachaPromotionItem struct {
@@ -4801,6 +5148,7 @@ diff --git a/server/internal/store/types.go b/server/internal/store/types.go
  
  type CharacterBoardState struct {
 diff --git a/server/internal/userdata/changed_tables.go b/server/internal/userdata/changed_tables.go
+index 5f64725..8c614e5 100644
 --- a/server/internal/userdata/changed_tables.go
 +++ b/server/internal/userdata/changed_tables.go
 @@ -74,7 +74,7 @@ func ChangedTables(before, after *store.UserState) []string {
@@ -4832,6 +5180,7 @@ diff --git a/server/internal/userdata/changed_tables.go b/server/internal/userda
  		return []string{"userId", "deckType", "userDeckNumber"}
  	case "IUserDeckSubWeaponGroup":
 diff --git a/server/internal/userdata/proj_deck.go b/server/internal/userdata/proj_deck.go
+index 5431d2f..8ec2b92 100644
 --- a/server/internal/userdata/proj_deck.go
 +++ b/server/internal/userdata/proj_deck.go
 @@ -37,9 +37,29 @@ func init() {
@@ -4867,256 +5216,8 @@ diff --git a/server/internal/userdata/proj_deck.go b/server/internal/userdata/pr
  }
  
  func sortedDeckRecords(user store.UserState) []map[string]any {
-diff --git a/server/internal/userdata/state_projection.go b/server/internal/userdata/state_projection.go
---- a/server/internal/userdata/state_projection.go
-+++ b/server/internal/userdata/state_projection.go
-@@ -17,6 +17,7 @@ func FullClientTableMap(user store.UserState) map[string]string {
- 		"IUserPvpStatus":                          projectTable("IUserPvpStatus", user),
- 		"IUserPvpWeeklyResult":                    projectTable("IUserPvpWeeklyResult", user),
- 		"IUserCharacter":                          projectTable("IUserCharacter", user),
-+		"IUserCharacterCostumeLevelBonus":         projectTable("IUserCharacterCostumeLevelBonus", user),
- 		"IUserCostume":                            projectTable("IUserCostume", user),
- 		"IUserWeapon":                             projectTable("IUserWeapon", user),
- 		"IUserWeaponStory":                        projectTable("IUserWeaponStory", user),
-@@ -107,6 +108,7 @@ func FullClientTableMap(user store.UserState) map[string]string {
- 		"IUserFacebook":                           projectTable("IUserFacebook", user),
- 		"IUserApple":                              projectTable("IUserApple", user),
- 		"IUserWebviewPanelMission":                projectTable("IUserWebviewPanelMission", user),
-+		"IUserCharacterViewerField":               projectTable("IUserCharacterViewerField", user),
- 	}
- }
- 
-diff --git a/server/internal/service/consumableitem.go b/server/internal/service/consumableitem.go
---- a/server/internal/service/consumableitem.go
-+++ b/server/internal/service/consumableitem.go
-@@ -53,6 +53,8 @@ func (s *ConsumableItemServiceServer) UseEffectItem(ctx context.Context, req *pb
- 			case model.EffectTargetStaminaRecovery:
- 				millis := store.ResolveStaminaEffectMillis(effect.EffectValueType, effect.EffectValue, maxStaminaMillis)
- 				store.RecoverStamina(user, millis*req.Count, maxStaminaMillis, nowMillis)
-+			case model.EffectTargetBattlePointRecovery:
-+				recoverBattlePoints(user, effect.EffectValueType, effect.EffectValue, req.Count, nowMillis)
- 			default:
- 				log.Printf("[ConsumableItemService] UseEffectItem: unhandled effect targetType=%d valueType=%d value=%d itemId=%d",
- 					effect.EffectTargetType, effect.EffectValueType, effect.EffectValue, req.ConsumableItemId)
-diff --git a/server/internal/service/weapon.go b/server/internal/service/weapon.go
---- a/server/internal/service/weapon.go
-+++ b/server/internal/service/weapon.go
-@@ -79,6 +79,7 @@ func (s *WeaponServiceServer) EnhanceByMaterial(ctx context.Context, req *pb.Enh
- 	userId := CurrentUserId(ctx, s.users, s.sessions)
- 	nowMillis := gametime.NowMillis()
- 
-+	var great bool
- 	_, err := s.users.UpdateUser(userId, func(user *store.UserState) {
- 		weapon, ok := user.Weapons[req.UserWeaponUuid]
- 		if !ok {
-@@ -92,11 +93,11 @@ func (s *WeaponServiceServer) EnhanceByMaterial(ctx context.Context, req *pb.Enh
- 			return
- 		}
- 
--		expBonus := cat.Campaign.WeaponExpBonus(campaign.WeaponTarget{
-+		greatRate := cat.Campaign.WeaponGreatSuccessBonus(campaign.WeaponTarget{
- 			WeaponId:      weapon.WeaponId,
- 			WeaponType:    wm.WeaponType,
- 			AttributeType: wm.AttributeType,
--		}, campaign.Filter{NowMillis: nowMillis, UserStatus: campaign.TargetUserStatusAll})
-+		}, campaign.FilterFor(user, nowMillis))
- 
- 		totalExp := int32(0)
- 		totalMaterialCount := int32(0)
-@@ -119,7 +120,7 @@ func (s *WeaponServiceServer) EnhanceByMaterial(ctx context.Context, req *pb.Enh
- 			if mat.WeaponType != 0 && mat.WeaponType == wm.WeaponType {
- 				expPerUnit = expPerUnit * config.MaterialSameWeaponExpCoefficientPermil / 1000
- 			}
--			totalExp += expBonus.Apply(expPerUnit * count)
-+			totalExp += expPerUnit * count
- 		}
- 
- 		if costFunc, ok := catalog.GoldCostByEnhanceId[wm.WeaponSpecificEnhanceId]; ok && totalMaterialCount > 0 {
-@@ -128,6 +129,7 @@ func (s *WeaponServiceServer) EnhanceByMaterial(ctx context.Context, req *pb.Enh
- 			log.Printf("[WeaponService] EnhanceByMaterial: gold cost=%d (materials=%d)", goldCost, totalMaterialCount)
- 		}
- 
-+		totalExp, great = rollGreatSuccess(totalExp, greatRate.Apply(greatSuccessBasePermil), greatSuccessRand)
- 		weapon.Exp += totalExp
- 		levelingEnhanceId := catalog.LevelingEnhanceIdByWeaponId[weapon.WeaponId]
- 		if thresholds, ok := catalog.ExpByEnhanceId[levelingEnhanceId]; ok {
-@@ -157,7 +159,7 @@ func (s *WeaponServiceServer) EnhanceByMaterial(ctx context.Context, req *pb.Enh
- 	}
- 
- 	return &pb.EnhanceByMaterialResponse{
--		IsGreatSuccess:         false,
-+		IsGreatSuccess:         great,
- 		SurplusEnhanceMaterial: map[int32]int32{},
- 	}, nil
- }
-@@ -309,12 +311,21 @@ func (s *WeaponServiceServer) Evolve(ctx context.Context, req *pb.EvolveRequest)
- 		evolvedMaster, ok := catalog.Weapons[evolvedId]
- 		if ok {
- 			if slots, ok := catalog.AbilitySlots[evolvedMaster.WeaponAbilityGroupId]; ok {
-+				// Evolving keeps each slot's ability level; a new slot starts at 1.
-+				levels := map[int32]int32{}
-+				for _, a := range user.WeaponAbilities[req.UserWeaponUuid] {
-+					levels[a.SlotNumber] = a.Level
-+				}
- 				abilities := make([]store.WeaponAbilityState, len(slots))
- 				for i, slot := range slots {
-+					level := levels[slot]
-+					if level < 1 {
-+						level = 1
-+					}
- 					abilities[i] = store.WeaponAbilityState{
- 						UserWeaponUuid: req.UserWeaponUuid,
- 						SlotNumber:     slot,
--						Level:          1,
-+						Level:          level,
- 					}
- 				}
- 				user.WeaponAbilities[req.UserWeaponUuid] = abilities
-@@ -691,6 +702,7 @@ func (s *WeaponServiceServer) EnhanceByWeapon(ctx context.Context, req *pb.Enhan
- 	userId := CurrentUserId(ctx, s.users, s.sessions)
- 	nowMillis := gametime.NowMillis()
- 
-+	var great bool
- 	_, err := s.users.UpdateUser(userId, func(user *store.UserState) {
- 		weapon, ok := user.Weapons[req.UserWeaponUuid]
- 		if !ok {
-@@ -704,11 +716,11 @@ func (s *WeaponServiceServer) EnhanceByWeapon(ctx context.Context, req *pb.Enhan
- 			return
- 		}
- 
--		expBonus := cat.Campaign.WeaponExpBonus(campaign.WeaponTarget{
-+		greatRate := cat.Campaign.WeaponGreatSuccessBonus(campaign.WeaponTarget{
- 			WeaponId:      weapon.WeaponId,
- 			WeaponType:    wm.WeaponType,
- 			AttributeType: wm.AttributeType,
--		}, campaign.Filter{NowMillis: nowMillis, UserStatus: campaign.TargetUserStatusAll})
-+		}, campaign.FilterFor(user, nowMillis))
- 
- 		totalExp := int32(0)
- 		consumedCount := int32(0)
-@@ -730,7 +742,7 @@ func (s *WeaponServiceServer) EnhanceByWeapon(ctx context.Context, req *pb.Enhan
- 			if matMaster.WeaponType != 0 && matMaster.WeaponType == wm.WeaponType {
- 				baseExp = baseExp * config.MaterialSameWeaponExpCoefficientPermil / 1000
- 			}
--			totalExp += expBonus.Apply(baseExp)
-+			totalExp += baseExp
- 
- 			if medals, ok := catalog.MedalsByWeaponId[matWeapon.WeaponId]; ok {
- 				for itemId, count := range medals {
-@@ -751,6 +763,7 @@ func (s *WeaponServiceServer) EnhanceByWeapon(ctx context.Context, req *pb.Enhan
- 			log.Printf("[WeaponService] EnhanceByWeapon: gold cost=%d (weapons=%d)", goldCost, consumedCount)
- 		}
- 
-+		totalExp, great = rollGreatSuccess(totalExp, greatRate.Apply(greatSuccessBasePermil), greatSuccessRand)
- 		weapon.Exp += totalExp
- 		levelingEnhanceId := catalog.LevelingEnhanceIdByWeaponId[weapon.WeaponId]
- 		if thresholds, ok := catalog.ExpByEnhanceId[levelingEnhanceId]; ok {
-@@ -780,7 +793,7 @@ func (s *WeaponServiceServer) EnhanceByWeapon(ctx context.Context, req *pb.Enhan
- 	}
- 
- 	return &pb.EnhanceByWeaponResponse{
--		IsGreatSuccess:       false,
-+		IsGreatSuccess:       great,
- 		SurplusEnhanceWeapon: []string{},
- 	}, nil
- }
-diff --git a/server/internal/service/gameplay.go b/server/internal/service/gameplay.go
---- a/server/internal/service/gameplay.go
-+++ b/server/internal/service/gameplay.go
-@@ -5,22 +5,32 @@ import (
- 	"log"
- 
- 	pb "lunar-tear/server/gen/proto"
-+	"lunar-tear/server/internal/gametime"
-+	"lunar-tear/server/internal/runtime"
-+	"lunar-tear/server/internal/store"
- )
- 
- type GameplayServiceServer struct {
- 	pb.UnimplementedGamePlayServiceServer
-+	users    store.UserRepository
-+	sessions store.SessionRepository
-+	holder   *runtime.Holder
- }
- 
--func NewGameplayServiceServer() *GameplayServiceServer {
--	return &GameplayServiceServer{}
-+func NewGameplayServiceServer(users store.UserRepository, sessions store.SessionRepository, holder *runtime.Holder) *GameplayServiceServer {
-+	return &GameplayServiceServer{users: users, sessions: sessions, holder: holder}
- }
- 
- func (s *GameplayServiceServer) CheckBeforeGamePlay(ctx context.Context, req *pb.CheckBeforeGamePlayRequest) (*pb.CheckBeforeGamePlayResponse, error) {
- 	log.Printf("[GamePlayService] CheckBeforeGamePlay: tr=%s voiceLang=%d textLang=%d",
- 		req.Tr, req.VoiceClientSystemLanguageTypeId, req.TextClientSystemLanguageTypeId)
- 
-+	badges := []*pb.MenuGachaBadgeInfo{}
-+	if user, err := s.users.LoadUser(CurrentUserId(ctx, s.users, s.sessions)); err == nil {
-+		badges = freeSummonBadges(s.holder.Get().GachaEntries, &user, gametime.NowMillis())
-+	}
- 	return &pb.CheckBeforeGamePlayResponse{
- 		IsExistUnreadPop:   false,
--		MenuGachaBadgeInfo: []*pb.MenuGachaBadgeInfo{},
-+		MenuGachaBadgeInfo: badges,
- 	}, nil
- }
-diff --git a/server/internal/service/labyrinth.go b/server/internal/service/labyrinth.go
---- a/server/internal/service/labyrinth.go
-+++ b/server/internal/service/labyrinth.go
-@@ -111,28 +111,34 @@ func (s *LabyrinthServiceServer) ReceiveStageClearReward(ctx context.Context, re
- 	return &pb.ReceiveStageClearRewardResponse{}, nil
- }
- 
-+// UpdateSeasonData is called when the player opens a labyrinth whose open
-+// season they haven't joined: it pays the ended season's reward (the client
-+// plays it as the "reach reward") and joins the new season, which starts the
-+// climb again (see bunker_labyrinth.go).
- func (s *LabyrinthServiceServer) UpdateSeasonData(ctx context.Context, req *pb.UpdateSeasonDataRequest) (*pb.UpdateSeasonDataResponse, error) {
--	laby := s.holder.Get().Labyrinth
--
--	var seasonResult []*pb.LabyrinthSeasonResult
--	for _, m := range laby.SeasonMilestones(req.EventQuestChapterId) {
--		rewards := make([]*pb.LabyrinthReward, 0, len(m.Rewards))
--		for _, it := range m.Rewards {
--			rewards = append(rewards, &pb.LabyrinthReward{
--				PossessionType: it.PossessionType,
--				PossessionId:   it.PossessionId,
--				Count:          it.Count,
--			})
-+	cat := s.holder.Get()
-+	laby := cat.Labyrinth
-+	granter := cat.QuestHandler.Granter
-+	now := gametime.NowMillis()
-+	userId := CurrentUserId(ctx, s.users, s.sessions)
-+
-+	seasonResult := []*pb.LabyrinthSeasonResult{}
-+	joined := false
-+	if _, err := s.users.UpdateUser(userId, func(u *store.UserState) {
-+		for _, ch := range laby.ChaptersByOrder {
-+			if ch.EventQuestChapterId != req.EventQuestChapterId {
-+				continue
-+			}
-+			if result := settleLabyrinthSeason(laby, granter, u, ch, now); result != nil {
-+				seasonResult = append(seasonResult, result)
-+			}
-+			joined = joinLabyrinthSeason(u, ch.EventQuestChapterId, now)
- 		}
--		seasonResult = append(seasonResult, &pb.LabyrinthSeasonResult{
--			EventQuestChapterId: req.EventQuestChapterId,
--			HeadQuestId:         m.HeadQuestId,
--			SeasonReward:        rewards,
--			HeadStageOrder:      m.HeadStageOrder,
--		})
-+	}); err != nil {
-+		return nil, err
- 	}
- 
--	log.Printf("[LabyrinthService] UpdateSeasonData: chapter=%d -> %d milestone(s)",
--		req.EventQuestChapterId, len(seasonResult))
-+	log.Printf("[LabyrinthService] UpdateSeasonData: chapter=%d paid %d season reward(s), new season %v",
-+		req.EventQuestChapterId, len(seasonResult), joined)
- 	return &pb.UpdateSeasonDataResponse{SeasonResult: seasonResult}, nil
- }
 diff --git a/server/internal/userdata/proj_user.go b/server/internal/userdata/proj_user.go
+index 439984b..2a80500 100644
 --- a/server/internal/userdata/proj_user.go
 +++ b/server/internal/userdata/proj_user.go
 @@ -79,14 +79,28 @@ func init() {
@@ -5156,67 +5257,23 @@ diff --git a/server/internal/userdata/proj_user.go b/server/internal/userdata/pr
  		return s
  	})
  	register("IUserTutorialProgress", func(user store.UserState) string {
-diff --git a/server/internal/questflow/campaign.go b/server/internal/questflow/campaign.go
---- a/server/internal/questflow/campaign.go
-+++ b/server/internal/questflow/campaign.go
-@@ -3,6 +3,7 @@ package questflow
- import (
- 	"lunar-tear/server/internal/campaign"
- 	"lunar-tear/server/internal/model"
-+	"lunar-tear/server/internal/store"
- )
- 
- func (h *QuestHandler) targetForMain(questId int32) campaign.QuestTarget {
-@@ -30,22 +31,22 @@ func (h *QuestHandler) targetForBigHunt(questId int32) campaign.QuestTarget {
- 	return campaign.QuestTarget{QuestId: questId, QuestType: campaign.QuestTypeBigHunt}
- }
- 
--func (h *QuestHandler) campaignFilter(nowMillis int64) campaign.Filter {
--	return campaign.Filter{NowMillis: nowMillis, UserStatus: campaign.TargetUserStatusAll}
-+func (h *QuestHandler) campaignFilter(user *store.UserState, nowMillis int64) campaign.Filter {
-+	return campaign.FilterFor(user, nowMillis)
- }
- 
--func (h *QuestHandler) staminaWithCampaign(baseStamina int32, t campaign.QuestTarget, nowMillis int64) int32 {
-+func (h *QuestHandler) staminaWithCampaign(user *store.UserState, baseStamina int32, t campaign.QuestTarget, nowMillis int64) int32 {
- 	if h.Campaigns == nil {
- 		return baseStamina
+diff --git a/server/internal/userdata/state_projection.go b/server/internal/userdata/state_projection.go
+index dccd838..3aebaf5 100644
+--- a/server/internal/userdata/state_projection.go
++++ b/server/internal/userdata/state_projection.go
+@@ -17,6 +17,7 @@ func FullClientTableMap(user store.UserState) map[string]string {
+ 		"IUserPvpStatus":                          projectTable("IUserPvpStatus", user),
+ 		"IUserPvpWeeklyResult":                    projectTable("IUserPvpWeeklyResult", user),
+ 		"IUserCharacter":                          projectTable("IUserCharacter", user),
++		"IUserCharacterCostumeLevelBonus":         projectTable("IUserCharacterCostumeLevelBonus", user),
+ 		"IUserCostume":                            projectTable("IUserCostume", user),
+ 		"IUserWeapon":                             projectTable("IUserWeapon", user),
+ 		"IUserWeaponStory":                        projectTable("IUserWeaponStory", user),
+@@ -107,6 +108,7 @@ func FullClientTableMap(user store.UserState) map[string]string {
+ 		"IUserFacebook":                           projectTable("IUserFacebook", user),
+ 		"IUserApple":                              projectTable("IUserApple", user),
+ 		"IUserWebviewPanelMission":                projectTable("IUserWebviewPanelMission", user),
++		"IUserCharacterViewerField":               projectTable("IUserCharacterViewerField", user),
  	}
--	return h.Campaigns.QuestStamina(t, h.campaignFilter(nowMillis)).Apply(baseStamina)
-+	return h.Campaigns.QuestStamina(t, h.campaignFilter(user, nowMillis)).Apply(baseStamina)
  }
  
--func (h *QuestHandler) appendBonusDrops(drops []RewardGrant, t campaign.QuestTarget, nowMillis int64) []RewardGrant {
-+func (h *QuestHandler) appendBonusDrops(user *store.UserState, drops []RewardGrant, t campaign.QuestTarget, nowMillis int64) []RewardGrant {
- 	if h.Campaigns == nil {
- 		return drops
- 	}
--	for _, bd := range h.Campaigns.QuestBonusDrops(t, h.campaignFilter(nowMillis)) {
-+	for _, bd := range h.Campaigns.QuestBonusDrops(t, h.campaignFilter(user, nowMillis)) {
- 		drops = append(drops, RewardGrant{
- 			PossessionType: model.PossessionType(bd.PossessionType),
- 			PossessionId:   bd.PossessionId,
-diff --git a/server/internal/service/parts.go b/server/internal/service/parts.go
---- a/server/internal/service/parts.go
-+++ b/server/internal/service/parts.go
-@@ -187,7 +187,7 @@ func (s *PartsServiceServer) Enhance(ctx context.Context, req *pb.PartsEnhanceRe
- 			PartsId:      part.PartsId,
- 			PartsGroupId: partDef.PartsGroupId,
- 			Rarity:       model.RarityType(partDef.RarityType),
--		}, campaign.Filter{NowMillis: nowMillis, UserStatus: campaign.TargetUserStatusAll}).Apply(baseRate)
-+		}, campaign.FilterFor(user, nowMillis)).Apply(baseRate)
- 
- 		if rand.Intn(1000) < int(successRate) {
- 			part.Level++
-diff --git a/server/internal/service/omikuji.go b/server/internal/service/omikuji.go
---- a/server/internal/service/omikuji.go
-+++ b/server/internal/service/omikuji.go
-@@ -36,7 +36,7 @@ func (s *OmikujiServiceServer) OmikujiDraw(ctx context.Context, req *pb.OmikujiD
- 	}
- 
- 	return &pb.OmikujiDrawResponse{
--		OmikujiResultAssetId: s.holder.Get().Omikuji.LookupAssetId(req.OmikujiId),
-+		OmikujiResultAssetId: s.holder.Get().Omikuji.DrawFortune(req.OmikujiId),
- 		OmikujiItem:          []*pb.OmikujiItem{},
- 	}, nil
- }

@@ -93,7 +93,9 @@ def configure(data_root, asset_root, tools_root, native, reporter=None):
 
 
 def adapt_services():
-    from web.services import backup_service, service_control
+    # The fork renamed service_control.py to server_control_service.py and
+    # reworked it around Docker; on-device there is nothing to control.
+    from web.services import backup_service, server_control_service as service_control
     service_control.available = lambda: False
     service_control.unavailable_reason = lambda: "The game is stopped while Tools is open."
     service_control.is_active = lambda: False
@@ -178,7 +180,8 @@ def adapt_services():
             if config.GAME_DB_PATH.exists():
                 backup("pre-restore")
             swap(selected)
-            return backup_service.RestoreResult(source=info, steps=("Previous save backed up",), server_restarted=False)
+            # The fork's backup_service returns BackupInfo, not RestoreResult.
+            return info
         finally:
             selected.unlink(missing_ok=True)
     backup_service.restore_backup = restore

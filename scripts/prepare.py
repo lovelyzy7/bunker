@@ -61,8 +61,11 @@ def prepare():
         python.mkdir(parents=True)
         shutil.copytree(base / "web", python / "web")
         (python / "tools").mkdir()
-        for name in ("dump_masterdata.py", "extract_names.py", "schemas.json"):
-            shutil.copy2(base / "tools" / name, python / "tools" / name)
+        # extract_names.py still lives in lunar-base's tools; the master-data
+        # dump tools moved to the lunar-scripts repos (lunar-base dropped them).
+        shutil.copy2(base / "tools" / "extract_names.py", python / "tools" / "extract_names.py")
+        for name in ("dump_masterdata.py", "schemas.json"):
+            shutil.copy2(ROOT / "upstream/lunar-scripts" / name, python / "tools" / name)
         (python / "tools/__init__.py").touch()
         shutil.copytree(patcher, python / "patcher")
         (python / "patcher/__init__.py").touch()
@@ -92,7 +95,7 @@ def prepare():
         pending = marker.with_suffix(".tmp")
         pending.write_text(json.dumps(files, indent=2) + "\n")
         pending.replace(marker)
-    print(f"Prepared {len(files)} files from four pinned submodules.")
+    print(f"Prepared {len(files)} files from five pinned submodules.")
 
 
 if __name__ == "__main__":

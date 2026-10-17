@@ -1,7 +1,8 @@
 diff --git a/server/internal/service/user.go b/server/internal/service/user.go
+index 4041868..f1eae1a 100644
 --- a/server/internal/service/user.go
 +++ b/server/internal/service/user.go
-@@ -3,6 +3,7 @@
+@@ -3,6 +3,7 @@ package service
  import (
  	"context"
  	"encoding/json"
@@ -9,8 +10,8 @@ diff --git a/server/internal/service/user.go b/server/internal/service/user.go
  	"fmt"
  	"log"
  	"net/http"
-@@ -68,6 +69,16 @@
- 	log.Printf("[UserService] Auth: uuid=%s platform=%s", req.Uuid, platform)
+@@ -72,6 +73,16 @@ func (s *UserServiceServer) Auth(ctx context.Context, req *pb.AuthUserRequest) (
+ 	log.Printf("[UserService] Auth REQ DUMP: %+v", req)
  
  	session, err := s.sessions.CreateSession(req.Uuid, 24*time.Hour)
 +	if errors.Is(err, store.ErrNotFound) && !s.noRegister {

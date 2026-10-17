@@ -335,13 +335,14 @@ More detail: [Android setup guide](docs/BUILD.md) and [iOS guide](docs/IOS.md).
 
 ## Pinned upstream projects
 
-All four are Git submodules fixed to the tested commits. Both platforms build from these exact versions.
+All five are Git submodules fixed to the tested commits. Both platforms build from these exact versions.
 
 | Project | Pinned commit |
 | --- | --- |
-| [Lunar Tear](https://gitlab.com/walter-sparrow-group/lunar-tear) | `63df7d70556a7` |
+| [Lunar Tear (JP/EN fork)](https://github.com/lovelyzy7/lunar-tear-jp_en) | `2b912f553fdb0` |
 | [Lunar Scripts](https://gitlab.com/walter-sparrow-group/lunar-scripts) | `942dced617ea` |
-| [Lunar Base](https://github.com/NMeliksah/lunar-base) | `b39154099b8f` |
+| [Lunar Scripts (JP)](https://github.com/lovelyzy7/lunar-scripts-jp) | `b84faf515fd94` |
+| [Lunar Base (bilingual fork)](https://github.com/lovelyzy7/lunar-base) | `4211ecc06310e` |
 | [Master-data patcher](https://github.com/NavHobbyDev/lunar-tear-masterdata-patcher) | `9b6cd167b51d` |
 
 Full pins: [upstream.lock.json](upstream.lock.json). Credits: [third-party notes](android/THIRD-PARTY.md).

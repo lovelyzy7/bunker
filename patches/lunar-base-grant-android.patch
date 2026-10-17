@@ -1,113 +1,8 @@
+diff --git a/server/internal/lunarbase/main.go b/server/internal/lunarbase/main.go
+index e7ee50d..b847d86 100644
 --- a/server/internal/lunarbase/main.go
 +++ b/server/internal/lunarbase/main.go
-@@ -13,64 +13,63 @@
- // stdout, exit 0 on success and 1 on failure.
- //
- // Actions:
--//   grant_possession         - apply a single GrantPossession to one user
--//   grant_batch              - apply many GrantPossession calls inside one
--//                              UpdateUser transaction (Item Editor MAX ALL etc.)
--//   grant_costume_batch      - load master data, build a PossessionGranter,
--//                              then apply many GrantCostume calls inside one
--//                              UpdateUser transaction (Costume Editor)
--//   grant_weapon_batch       - same plumbing as grant_costume_batch, but calls
--//                              GrantWeapon per id (Weapon Editor)
--//   grant_companion_batch    - same plumbing, calls GrantCompanion per id
--//                              (Upgrade Manager: Add All Missing Companions)
--//   grant_thought_batch      - insert a ThoughtState per id, self-skipping
--//                              already-owned thoughts (Upgrade Manager:
--//                              Add All Missing Debris)
--//   exalt_characters         - set CharacterRebirths[id] to a target rebirth
--//                              count (Upgrade Manager: Exalt All)
--//   release_panels           - load CharacterBoardCatalog, release the given
--//                              panel ids and apply their effects (Upgrade
--//                              Manager: Fill Mythic Slab Pages)
--//   upgrade_all_companions   - set every owned companion to max level (50).
--//   upgrade_all_weapons      - load WeaponCatalog and, for every owned weapon,
--//                              evolve to chain end, ascend to LB cap, refine
--//                              if eligible, enhance to level cap, set all
--//                              skills + abilities to max level (cost-bypass).
--//   upgrade_all_costumes     - load CostumeCatalog and, for every owned
--//                              costume, awaken to 5 (granting Debris and
--//                              status-up rows), ascend to LB cap, enhance to
--//                              level cap, set active skill to max, unlock 3
--//                              karma slots for SSR (cost-bypass; karma rolls
--//                              are still left to the player).
--//   fill_karma_slots         - for every already-unlocked karma slot, pick
--//                              the user's preferred (effect_type, target_id)
--//                              from the slot's odds pool. Falls back to
--//                              rarest if the costume's pool doesn't carry
--//                              the chosen effect. Always overwrites.
--//   set_costume_karma_batch  - per-costume karma write. Each spec carries
--//                              {costume_id, karma: {slot: odds_number}};
--//                              the shim looks up the user_costume by id,
--//                              writes the OddsNumber, skips if same.
--//   grant_memoir_batch       - insert N new memoirs (Parts rows) with chosen
--//                              level, primary main-stat, and sub-stat rows.
--//                              Pre-flights against the 999-row inventory cap.
--//   upgrade_all_memoirs      - set every owned memoir's Level to 15 (no RNG
--//                              enhance loop, no sub-stat fill).
--//   set_memoir_subs_batch    - overwrite sub-status rows for given
--//                              user_parts_uuids with caller-chosen slot
--//                              configurations.
--//   mark_contents_stories_played - write user.ContentsStories[id]=now for
--//                              each id, marking cutscenes as viewed.
--//                              Used to clear the Dark Memory cutscene
--//                              queue after mass-grants.
-+//
-+//	grant_possession         - apply a single GrantPossession to one user
-+//	grant_batch              - apply many GrantPossession calls inside one
-+//	                           UpdateUser transaction (Item Editor MAX ALL etc.)
-+//	grant_costume_batch      - load master data, build a PossessionGranter,
-+//	                           then apply many GrantCostume calls inside one
-+//	                           UpdateUser transaction (Costume Editor)
-+//	grant_weapon_batch       - same plumbing as grant_costume_batch, but calls
-+//	                           GrantWeapon per id (Weapon Editor)
-+//	grant_companion_batch    - same plumbing, calls GrantCompanion per id
-+//	                           (Upgrade Manager: Add All Missing Companions)
-+//	grant_thought_batch      - insert a ThoughtState per id, self-skipping
-+//	                           already-owned thoughts (Upgrade Manager:
-+//	                           Add All Missing Debris)
-+//	exalt_characters         - set CharacterRebirths[id] to a target rebirth
-+//	                           count (Upgrade Manager: Exalt All)
-+//	release_panels           - load CharacterBoardCatalog, release the given
-+//	                           panel ids and apply their effects (Upgrade
-+//	                           Manager: Fill Mythic Slab Pages)
-+//	upgrade_all_companions   - set every owned companion to max level (50).
-+//	upgrade_all_weapons      - load WeaponCatalog and, for every owned weapon,
-+//	                           evolve to chain end, ascend to LB cap, refine
-+//	                           if eligible, enhance to level cap, set all
-+//	                           skills + abilities to max level (cost-bypass).
-+//	upgrade_all_costumes     - load CostumeCatalog and, for every owned
-+//	                           costume, awaken to 5 (granting Debris and
-+//	                           status-up rows), ascend to LB cap, enhance to
-+//	                           level cap, set active skill to max, unlock 3
-+//	                           karma slots for SSR (cost-bypass; karma rolls
-+//	                           are still left to the player).
-+//	fill_karma_slots         - for every already-unlocked karma slot, pick
-+//	                           the user's preferred (effect_type, target_id)
-+//	                           from the slot's odds pool. Falls back to
-+//	                           rarest if the costume's pool doesn't carry
-+//	                           the chosen effect. Always overwrites.
-+//	set_costume_karma_batch  - per-costume karma write. Each spec carries
-+//	                           {costume_id, karma: {slot: odds_number}};
-+//	                           the shim looks up the user_costume by id,
-+//	                           writes the OddsNumber, skips if same.
-+//	grant_memoir_batch       - insert N new memoirs (Parts rows) with chosen
-+//	                           level, primary main-stat, and sub-stat rows.
-+//	                           Pre-flights against the 999-row inventory cap.
-+//	upgrade_all_memoirs      - set every owned memoir's Level to 15 (no RNG
-+//	                           enhance loop, no sub-stat fill).
-+//	set_memoir_subs_batch    - overwrite sub-status rows for given
-+//	                           user_parts_uuids with caller-chosen slot
-+//	                           configurations.
-+//	mark_contents_stories_played - write user.ContentsStories[id]=now for
-+//	                           each id, marking cutscenes as viewed.
-+//	                           Used to clear the Dark Memory cutscene
-+//	                           queue after mass-grants.
- package lunarbase
- 
- import (
+@@ -81,8 +81,6 @@ import (
  	"encoding/json"
  	"errors"
  	"fmt"
@@ -116,16 +11,7 @@
  	"time"
  
  	"lunar-tear/server/internal/database"
-@@ -113,7 +112,7 @@
- // catalog before invoking the shim, so the shim only has to find the
- // user_costume by id and write the value.
- type costumeKarmaSpec struct {
--	CostumeID int32           `json:"costume_id"`
-+	CostumeID int32            `json:"costume_id"`
- 	Karma     map[string]int32 `json:"karma"` // slot ("1"/"2"/"3") -> odds_number
- }
- 
-@@ -194,6 +193,13 @@
+@@ -233,6 +231,13 @@ func runStackable(req *request, grants []grantSpec) (int, error) {
  		return 0, err
  	}
  	defer db.Close()
@@ -139,12 +25,10 @@
  	_, err = st.UpdateUser(req.UserID, func(u *store.UserState) {
  		for _, g := range grants {
  			store.GrantPossession(u, model.PossessionType(g.PossessionType), g.PossessionID, g.Count)
-@@ -203,6 +209,55 @@
- 		return 0, fmt.Errorf("grant: %w", err)
- 	}
+@@ -244,6 +249,55 @@ func runStackable(req *request, grants []grantSpec) (int, error) {
  	return len(grants), nil
-+}
-+
+ }
+ 
 +// Check the complete batch before writing. Repeated large grants must not wrap
 +// the game's signed 32-bit quantities into negative inventory balances.
 +func validateStackable(user *store.UserState, grants []grantSpec) error {
@@ -192,10 +76,12 @@
 +		return errors.New("grant would exceed the game's inventory limit")
 +	}
 +	return nil
- }
- 
++}
++
  func runCostumeBatch(req *request) (int, error) {
-@@ -298,11 +353,7 @@
+ 	if req.MasterDataPath == "" {
+ 		return 0, errors.New("master_data_path required for grant_costume_batch")
+@@ -347,11 +401,7 @@ func runWeaponBatch(req *request) (int, error) {
  	return len(req.Weapons), nil
  }
  
@@ -208,7 +94,7 @@
  	var req request
  	if err := json.Unmarshal(raw, &req); err != nil {
  		return 0, fmt.Errorf("parse json: %w", err)
-@@ -363,12 +414,19 @@
+@@ -428,15 +478,17 @@ func run() (int, error) {
  	}
  }
  
@@ -219,8 +105,8 @@
 -		_ = enc.Encode(response{OK: false, Error: err.Error()})
 -		os.Exit(1)
 -	}
--	_ = enc.Encode(response{OK: true, Applied: applied})
--}
+-	_ = enc.Encode(response{
+-		OK:              true,
 +// Execute runs the upstream grant protocol in-process, without a child executable.
 +func Execute(raw []byte) (result string) {
 +	defer func() {
@@ -230,16 +116,28 @@
 +		}
 +	}()
 +	applied, err := run(raw)
-+	reply := response{OK: err == nil, Applied: applied}
++	reply := response{
++		OK:              err == nil,
+ 		Applied:         applied,
+ 		QuestIDs:        queryQuestIDs,
+ 		Quests:          queryQuests,
+@@ -444,5 +496,10 @@ func main() {
+ 		TutorialSkipped: queryTutorialSkipped,
+ 		DeckCreated:     queryDeckCreated,
+ 		CompanionID:     queryCompanionID,
+-	})
++	}
 +	if err != nil {
 +		reply.Error = err.Error()
 +	}
 +	encoded, _ := json.Marshal(reply)
 +	return string(encoded)
-+}
+ }
+diff --git a/server/internal/lunarbase/memoirs.go b/server/internal/lunarbase/memoirs.go
+index db88dc3..b3252b6 100644
 --- a/server/internal/lunarbase/memoirs.go
 +++ b/server/internal/lunarbase/memoirs.go
-@@ -31,7 +31,7 @@
+@@ -31,7 +31,7 @@ import (
  )
  
  const (
@@ -248,9 +146,11 @@
  	memoirInventoryCap = 999
  )
  
+diff --git a/server/internal/lunarbase/upgrades.go b/server/internal/lunarbase/upgrades.go
+index 9810f8f..9ed562c 100644
 --- a/server/internal/lunarbase/upgrades.go
 +++ b/server/internal/lunarbase/upgrades.go
-@@ -108,8 +108,8 @@
+@@ -108,8 +108,8 @@ func runExalt(req *request) (int, error) {
  
  // runReleasePanels mirrors lunar-tear's CharacterBoardService.ReleasePanel
  // flow, minus cost consumption. For every panel id in the request we:

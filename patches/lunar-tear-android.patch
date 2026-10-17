@@ -1,8 +1,8 @@
 diff --git a/server/internal/service/data.go b/server/internal/service/data.go
-index c99869b..f0ee106 100644
+index 7ac99c7..dba192c 100644
 --- a/server/internal/service/data.go
 +++ b/server/internal/service/data.go
-@@ -25,20 +25,29 @@ const masterDataBaseVersion = "20240404193219"
+@@ -34,20 +34,29 @@ func envOr(key, def string) string {
  
  type DataServiceServer struct {
  	pb.UnimplementedDataServiceServer

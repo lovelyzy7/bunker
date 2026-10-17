@@ -4,6 +4,34 @@ What changed in Bunker, newest first. Each day lists its changes by area.
 Commit ids are in brackets. Each release's heading sits above the dated
 sections it contains; its notes run down to the previous release.
 
+## Unreleased
+
+### Upstream
+
+- Lunar Tear is now the JP/EN fork (`lovelyzy7/lunar-tear-jp_en`, pinned
+  `2b912f553fdb0`), which serves both the JP (3.7.1) and the EN client from
+  one instance, adds the JP transfer pages, and fixes the octo
+  master-data and maintenance answers.
+- Lunar Base is now the bilingual fork (`lovelyzy7/lunar-base`, pinned
+  `4211ecc06310e`), which adds a 中文/EN toggle on every page, one-click
+  admin setup, and further editors.
+- Added Lunar Scripts (JP) (`lovelyzy7/lunar-scripts-jp`, pinned
+  `b84faf515fd94`) for the JP client patch pipeline (not used by builds yet).
+- All seven server patches were re-based onto the fork and the full Go test
+  suite passes. The fork's Individualpop/Pvp stubs give way to Bunker's
+  implementations, the premium draw keeps the original five-tier rates
+  (Pod Programs remains the way to change them), and the grant shim runs
+  in-process with the fork's added actions (quests, tutorials).
+
+### Web console (Pod Programs)
+
+- The bundled Python now ships `itsdangerous` and treats `bcrypt` as
+  optional: on device it is absent, game-account and admin password login
+  answer "bad credentials", and everything else works. On a host venv the
+  fork's full login works as before.
+- `android_runtime.py` adapts to the fork's renamed server-control service
+  and its `BackupInfo` restore result.
+
 ## 1.0.1 (2026-10-15)
 
 Summon fixes and smoother updates.
