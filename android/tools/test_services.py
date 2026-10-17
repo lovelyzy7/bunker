@@ -62,15 +62,27 @@ def main() -> int:
         check, invoke = PROFILE_NAMES.get(name, SHARED)
         before = len(failures)
         for helper in (check, invoke):
-            if not hasattr(module, helper):
+            fn = getattr(module, helper, None)
+            if fn is None:
                 failures.append(f"{name}: {helper} missing")
                 continue
+            # adapt_services() replaces the helper with its own closure; the
+            # original one lives in the service module and shells out to the
+            # desktop executable (which does not exist on a phone).
+            owner = getattr(fn, "__module__", "")
+            if owner != "android_runtime":
+                failures.append(f"{name}.{helper}: still runs {owner}.{fn.__name__}")
+                continue
+            if helper != invoke:
+                try:
+                    fn()
+                except Exception as exc:  # the check itself must pass on device
+                    failures.append(f"{name}.{helper}(): {exc}")
+                continue
             try:
-                getattr(module, helper)({"action": "probe"}) if helper == invoke else getattr(module, helper)()
-            except AttributeError as exc:
+                fn({"action": "probe"})
+            except Exception as exc:
                 failures.append(f"{name}.{helper}: {exc}")
-            except Exception:
-                pass  # the stub answers ok; anything else is a wrapper's own validation
         print(f"{'OK  ' if len(failures) == before else 'FAIL'} {name}", flush=True)
 
     payloads = [c for c in calls if c.get("action") == "probe"]

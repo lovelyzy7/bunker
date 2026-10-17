@@ -49,3 +49,6 @@ xcuserdata/
 ios/devtools/LunarDevice.xcodeproj/
 /android/app/src/main/python/bunker_tools/
 /android/app/src/main/python/data/
+
+# Local agent session state
+.pi/

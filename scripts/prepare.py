@@ -40,7 +40,12 @@ def prepare():
     work = ROOT / ".build"
     work.mkdir(exist_ok=True)
     marker = work / "prepared.json"
-    previous = json.loads(marker.read_text(encoding="utf-8")) if marker.exists() else {}
+    # A marker written on Windows holds `server\\go.mod`; this script keys every
+    # path with forward slashes, so normalize on load (Windows and POSIX runs
+    # then agree about what it generated and what is a hand edit).
+    previous = ({name.replace("\\", "/"): value
+                 for name, value in json.loads(marker.read_text(encoding="utf-8")).items()}
+                if marker.exists() else {})
     for name, expected in previous.items():
         path = ROOT / name
         if path.exists() and digest(path) != expected:
