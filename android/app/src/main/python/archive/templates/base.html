@@ -24,6 +24,18 @@
   <script src="{{ asset('i18n-zh.js') }}" defer></script>
 </head>
 <body>
+  {# 语言按钮放在顶部操作区，不放进会换行的 nav：导航在最右侧的链接之后换行时，
+     按钮不会与链接重叠，也不会贴到屏幕边缘。 #}
+  <div class="terminal-bar">
+    <div class="left">
+      <span>YoRHa</span>
+      <span>Bunker Terminal</span>
+      <span>Archive</span>
+    </div>
+    <div class="right">
+      <button type="button" id="archive-lang" class="lang-toggle" aria-label="Switch language">EN</button>
+    </div>
+  </div>
   <nav class="primary">
     {% for key, label, href in sections %}<a href="{{ href }}"{% if active == key %} class="active"{% endif %}>{{ label }}</a>{% endfor %}
   </nav>

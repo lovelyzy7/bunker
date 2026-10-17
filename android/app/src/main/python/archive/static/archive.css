@@ -13,8 +13,13 @@
 .search-box input[type="text"] { width: 100%; }
 
 /* Segmented control: the story and record types. */
-.seg { display: flex; border: 2px solid var(--accent); margin: 0 0 8px; }
-.seg a { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 4px; font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--fg-dark); text-align: center; }
+.seg { display: flex; flex-wrap: wrap; border: 2px solid var(--accent); margin: 0 0 8px; }
+.seg a { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; min-height: 44px;
+  padding: 0 10px; font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--fg-dark); text-align: center; white-space: nowrap; }
+@media (max-width: 520px) {
+  .seg a { flex: 1 1 calc(50% - 2px); font-size: 12px; letter-spacing: .04em; }
+}
 .seg a.on, .seg a:hover { background: var(--accent); color: var(--bg-cream); }
 
 /* Collapsible record panels. */
@@ -67,12 +72,13 @@ footer.pager .button { display: inline-flex; align-items: center; min-height: 44
 .tool-grid a span, .tool-grid span span { text-transform: none; }
 
 /* Art grids: characters, costumes and gallery groups. The hatching shows while an image decodes. */
-.cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 12px 0 16px; }
+.cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 12px 0 16px; }
 .cards.wide { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 520px) { .cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (min-width: 700px) { .cards { grid-template-columns: repeat(5, minmax(0, 1fr)); } .cards.wide { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .card { display: flex; flex-direction: column; gap: 4px; color: var(--fg-dark); min-width: 0; }
 .card:hover { background: transparent; color: var(--fg-dark); }
-.card strong { font-size: 13px; overflow-wrap: anywhere; }
+.card strong { font-size: 13px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .card .note { font-size: 11px; overflow-wrap: anywhere; }
 .art { display: block; position: relative; aspect-ratio: 4 / 3; overflow: hidden; border: 1px solid var(--accent);
   background-color: var(--bg-cream-dark); background-image: repeating-linear-gradient(135deg, transparent 0, transparent 7px, var(--line) 7px, var(--line) 8px); }
@@ -151,9 +157,41 @@ body:has(footer.player-bar[hidden]) { padding-bottom: 16px; }
 a.sched-row:hover { background: var(--bg-cream-dark); color: var(--fg-dark); }
 .seg.tight a { letter-spacing: 0.04em; }
 
-/* 语言开关（档案馆） */
-nav.primary .lang-toggle {
-  margin-left: auto; align-self: center; font: 11px/1 ui-monospace, monospace;
-  letter-spacing: .12em; padding: 6px 10px; background: transparent;
-  color: inherit; border: 1px solid currentColor; cursor: pointer;
+/* 语言开关：位于顶部操作区（.terminal-bar .right），样式由 automata.css 的
+   .lang-toggle 提供；这里只保证触控高度与不换行。 */
+.terminal-bar .right .lang-toggle { white-space: nowrap; min-height: 32px; }
+
+/* ---- 窄屏适配（360–520px）--------------------------------------------- */
+@media (max-width: 520px) {
+  main { padding: 0 10px; }
+
+  /* 音乐播放条：曲名一行，进度与倍速一行 */
+  .player-bar { flex-wrap: wrap; row-gap: 8px; }
+  .player-bar .now { flex: 1 1 100%; order: 1; }
+  .player-bar .play { order: 0; }
+  .player-bar input[type="range"] { min-width: 0; }
+
+  /* 列表行：长名称与日期各自换行，不互相挤压 */
+  .record.with-art, .track, .sched-row { gap: 6px 10px; }
+  .record.with-art > *, .track > *, .sched-row > * { min-width: 0; }
+  .sched-row time, .sched-row .when { flex: 0 0 auto; }
+
+  /* 3D 查看器：工具条改到底部横排，避免与保存按钮重叠 */
+  .stage { height: clamp(320px, 54vh, 70vw); }
+  .stage-tools {
+    top: auto; bottom: 8px; right: 8px;
+    flex-direction: row; flex-wrap: wrap; gap: 6px;
+  }
+
+  /* 键值/表格在手机上堆叠 */
+  table { display: block; }
+  table thead { display: none; }
+  table tr { display: block; border-bottom: 1px solid var(--line); padding: 8px 0; }
+  table td, table th { display: block; padding: 2px 0; border: 0; }
+  table td::before { content: attr(data-label); display: inline-block; min-width: 84px; color: var(--fg-mid); font-size: 11px; }
 }
+
+/* 触控目标与按钮组 */
+.chip, button, a.button, .pick { min-height: 44px; }
+.btn-row, .chips, .tool-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn-row > *, .chips > * { flex: 0 0 auto; }

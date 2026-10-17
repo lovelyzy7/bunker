@@ -181,14 +181,10 @@
   // 翻译已就位：显示页面（base.html 在中文会话里先隐藏了 body）。
   try { document.documentElement.classList.remove("i18n-loading"); } catch (e) {}
 
-  var nav = document.querySelector("nav.primary");
-  if (nav && !document.getElementById("archive-lang")) {
-    var toggle = document.createElement("button");
-    toggle.id = "archive-lang";
-    toggle.type = "button";
-    toggle.className = "lang-toggle";
+  // 按钮在 base.html 的顶部操作区里（不在 nav 内）
+  var toggle = document.getElementById("archive-lang");
+  if (toggle) {
     toggle.textContent = lang() === "zh" ? "EN" : "中文";
     toggle.addEventListener("click", function () { setLang(lang() === "zh" ? "en" : "zh"); });
-    nav.appendChild(toggle);
   }
 })();

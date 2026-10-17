@@ -87,6 +87,9 @@ def configure(data_root, asset_root, tools_root, native, reporter=None):
     config.SHIM_LUNAR_TEAR_REF = "Bundled Android server (63df7d7)"
     config.find_master_data_bin = lambda: config.RELEASE_DIR / "20240404193219.bin.e"
     config.DATA_DIR.mkdir(parents=True, exist_ok=True)
+    # The panel is built from lunar-base; this flag lets its nav show the pages
+    # only this build has (content patcher, display, summon rates, calendar).
+    os.environ["LUNAR_BASE_EXTRAS"] = "1"
     sys.path.insert(0, str(config.ROOT / "tools"))
     adapt_services()
     return config
