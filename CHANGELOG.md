@@ -32,6 +32,12 @@ Archive now speaks Japanese.
   build JP. Verified on a phone: a fresh anonymous account reaches the story, and
   the Mod Menu's JP payload works. `scripts/build.py` keeps the full apktool
   route for anyone who wants the social login redirects.
+- **Cloud builds**: `.github/workflows/build-apk.yml` runs the same assembly on
+  a GitHub runner (Actions → Build APK), for either release, with an optional
+  Mod Menu. `scripts/fetch_input.py` downloads the game APK and master data from
+  Drive, a public URL or a private release asset (`GAME_ASSET_TOKEN`), checking
+  SHA-256 when given; `web/webbuild.py` gained a command-line entry point so CI
+  and local runs share one path.
 
 - **Profile / Mission / Quest editors were broken on the phone**: their services
   still called the desktop grant executable, whose path the device config never

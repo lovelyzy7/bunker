@@ -9,7 +9,9 @@ import shutil
 import sys
 import zipfile
 
-REPO = Path("/repo")
+# The browser mounts the repository at /repo; on a command line this file's own
+# parent says where it is, which is what CI and local test runs need.
+REPO = Path("/repo") if Path("/repo/android/tools").is_dir() else Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "android/tools"))
 
 import apk_sign  # noqa: E402
@@ -74,3 +76,23 @@ def build_android(apk, master, companion, output, log=print, port_offset=0, modm
     log("Signed APK ready to install.")
 
 
+
+
+def main():
+    """Command-line entry point: the same build the page runs in the browser."""
+    import argparse
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--apk", type=Path, required=True, help="Original ARM64 game 3.7.1 APK (日服 or 全球服)")
+    parser.add_argument("--master", type=Path, required=True, help="Original 20240404193219.bin.e")
+    parser.add_argument("--companion-apk", type=Path, required=True, help="Built launcher APK (android/app)")
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--port-offset", type=int, default=0)
+    parser.add_argument("--mod-menu", nargs="?", const=str(REPO / "web/modmenu"), default=None,
+                        help="Add the Mod Menu; optionally name the payload folder or zip")
+    args = parser.parse_args()
+    build_android(args.apk, args.master, args.companion_apk, args.output,
+                  port_offset=args.port_offset, modmenu=args.mod_menu)
+
+
+if __name__ == "__main__":
+    main()

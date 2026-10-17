@@ -59,6 +59,32 @@ python3.11 scripts/build.py --apk /path/to/game.apk --master /path/to/master.bin
 Use this integration's key format (alias `lunar-local`, local-build password
 `android`). Keep the file private. Keys and game files are ignored by Git.
 
+## Build in the cloud (no tools to install)
+
+`.github/workflows/build-apk.yml` builds the same APK on a GitHub runner. Run it
+from **Actions → Build APK → Run workflow** and give it two links:
+
+| Input | What it is |
+| --- | --- |
+| `region` | `jp` for 日服, `en` for 全球服 |
+| `game_apk_url` | The original 3.7.1 ARM64 APK: a Google Drive link, a release asset or any direct URL |
+| `master_url` | `20240404193219.bin.e` |
+| `game_apk_sha256`, `master_sha256` | Optional; the build stops when a download differs |
+| `mod_menu` | Add the prebuilt Mod Menu (off by default) |
+| `port_offset` | Leave `0` unless 8003/8080 are taken |
+
+The workflow downloads the files with `scripts/fetch_input.py`, which handles
+Drive's confirmation page (through `gdown`) and private release assets (through
+the API, using the `GAME_ASSET_TOKEN` secret). It then builds the launcher,
+assembles and signs the APK with the public Bunker key, and uploads
+`bunker-<region>.apk`, `SHA256SUMS` and `build.log` as one artifact.
+
+The assemble step is the same code the browser and `scripts/build.py` run
+(`web/webbuild.py`), so a cloud build matches a local one apart from the signing
+key: an APK from CI updates another CI build but not a local-keystore install.
+What CI cannot do is the JP patcher's smali steps — Facebook login and the
+SQUARE ENIX BRIDGE transfer — which no offline build uses.
+
 ## 4. Prepare the phone's game files
 
 Copy `resource_dump_android.7z` to the phone and choose it in the launcher
