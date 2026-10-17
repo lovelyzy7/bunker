@@ -1,7 +1,6 @@
 """Host for the Archive: its own private loopback server, separate from Pod Programs.
 
-Android calls start() through Chaquopy; iOS calls it from ios_runtime with its
-own converters.
+Android calls start() through Chaquopy with its own converters.
 
 The Archive only reads the imported game files and master data, so it runs
 beside Lunar Tear and the game; nothing is stopped and the save is never opened.
@@ -49,8 +48,8 @@ def android_converters():
 
 
 def original_master(asset_root: Path, archive_root: Path) -> tuple[Path, bool]:
-    """The game's own master data, which Pod Programs keeps beside the Archive's folder (files/tools on
-    Android, LunarTools on iOS) once it has started; else the master data in use, which a patch may change."""
+    """The game's own master data, which Pod Programs keeps beside the Archive's folder (files/tools)
+    once it has started; else the master data in use, which a patch may change."""
     for tools in ("tools", "LunarTools"):
         origin = archive_root.parent / tools / "patcher" / "origin.bin.e"
         if origin.is_file():

@@ -192,8 +192,8 @@ public final class Text {
         put("Save imported. Tap Play to continue with it.", "存档已导入。点「开始」继续。");
         put("No server log yet.", "还没有服务器日志。");
         put("> Stop Lunar Tear to import or export saves.", "> 请先停止 Lunar Tear 再导入或导出存档。");
-        put("This replaces the save on this phone with the backup you choose: a ZIP from Export save backup (on Android or iPhone), or a game.db file. Your current save is kept as a safety copy.",
-            "这会用你选择的备份替换本机存档：可以是「导出存档备份」生成的 ZIP（Android 或 iPhone），也可以是 game.db 文件。当前存档会保留一份安全副本。");
+        put("This replaces the save on this phone with the backup you choose: a ZIP from Export save backup, or a game.db file. Your current save is kept as a safety copy.",
+            "这会用你选择的备份替换本机存档：可以是「导出存档备份」生成的 ZIP，也可以是 game.db 文件。当前存档会保留一份安全副本。");
         put("Attach the ZIP when you report a problem. It holds the Lunar Tear log and this phone's model and Android version.",
             "反馈问题时可附上该 ZIP，其中包含 Lunar Tear 日志、手机型号与 Android 版本。");
 
@@ -271,8 +271,8 @@ public final class Text {
         put("Bunker", "Bunker");
 
         // ---- 帮助正文 ----
-        put("This is the Bunker. Lunar Tear is the game's server, running on this phone.\n\nChoose the game files once: the resource dump's .7z, or an extracted folder to copy or use in place. Master data is already included. When your files are ready, Lunar Tear starts and Deploy opens the game.\n\nTap the Lunar Tear notification to return here. Stop Lunar Tear from ⋮ before changing files or exporting saves. Export a backup before uninstalling or clearing app storage. Import save backup restores one, from this phone, another phone or an iPhone. Pod Programs edits your save and chooses events.\n\nIf Samsung pauses Lunar Tear, set Battery usage to Unrestricted in App settings.",
-            "这里是地堡。Lunar Tear 是游戏的服务器，运行在这台手机上。\n\n只需选择一次游戏文件：资源包的 .7z，或已解压的文件夹（复制进应用或就地使用）。主数据已内置。文件就绪后，Lunar Tear 会启动，「部署」随即打开游戏。\n\n点 Lunar Tear 通知可回到这里。更换文件或导出存档前，请先从 ⋮ 停止 Lunar Tear。卸载或清除应用数据前请先导出备份。「导入存档备份」可从本机、其他手机或 iPhone 恢复存档。Pod Programs 可编辑存档并选择活动。\n\n如果三星系统暂停了 Lunar Tear，请在应用设置的「电池用量」中选择「不受限制」。");
+        put("This is the Bunker. Lunar Tear is the game's server, running on this phone.\n\nChoose the game files once: the resource dump's .7z, or an extracted folder to copy or use in place. Master data is already included. When your files are ready, Lunar Tear starts and Deploy opens the game.\n\nTap the Lunar Tear notification to return here. Stop Lunar Tear from ⋮ before changing files or exporting saves. Export a backup before uninstalling or clearing app storage. Import save backup restores one, from this phone or another Android phone. Pod Programs edits your save and chooses events.\n\nIf Samsung pauses Lunar Tear, set Battery usage to Unrestricted in App settings.",
+            "这里是地堡。Lunar Tear 是游戏的服务器，运行在这台手机上。\n\n只需选择一次游戏文件：资源包的 .7z，或已解压的文件夹（复制进应用或就地使用）。主数据已内置。文件就绪后，Lunar Tear 会启动，「部署」随即打开游戏。\n\n点 Lunar Tear 通知可回到这里。更换文件或导出存档前，请先从 ⋮ 停止 Lunar Tear。卸载或清除应用数据前请先导出备份。「导入存档备份」可从本机或其他 Android 手机恢复存档。Pod Programs 可编辑存档并选择活动。\n\n如果三星系统暂停了 Lunar Tear，请在应用设置的「电池用量」中选择「不受限制」。");
         put("\nOffline NieR Re[in]carnation, all in one app.\nCreated by veritr1x · github.com/veritr1x/bunker\n\nCREDITS\nLunar Tear by Walter-Sparrow: the offline server.\nMIT License · Copyright 2026 Ilya Groshev.\nLunar Scripts by Walter-Sparrow: APK and master data patches.\nLunar Base by NMeliksah: the save editors.\nMasterdata Patcher by NavHobbyDev: the content patcher.\nthree.js: the Archive's 3D viewer.\nChaquopy: Python on Android.\n\nNieR Re[in]carnation © SQUARE ENIX. Bunker is a fan project, not affiliated with Square Enix.",
             "\n离线版 NieR Re[in]carnation，集成于一个应用。\n作者 veritr1x · github.com/veritr1x/bunker\n\n致谢\nLunar Tear（Walter-Sparrow）：离线服务器。MIT 许可证 · 版权所有 2026 Ilya Groshev。\nLunar Scripts（Walter-Sparrow）：APK 与主数据补丁。\nLunar Base（NMeliksah）：存档编辑器。\nMasterdata Patcher（NavHobbyDev）：内容修补器。\nthree.js：档案馆的 3D 查看器。\nChaquopy：Android 上的 Python。\n\nNieR Re[in]carnation © SQUARE ENIX。Bunker 为同人项目，与 SQUARE ENIX 无关。");
         put("Open GitHub", "打开 GitHub");

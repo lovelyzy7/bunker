@@ -6,6 +6,19 @@ sections it contains; its notes run down to the previous release.
 
 ## Unreleased
 
+### Android only: iOS support removed
+
+- The iPhone/iPad build is gone: `ios/` (launcher framework, IPA packaging,
+  simulator helpers), `docs/IOS.md`, the iOS jobs in both workflows, and the
+  iOS branches in `scripts/build.py`, `web/webbuild.py`, `web/worker.js`,
+  `web/build_site.py`, `web/index.html`, `scripts/release_assets.py` and
+  `android/tools/region.py`. `scripts/build.py` takes `--apk` and nothing else.
+- The web builder offers no platform choice and says so; An IPA is refused with
+  the reason instead of being built.
+- README, `docs/BUILD.md` and the release notes state that this fork builds
+  Android only; `docs/VALIDATION.md` keeps its iPhone/iPad records as history
+  with a note at the top.
+
 ### 中文为主 (Chinese first)
 
 - **Pod Programs** (the save editors) is Chinese by default. `base.html` now

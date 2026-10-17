@@ -3,7 +3,7 @@
 
 The apps' own import already copies only revision 0 from an extracted dump, so
 this is needed only to make a smaller folder to copy, or one to drag into the
-iOS app with Finder (which skips the app's import). The tested dumps have their
+Android app with adb push (which skips the app's import). The tested dumps have their
 complete resource set in revision 0; the other revisions are old catalogs this
 pinned server never reads. The input is only read; the output must be a new
 directory.

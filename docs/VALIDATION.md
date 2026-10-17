@@ -1,3 +1,9 @@
+> **iOS 已移除。** 下面关于 iPhone / iPad 的记录是历史；`ios/` 目录、IPA 打包与
+> iOS 脚本都已删除。本项目只支持 Android，不再生成或接受 IPA。
+>
+> **iOS removed.** The iPhone/iPad records below are kept as history; `ios/`,
+> IPA packaging and the iOS scripts are gone. This fork builds Android only.
+
 # Validation
 
 ## Arena against computer players — 2026-10-08

@@ -29,45 +29,33 @@ class MakeTests(unittest.TestCase):
             z.writestr("lib/arm64-v8a/liblunar.so", "l")
             z.writestr("assets/lunar/bunker-version.txt", "1.2.3\n")
             z.writestr("res/x.png", "unrelated")
-        self.framework = self.work / "LunarTear.framework"
-        self.framework.mkdir()
-        (self.framework / "LunarTear").write_text("bin")
-        (self.framework / "build.json").write_text('{"version": "1.2.3"}')
-        self.python = self.work / "python-bundle"
-        (self.python / "python").mkdir(parents=True)
-        (self.python / "python/a.py").write_text("x")
         self.out = self.work / "dist"
 
     def test_makes_bundles_and_update_json(self):
-        update = release_assets.make("1.2.3", self.apk, self.framework, self.python, self.out)
+        update = release_assets.make("1.2.3", self.apk, self.out)
         names = sorted(p.name for p in self.out.iterdir())
-        self.assertEqual(names, ["bunker-android-1.2.3.zip", "bunker-ios-framework-1.2.3.zip",
-                                 "bunker-ios-python-1.2.3.zip", "update.json"])
+        self.assertEqual(names, ["bunker-android-1.2.3.zip", "update.json"])
         self.assertEqual(json.loads((self.out / "update.json").read_text()), update)
         self.assertEqual(update["version"], "1.2.3")
         self.assertEqual(update["gamePatch"], build_info.GAME_PATCH)
-        for key, name in [("android", "bunker-android-1.2.3.zip"), ("iosFramework", "bunker-ios-framework-1.2.3.zip"),
-                          ("iosPython", "bunker-ios-python-1.2.3.zip")]:
+        for key, name in [("android", "bunker-android-1.2.3.zip")]:
             path = self.out / name
             self.assertEqual(update["assets"][key], {"name": name, "size": path.stat().st_size, "sha256": sha256(path)})
         with zipfile.ZipFile(self.out / "bunker-android-1.2.3.zip") as z:
             self.assertIn("assets/lunar/bunker-version.txt", z.namelist())
             self.assertNotIn("res/x.png", z.namelist())
-        with zipfile.ZipFile(self.out / "bunker-ios-framework-1.2.3.zip") as z:
-            self.assertIn("LunarTear.framework/LunarTear", z.namelist())
 
     def test_refuses_master_data(self):
-        (self.framework / "20240404193219.bin.e").write_text("master")
         with zipfile.ZipFile(self.apk, "a") as z:
             z.writestr("assets/lunar/original-master.bin.e", "master")
-        update = release_assets.make("1.2.3", self.apk, self.framework, self.python, self.out)
+        update = release_assets.make("1.2.3", self.apk, self.out)
         for asset in update["assets"].values():
             with zipfile.ZipFile(self.out / asset["name"]) as z:
                 self.assertFalse(any(n.endswith(".bin.e") for n in z.namelist()), asset["name"])
 
     def test_refuses_mismatched_version(self):
         with self.assertRaises(ValueError):
-            release_assets.make("9.9.9", self.apk, self.framework, self.python, self.out)
+            release_assets.make("9.9.9", self.apk, self.out)
 
 
 class ChangelogTests(unittest.TestCase):

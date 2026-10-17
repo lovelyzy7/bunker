@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Assemble the in-browser builder as a static site.
 
-  build_site.py --companion-apk APK --framework DIR --python DIR [--output DIR]
+  build_site.py --companion-apk APK [--output DIR]
 
-The site holds the page, the Python build code and three bundles built from
-this repository: the Android launcher, the iOS launcher framework and the iOS
-Tools runtime. Master data is stripped from them; the player supplies it.
-No game files are included. Serve the output folder over HTTP to test it.
+The site holds the page, the Python build code and the Android launcher bundle
+built from this repository. Master data is stripped from it; the player
+supplies it. No game files are included, and there is no iOS build at all.
+Serve the output folder over HTTP to test it.
 """
 import argparse
 import json
@@ -26,9 +26,7 @@ PYTHON = [
     "android/tools/command.py",
     "android/tools/package_game.py",
     "android/tools/region.py",
-    "ios/tools/package_ipa.py",
     "upstream/lunar-scripts/android/patch_apk.py",
-    "upstream/lunar-scripts/ios/patch_ipa.py",
     "upstream/lunar-scripts/patch_masterdata.py",
     "web/signing/bunker-key.pem",
     "web/signing/bunker-cert.der",
@@ -60,8 +58,6 @@ def folder_bundle(folder, target, prefix=""):
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--companion-apk", type=Path, required=True, help="android/app build output")
-    p.add_argument("--framework", type=Path, required=True, help="LunarTear.framework from ios/tools/build_framework.sh")
-    p.add_argument("--python", type=Path, required=True, help="Output of ios/tools/build_python.py")
     p.add_argument("--output", type=Path, default=ROOT / ".build/site")
     args = p.parse_args()
     out = args.output.resolve()
@@ -80,8 +76,6 @@ def main():
     with zipfile.ZipFile(args.companion_apk) as companion:
         version = companion.read("assets/lunar/bunker-version.txt").decode().strip()
     (out / "version.json").write_text(json.dumps({"version": version}))
-    folder_bundle(args.framework, out / "bundles/ios-framework.zip", "LunarTear.framework/")
-    folder_bundle(args.python, out / "bundles/ios-python.zip")
     for path in out.rglob("*"):
         if path.is_file() and path.stat().st_size > PAGES_LIMIT:
             raise SystemExit(f"{path.name} is over GitHub Pages' 100 MB limit")

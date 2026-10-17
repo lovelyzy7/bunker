@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Build one offline app from your original game and master data.
+"""Build the offline Android app from your original game and master data.
 
-Pass --apk to build the Android APK or --ipa to build the iPhone IPA.
+Pass --apk with the 3.7.1 game APK (日服 or 全球服). iPhone and iPad are not
+supported: the project has no iOS build.
 """
 import argparse
 import hashlib
@@ -75,68 +76,29 @@ def build_android(args, env, python, master, sdk, release):
     print(f"\nReady: {output}\nKeep your signing key: {args.keystore.resolve()}")
 
 
-def build_ios(args, env, python, master):
-    work = ROOT / ".build/ios"
-    work.mkdir(parents=True, exist_ok=True)
-    output = ROOT / "artifacts/bunker.ipa"
-    with tempfile.TemporaryDirectory(prefix="game-", dir=work) as temp:
-        patched = Path(temp) / "patched.ipa"
-        grpc, http, auth = addresses(args.port_offset)
-        run(python, ROOT / "upstream/lunar-scripts/ios/patch_ipa.py", args.ipa,
-            "--grpc-addr", grpc, "--http-addr", http, "--auth-host", auth, "-o", patched, env=env)
-        run(ROOT / "ios/tools/build_framework.sh", master, Path(temp) / "framework", args.master.resolve(), env=env)
-        run(python, ROOT / "ios/tools/build_python.py", Path(temp) / "python", env=env)
-        command = [python, ROOT / "ios/tools/package_ipa.py", "--patched-ipa", patched,
-                   "--framework", Path(temp) / "framework/LunarTear.framework", "--python", Path(temp) / "python",
-                   "--output", output, "--port-offset", args.port_offset]
-        if args.bundle_id:
-            command += ["--bundle-id", args.bundle_id]
-        if args.sign_identity:
-            command += ["--sign-identity", args.sign_identity, "--profile", args.profile.resolve(strict=True)]
-        run(*command, env=env)
-    record_checksum(output)
-    print(f"\nReady: {output}")
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    target = parser.add_mutually_exclusive_group(required=True)
-    target.add_argument("--apk", type=Path, help="Original ARM64 game 3.7.1 APK (builds Android)")
-    target.add_argument("--ipa", type=Path, help="Original decrypted game 3.7.1 IPA (builds iPhone)")
+    parser.add_argument("--apk", type=Path, required=True, help="Original ARM64 game 3.7.1 APK (日服 or 全球服)")
     parser.add_argument("--master", type=Path, required=True, help="Original 20240404193219.bin.e")
     parser.add_argument("--keystore", type=Path, default=ROOT / "inputs/lunar-local.keystore", help="Android signing key")
-    parser.add_argument("--bundle-id", help="iPhone: bundle ID for signing with your own Apple team")
-    parser.add_argument("--sign-identity", help="iPhone: codesign identity; requires --profile")
-    parser.add_argument("--profile", type=Path, help="iPhone: provisioning profile for --bundle-id")
     parser.add_argument("--port-offset", type=int, default=0,
                         help="Move the game's local ports 8003/8080/3000 by this amount, for devices where another app uses them")
     parser.add_argument("--region", choices=["auto", *sorted(region.REGIONS)], default="auto",
                         help="Game release: detected from the package name unless given")
     args = parser.parse_args()
-    android = args.apk is not None
-    if not android and bool(args.sign_identity) != bool(args.profile):
-        parser.error("--sign-identity and --profile must be used together")
-    source = (args.apk or args.ipa).resolve(strict=True)
-    if android:
-        args.apk = source
-        detected, name = region.region_of_apk(source)
-    else:
-        args.ipa = source
-        detected, name = region.region_of_ipa(source)
+    args.apk = args.apk.resolve(strict=True)
+    detected, name = region.region_of_apk(args.apk)
     release = region.resolve(args.region, detected)
     print(f"{region.REGIONS[release]['name']}: {name}")
     master = args.master.resolve(strict=True)
     env = os.environ.copy()
     if env.get("JAVA_HOME"):
         env["PATH"] = str(Path(env["JAVA_HOME"]) / "bin") + os.pathsep + env["PATH"]
-    tools = ["git", "go", "make", "protoc", "python3.11"]
-    tools += ["apktool", "java", "keytool"] if android else ["xcrun", "codesign", "zip"]
+    tools = ["git", "go", "make", "protoc", "python3.11", "apktool", "java", "keytool"]
     for command in tools:
         if not shutil.which(command, path=env["PATH"]):
             parser.error(f"Missing {command}. See docs/BUILD.md.")
-    sdk = android_sdk(parser, env) if android else None
-    if not android and subprocess.run(["xcrun", "--sdk", "iphoneos", "--show-sdk-path"], capture_output=True).returncode:
-        parser.error("Missing the iOS SDK. Install Xcode. See docs/BUILD.md.")
+    sdk = android_sdk(parser, env)
     prepare()
     work = ROOT / ".build"
     venv = work / "venv"
@@ -144,13 +106,9 @@ def main():
         run("python3.11", "-m", "venv", venv, env=env)
     python = venv / "bin/python"
     run(python, "-m", "pip", "install", "-r", ROOT / "scripts/requirements-build.txt", env=env)
-    if android:
-        assets = ROOT / "android/app/src/main/assets/lunar"
-        assets.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(master, assets / "original-master.bin.e")
-    else:
-        assets = work / "ios/master"
-        assets.mkdir(parents=True, exist_ok=True)
+    assets = ROOT / "android/app/src/main/assets/lunar"
+    assets.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(master, assets / "original-master.bin.e")
     patched_master = assets / "20240404193219.bin.e"
     run(python, ROOT / "upstream/lunar-scripts/patch_masterdata.py", "--input", master,
         "--output", patched_master, env=env)
@@ -166,10 +124,7 @@ def main():
         print("Ports 8003/8080/3000 are in use; testing on 28003/28080/23000.")
         env["LUNAR_PORT_OFFSET"] = "20000"
     run("go", "test", "./...", cwd=ROOT / "server", env=env)
-    if android:
-        build_android(args, env, python, patched_master, sdk, release)
-    else:
-        build_ios(args, env, python, patched_master)
+    build_android(args, env, python, patched_master, sdk, release)
 
 
 if __name__ == "__main__":

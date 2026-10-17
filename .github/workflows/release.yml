@@ -71,44 +71,9 @@ jobs:
           name: android-launcher
           path: android/app/build/outputs/apk/debug/app-debug.apk
 
-  ios:
-    needs: check
-    name: iOS launcher and Tools runtime
-    runs-on: macos-15
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.25.8"
-          cache-dependency-path: server/go.sum
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - uses: astral-sh/setup-uv@v6
-      - uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Prepare sources
-        run: |
-          python3.11 scripts/prepare.py
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
-          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.1
-          make -C server proto
-          uv python install 3.13
-      - name: Build the launcher framework and Python runtime
-        run: |
-          ios/tools/build_framework.sh none out
-          python3.11 ios/tools/build_python.py out/python-bundle
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ios-bundles
-          path: out
-
   release:
     name: GitHub Release
-    needs: [android, ios]
+    needs: [android]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -123,16 +88,10 @@ jobs:
         with:
           name: android-launcher
           path: bundles/android
-      - uses: actions/download-artifact@v4
-        with:
-          name: ios-bundles
-          path: bundles/ios
       - name: Bundles, update.json and notes
         run: >
           python3 scripts/release_assets.py --version "$(cat VERSION)"
           --companion-apk bundles/android/app-debug.apk
-          --framework bundles/ios/LunarTear.framework
-          --python bundles/ios/python-bundle
           --out dist
       - name: Create the release
         env:

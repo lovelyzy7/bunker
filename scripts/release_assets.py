@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Makes a release's files: Bunker's own bundles, update.json and the notes.
 
-  release_assets.py --version 1.0.0 --companion-apk APK --framework DIR --python DIR --out DIR
+  release_assets.py --version 1.0.0 --companion-apk APK --out DIR
 
-The bundles are the ones the web builder uses (web/build_site.py): the Android
-launcher, the iOS launcher framework and the iOS Tools runtime. They never hold
-game files or master data. update.json lists each bundle's size and SHA-256
-for the launcher's self-update, and the game patch version (build_info.py).
+The bundle is the one the web builder uses (web/build_site.py): the Android
+launcher. It never holds game files or master data. update.json lists its size
+and SHA-256 for the launcher's self-update, and the game patch version
+(build_info.py).
 """
 import argparse
 import hashlib
@@ -31,19 +31,15 @@ def _sha256(path):
     return h.hexdigest()
 
 
-def make(version, companion_apk, framework_dir, python_dir, out_dir):
+def make(version, companion_apk, out_dir):
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(companion_apk) as companion:
         built = companion.read(build_info.VERSION_ENTRY).decode().strip()
-    framework_version = json.loads((Path(framework_dir) / "build.json").read_text())["version"]
-    if built != version or framework_version != version:
-        raise ValueError(f"Bundles are version {built} (Android) and {framework_version} (iOS), not {version}")
-    files = {"android": f"bunker-android-{version}.zip", "iosFramework": f"bunker-ios-framework-{version}.zip",
-             "iosPython": f"bunker-ios-python-{version}.zip"}
+    if built != version:
+        raise ValueError(f"The launcher is version {built}, not {version}")
+    files = {"android": f"bunker-android-{version}.zip"}
     build_site.android_bundle(companion_apk, out / files["android"])
-    build_site.folder_bundle(framework_dir, out / files["iosFramework"], "LunarTear.framework/")
-    build_site.folder_bundle(python_dir, out / files["iosPython"])
     assets = {}
     for key, name in files.items():
         path = out / name
@@ -85,11 +81,9 @@ def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--version", required=True)
     p.add_argument("--companion-apk", type=Path, required=True)
-    p.add_argument("--framework", type=Path, required=True)
-    p.add_argument("--python", type=Path, required=True)
     p.add_argument("--out", type=Path, required=True)
     args = p.parse_args()
-    make(args.version, args.companion_apk, args.framework, args.python, args.out)
+    make(args.version, args.companion_apk, args.out)
     notes = args.out / "notes.md"
     notes.write_text(changelog_section((ROOT / "CHANGELOG.md").read_text(), args.version) + "\n")
     print(notes)

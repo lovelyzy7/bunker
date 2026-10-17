@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%233a372f'/%3E%3Crect x='5' y='5' width='6' height='6' fill='%23d3ceb8'/%3E%3C/svg%3E">
-<title>Bunker · Lunar Tear builder</title>
-<meta name="description" content="Build the offline game for Android or iOS from your own files, in your browser.">
+<title>Bunker · Lunar Tear builder (Android)</title>
+<meta name="description" content="Build the offline Android game from your own files, in your browser. Windows, macOS and Linux; no iPhone or iPad support.">
 <style>
   /* The Bunker terminal, as in the app. System fonts only: the page makes no third-party requests. */
   :root {
@@ -117,27 +117,17 @@
 <main id="terminal">
   <section class="intro">
     <h1>Build the offline game</h1>
-    <p>For Android or iPhone/iPad, from your own files. Everything runs in this browser; your files are never uploaded.</p>
+    <p>For Android, from your own files. Everything runs in this browser; your files are never uploaded. There is no iPhone or iPad build.</p>
   </section>
 
     <section>
-      <h2 class="head"><span>[</span><span>01 Platform</span><span class="rule"></span><span>]</span></h2>
-      <div class="frame">
-        <div class="tabs">
-          <label><input type="radio" name="platform" value="android" checked><span><b>ANDROID</b><small>APK · arm64</small></span></label>
-          <label><input type="radio" name="platform" value="ios"><span><b>IPHONE / IPAD</b><small>IPA</small></span></label>
-        </div>
-      </div>
-    </section>
-
-    <section>
-      <h2 class="head"><span>[</span><span>02 Your files</span><span class="rule"></span><span>]</span></h2>
+      <h2 class="head"><span>[</span><span>01 Your files</span><span class="rule"></span><span>]</span></h2>
       <div class="frame">
         <div class="file">
           <span class="label">GAME</span>
-          <span class="what" id="game-help">The original 3.7.1 ARM64 game APK.</span>
+          <span class="what" id="game-help">The original 3.7.1 ARM64 game APK (日服 or 全球服).</span>
           <span class="chip" id="game-name">NOT CHOSEN</span>
-          <label class="pick">CHOOSE<input type="file" id="game" accept=".apk,.ipa" aria-label="Game file"></label>
+          <label class="pick">CHOOSE<input type="file" id="game" accept=".apk" aria-label="Game file"></label>
         </div>
         <div class="file">
           <span class="label">MASTER DATA</span>
@@ -149,7 +139,7 @@
     </section>
 
     <section>
-      <h2 class="head"><span>[</span><span>03 Build</span><span class="rule"></span><span>]</span></h2>
+      <h2 class="head"><span>[</span><span>02 Build</span><span class="rule"></span><span>]</span></h2>
       <div class="frame">
         <p>Takes a few minutes and needs about 2 GB of free memory. A desktop browser works best.</p>
         <details>
@@ -165,7 +155,7 @@
     </section>
 
     <section id="result">
-      <h2 class="head"><span>[</span><span>04 Install</span><span class="rule"></span><span>]</span></h2>
+      <h2 class="head"><span>[</span><span>03 Install</span><span class="rule"></span><span>]</span></h2>
       <div class="frame">
         <a id="download" download>Download</a>
         <p class="note" id="sign-android">The APK is signed and ready to install. Every APK built on this page is signed
@@ -173,11 +163,6 @@
           <a href="bunker-key.p12" download>Download the key</a> (<code>bunker-key.p12</code>, password and alias
           <code>bunker</code>) to sign your own builds the same way. The key is public: to keep anyone else's build
           from installing over yours, sign with a key of your own instead.</p>
-        <p class="note" id="sign-ios" hidden>The IPA is unsigned. Install it with Sideloadly or AltStore and your Apple ID,
-          or sign it with your own certificate. Use the same bundle ID for updates to keep your saves.
-          The same IPA runs on a Mac with Apple silicon when signed by your Apple developer team for that Mac;
-          build it with a port offset (for example 30000) and open the launcher with ⌘B. See
-          <a href="https://github.com/veritr1x/bunker#play-on-a-mac">Play on a Mac</a>.</p>
       </div>
     </section>
 

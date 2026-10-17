@@ -6,6 +6,8 @@ binaries: different package names, different IL2CPP library layout, and
 different client patch scripts. Bunker therefore builds one region per APK and
 records which one, so an update never crosses regions.
 
+Android only: the project has no iOS build, so an IPA is refused.
+
 Detection reads the compiled manifest with axml.py, so it runs before anything
 is unpacked, needs no SDK, and works in the browser builder too.
 """
@@ -30,10 +32,6 @@ REGIONS = {
         "patcher": "upstream/lunar-scripts-jp/android/patch_apk_jp.py",
     },
 }
-
-# The iOS build has an English-only patcher; a JP IPA cannot be built.
-IOS_PACKAGES = {"com.square-enix.NieRSPww": "en"}
-
 
 def region_for_package(package):
     """The region a package name belongs to, or None."""
@@ -61,20 +59,6 @@ def region_of_apk(path):
         known = ", ".join(info["package"] for info in REGIONS.values())
         raise SystemExit(f"{path} is {package!r}, which is not the game this build accepts ({known}).")
     return region, package
-
-
-def region_of_ipa(path):
-    """The region of a decrypted IPA, read from its Info.plist."""
-    import plistlib
-
-    with zipfile.ZipFile(path) as ipa:
-        plist = next(name for name in ipa.namelist() if name.count("/") == 2 and name.endswith(".app/Info.plist"))
-        info = plistlib.loads(ipa.read(plist))
-    bundle = info.get("CFBundleIdentifier", "")
-    region = IOS_PACKAGES.get(bundle)
-    if region is None:
-        raise SystemExit(f"{path} is the app {bundle!r}, which is not the game this build accepts (3.7.1 EN).")
-    return region, bundle
 
 
 def resolve(requested, detected):

@@ -24,8 +24,8 @@ the SDK at `~/Library/Android/sdk` on macOS or `~/Android/Sdk` on Linux if
 `ANDROID_HOME` is unset. Build dependencies need Internet access on the computer.
 On macOS with Homebrew: `brew install go protobuf apktool python@3.11`.
 
-For the iPhone build, see [iOS](IOS.md): it needs a Mac with Xcode and
-Python 3.13 instead of the Android tools.
+This project builds Android only. There is no iPhone or iPad build: `ios/` was removed and no
+IPA is produced or accepted.
 
 ## 3. Clone and build
 
@@ -147,7 +147,7 @@ Stop the server and use **⋮ → Export save backup** before uninstalling or cl
 app storage. It exports `game.db`, `auth.db`, and `auth.key` in a ZIP.
 
 To restore, stop the server and use **⋮ → Import save backup**. It accepts such
-a ZIP from Android or iOS, or a bare `game.db`, checks it before replacing
+a ZIP or a bare `game.db`, checks it before replacing
 anything, and keeps the current save as a safety copy. A save from another
 device takes over this device's player: open the game once on a new device
 first, so it has a player to take over.
@@ -160,12 +160,11 @@ Master-data changes have a separate history of the latest 10 versions.
 
 - `upstream/`: pinned, unmodified submodules.
 - `android/`: launcher, service, JNI build/packaging helpers and Python adapters.
-- `ios/`: in-game launcher framework, IPA packaging, simulator check and device helpers. See [iOS](IOS.md).
 - `web/`: the in-browser builder. `web/build_site.py` assembles it; `.github/workflows/pages.yml` builds
   its bundles from this repository and publishes it on GitHub Pages.
 - `android/tools/assemble_apk.py`: builds the APK by editing the original's files directly (with
   `axml.py` for the manifest), with no apktool or Android SDK. The web builder runs it in the browser.
-- `overlays/`, `patches/`: mobile adaptations applied to upstream sources. Both platforms share the embedded server.
+- `overlays/`, `patches/`: mobile adaptations applied to upstream sources. The launcher and the game share the embedded server.
 - `server/` and the third-party Python packages: generated, ignored build inputs.
 
 Edit overlays or patches rather than generated copies. `scripts/prepare.py`

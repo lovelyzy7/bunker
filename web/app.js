@@ -9,12 +9,9 @@ fetch("version.json").then((r) => r.ok ? r.json() : null).then((v) => {
   if (v && v.version) $("bunker-version").textContent = "BUILDS BUNKER " + v.version;
 }).catch(() => {});
 
-const platform = () => document.querySelector("input[name=platform]:checked").value;
-
 function update() {
-  const ios = platform() === "ios";
-  $("game-help").textContent = tr(ios ? "Your decrypted 3.7.1 game IPA." : "The original 3.7.1 ARM64 game APK.");
-  $("game").accept = ios ? ".ipa" : ".apk";
+  $("game-help").textContent = tr("The original 3.7.1 ARM64 game APK (日服 or 全球服).");
+  $("game").accept = ".apk";
   $("build").disabled = !($("game").files[0] && $("master").files[0]);
   for (const id of ["game", "master"]) {
     const file = $(id).files[0], chip = $(id + "-name");
@@ -29,7 +26,6 @@ function log(line) {
   box.scrollTop = box.scrollHeight;
 }
 
-document.querySelectorAll("input[name=platform]").forEach((r) => r.addEventListener("change", update));
 $("game").addEventListener("change", update);
 $("master").addEventListener("change", update);
 
@@ -37,8 +33,7 @@ $("build").addEventListener("click", () => {
   if (building) return;
   const game = $("game").files[0], master = $("master").files[0];
   if (!game || !master) { log(tr("Choose the game file and the master data first.")); return; }
-  const expected = platform() === "ios" ? ".ipa" : ".apk";
-  if (!game.name.toLowerCase().endsWith(expected)) { log(`Choose the game ${expected} file.`); return; }
+  if (!game.name.toLowerCase().endsWith(".apk")) { log(tr("Choose the game .apk file.")); return; }
   if (game.name === master.name) { log(tr("Choose two different files.")); return; }
   const portOffset = Number($("port-offset").value || 0);
   if (!Number.isInteger(portOffset) || portOffset < 0 || portOffset > 57455) { log(tr("The port offset must be a whole number from 0 to 57455.")); return; }
@@ -47,7 +42,7 @@ $("build").addEventListener("click", () => {
   $("result").style.display = "none";
   $("log").textContent = "";
   if (url) URL.revokeObjectURL(url);
-  worker.postMessage({ platform: platform(), game, master, portOffset });
+  worker.postMessage({ game, master, portOffset });
 });
 
 worker.onmessage = ({ data }) => {
@@ -59,8 +54,7 @@ worker.onmessage = ({ data }) => {
     $("download").href = url;
     $("download").download = name;
     $("download").textContent = tr(`Download ${name} (${Math.round(bytes.length / 1048576)} MB)`);
-    $("sign-android").hidden = name.endsWith(".ipa");
-    $("sign-ios").hidden = !name.endsWith(".ipa");
+
     $("result").style.display = "block";
     building = false;
     $("build").disabled = false;
@@ -79,7 +73,6 @@ const ZH = {
   "The game talks to its server on this device through ports 8003, 8080 and 3000. If another app already uses one of them, the launcher says so. An offset moves all three, for example 30000 gives 38003, 38080 and 33000. Leave it at 0 unless you need it, and use the same offset for updates.": "游戏在本机通过 8003、8080、3000 三个端口连接服务器。如果其中某个端口已被其他应用占用，启动器会提示。设置偏移可一次性移动这三个端口，例如 30000 会得到 38003、38080、33000。除非确有需要，请保持 0，并在更新时沿用同一偏移。",
   " password and alias ": "，密码与别名 ",
   ") to sign your own builds the same way. The key is public: to keep anyone else's build from installing over yours, sign with a key of your own instead.": "）以便用同样方式签名你自己的构建。该密钥是公开的：若不想让别人构建的包覆盖你的，请改用自己的密钥。",
-  "The IPA is unsigned. Install it with Sideloadly or AltStore and your Apple ID, or sign it with your own certificate. Use the same bundle ID for updates to keep your saves. The same IPA runs on a Mac with Apple silicon when signed by your Apple developer team for that Mac; build it with a port offset (for example 30000) and open the launcher with ⌘B. See": "IPA 未签名。请用 Sideloadly 或 AltStore 配合你的 Apple ID 安装，或用自己的证书签名。更新时请使用相同的 bundle ID 以保留存档。用你的 Apple 开发者团队为该 Mac 签名后，同一个 IPA 也可在 Apple 芯片的 Mac 上运行；请使用端口偏移（例如 30000）构建，并用 ⌘B 打开启动器。详见",
   "Play on a Mac": "在 Mac 上运行",
   "Then copy the resource dump's": "然后，将资源包的",
   "to the device and choose it in the Bunker; the app unpacks only the files the game uses. An extracted folder works too, as described in the": "复制到设备，并在「地堡」中选择它；应用只会解出游戏实际使用的文件。已解压的文件夹同样可用，详见",
@@ -90,8 +83,6 @@ const ZH = {
   "the save editors in Pod Programs, by NMeliksah": "Pod Programs 的存档编辑器，作者 NMeliksah",
   "the content patcher, by NavHobbyDev": "内容修补器，作者 NavHobbyDev",
   "ANDROID": "ANDROID",
-  "IPHONE / IPAD": "IPHONE / IPAD",
-  "IPA": "IPA",
   "APK · arm64": "APK · arm64",
   "BUNKER": "BUNKER",
   "LUNAR TEAR // BUILD TERMINAL": "LUNAR TEAR // 构建终端",
@@ -100,22 +91,20 @@ const ZH = {
   "TROUBLESHOOTING": "疑难解答",
   "SOURCE ↗": "源码 ↗",
   "Build the offline game": "构建离线游戏",
-  "For Android or iPhone/iPad, from your own files. Everything runs in this browser; your files are never uploaded.":
-    "使用你自己的文件，为 Android 或 iPhone/iPad 构建。全部在浏览器内完成，文件不会被上传。",
-  "01 Platform": "01 平台",
-  "02 Your files": "02 你的文件",
-  "03 Build": "03 构建",
-  "04 Install": "04 安装",
+  "For Android, from your own files. Everything runs in this browser; your files are never uploaded. There is no iPhone or iPad build.":
+    "为 Android 构建，使用你自己的文件。全部在浏览器内完成，文件不会被上传。没有 iPhone 或 iPad 版本。",
+  "01 Your files": "01 你的文件",
+  "02 Build": "02 构建",
+  "03 Install": "03 安装",
   "ANDROID": "ANDROID",
   "APK · arm64": "APK · arm64",
-  "IPHONE / IPAD": "IPHONE / IPAD",
-  "IPA": "IPA",
   "GAME": "游戏",
   "MASTER DATA": "主数据",
   "NOT CHOSEN": "未选择",
   "CHOOSE": "选择",
   "The original 3.7.1 ARM64 game APK.": "原版 3.7.1 ARM64 游戏 APK。",
-  "Your decrypted 3.7.1 game IPA.": "已解密的 3.7.1 游戏 IPA。",
+  "The original 3.7.1 ARM64 game APK (日服 or 全球服).": "原版 3.7.1 ARM64 游戏 APK（日服或全球服）。",
+  "Choose the game .apk file.": "请选择游戏的 .apk 文件。",
   "Takes a few minutes and needs about 2 GB of free memory. A desktop browser works best.":
     "需要几分钟，并占用约 2 GB 内存。建议使用桌面浏览器。",
   "EXPERIMENTAL :: PORT OFFSET": "实验性 :: 端口偏移",
@@ -127,8 +116,6 @@ const ZH = {
   "Download the key": "下载密钥",
   "to sign your own builds the same way. The key is public: to keep anyone else's build from installing over yours, sign with a key of your own instead.":
     "以便用同样方式签名你自己的构建。该密钥是公开的：若不想让别人构建的包覆盖你的，请改用自己的密钥。",
-  "The IPA is unsigned. Install it with Sideloadly or AltStore and your Apple ID, or sign it with your own certificate.":
-    "IPA 未签名。请用 Sideloadly 或 AltStore 配合你的 Apple ID 安装，或用自己的证书签名。",
   "Build failed: ": "构建失败：",
   "Choose the game file and the master data first.": "请先选择游戏文件与主数据。",
   "Choose two different files.": "请选择两个不同的文件。",

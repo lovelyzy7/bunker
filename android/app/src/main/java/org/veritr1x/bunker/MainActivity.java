@@ -319,7 +319,7 @@ public final class MainActivity extends Activity {
     }
     private void confirmSaveImport(){
         dialog().setTitle(Text.of("Import a save backup?"))
-            .setMessage(Text.of("This replaces the save on this phone with the backup you choose: a ZIP from Export save backup (on Android or iPhone), or a game.db file. Your current save is kept as a safety copy."))
+            .setMessage(Text.of("This replaces the save on this phone with the backup you choose: a ZIP from Export save backup, or a game.db file. Your current save is kept as a safety copy."))
             .setNegativeButton(Text.of("Cancel"),null)
             .setPositiveButton(Text.of("Choose backup"),(dialog,which)->{Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE);startActivityForResult(i,SAVE);})
             .show();
@@ -378,7 +378,7 @@ public final class MainActivity extends Activity {
         Updater.status=message;Updater.statusFailed=true;renderUpdate();
     }
     private void help(){
-        dialog().setTitle(Text.of("Help")).setMessage(Text.of("This is the Bunker. Lunar Tear is the game's server, running on this phone.\n\nChoose the game files once: the resource dump's .7z, or an extracted folder to copy or use in place. Master data is already included. When your files are ready, Lunar Tear starts and Deploy opens the game.\n\nTap the Lunar Tear notification to return here. Stop Lunar Tear from ⋮ before changing files or exporting saves. Export a backup before uninstalling or clearing app storage. Import save backup restores one, from this phone, another phone or an iPhone. Pod Programs edits your save and chooses events.\n\nIf Samsung pauses Lunar Tear, set Battery usage to Unrestricted in App settings."))
+        dialog().setTitle(Text.of("Help")).setMessage(Text.of("This is the Bunker. Lunar Tear is the game's server, running on this phone.\n\nChoose the game files once: the resource dump's .7z, or an extracted folder to copy or use in place. Master data is already included. When your files are ready, Lunar Tear starts and Deploy opens the game.\n\nTap the Lunar Tear notification to return here. Stop Lunar Tear from ⋮ before changing files or exporting saves. Export a backup before uninstalling or clearing app storage. Import save backup restores one, from this phone or another Android phone. Pod Programs edits your save and chooses events.\n\nIf Samsung pauses Lunar Tear, set Battery usage to Unrestricted in App settings."))
             .setPositiveButton(Text.of("Close"),null).show();
     }
     private void showLog(){query(2);}

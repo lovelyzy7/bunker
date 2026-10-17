@@ -47,7 +47,7 @@ async function setup() {
 }
 
 self.onmessage = async ({ data }) => {
-  const { platform, game, master, portOffset = 0 } = data;
+  const { game, master, portOffset = 0 } = data;
   try {
     ready = ready || setup();
     const pyodide = await ready;
@@ -59,19 +59,10 @@ self.onmessage = async ({ data }) => {
     const gamePath = "/input/" + game.name, masterPath = "/input/" + master.name;
     const log = (line) => post("log", line);
     const builder = pyodide.globals.get("webbuild");
-    let output;
-    if (platform === "android") {
-      writeFile(pyodide, "/bundles/android.zip", await fetchBytes("bundles/android.zip", "the launcher"));
-      output = "/output/bunker.apk";
-      FS.mkdirTree("/output");
-      builder.build_android(gamePath, masterPath, "/bundles/android.zip", output, log, portOffset);
-    } else {
-      writeFile(pyodide, "/bundles/ios-framework.zip", await fetchBytes("bundles/ios-framework.zip", "the launcher"));
-      writeFile(pyodide, "/bundles/ios-python.zip", await fetchBytes("bundles/ios-python.zip", "Tools"));
-      output = "/output/bunker.ipa";
-      FS.mkdirTree("/output");
-      builder.build_ios(gamePath, masterPath, "/bundles/ios-framework.zip", "/bundles/ios-python.zip", output, log, portOffset);
-    }
+    writeFile(pyodide, "/bundles/android.zip", await fetchBytes("bundles/android.zip", "the launcher"));
+    const output = "/output/bunker.apk";
+    FS.mkdirTree("/output");
+    builder.build_android(gamePath, masterPath, "/bundles/android.zip", output, log, portOffset);
     const bytes = FS.readFile(output);
     FS.unlink(output);
     for (const name of FS.readdir("/bundles")) if (name !== "." && name !== "..") FS.unlink("/bundles/" + name);
