@@ -156,10 +156,29 @@ Tools keeps the latest 50 game-database snapshots and can restore them on the
 phone. Those snapshots remain inside the app and are removed by uninstalling.
 Master-data changes have a separate history of the latest 10 versions.
 
+## Optional: the Mod Menu
+
+`--mod-menu` also injects the memory menu from
+[bunker-modmenu](https://github.com/lovelyzy7/bunker-modmenu) (damage and defense
+multipliers, no skill cooldown, God mode, forced hit, BigHunt cap lift; the
+server hot-switch is gone because the server is always on this device).
+
+```sh
+git clone https://github.com/lovelyzy7/bunker-modmenu vendor/bunker-modmenu
+python3.11 scripts/build.py --apk <game.apk> --master <master.bin.e> --mod-menu
+```
+
+The menu is built per release (`jp-client` or `en-client`) by its own toolchain:
+it needs JDK 17+, Android SDK platform 34 and the NDK (ndk-build). Bunker runs
+its injector on the finished APK and then re-signs with the build's key, because
+the launcher only updates from APKs signed with the key it was built with. Use
+`--mod-menu-root` or `$BUNKER_MODMENU` when the checkout lives elsewhere.
+
 ## Source layout and checks
 
 - `upstream/`: pinned, unmodified submodules.
-- `android/`: launcher, service, JNI build/packaging helpers and Python adapters.
+- `android/`: launcher, service, JNI build/packaging helpers and Python adapters
+  (`tools/menu.py` drives the optional Mod Menu).
 - `web/`: the in-browser builder. `web/build_site.py` assembles it; `.github/workflows/pages.yml` builds
   its bundles from this repository and publishes it on GitHub Pages.
 - `android/tools/assemble_apk.py`: builds the APK by editing the original's files directly (with

@@ -6,6 +6,26 @@ sections it contains; its notes run down to the previous release.
 
 ## Unreleased
 
+### Mod Menu (optional)
+
+- The menu now lives in its own repository,
+  [bunker-modmenu](https://github.com/lovelyzy7/bunker-modmenu), with one
+  workspace per release. Bunker injects it with `--mod-menu` (or
+  `--mod-menu-root` / `$BUNKER_MODMENU` for a checkout elsewhere) and re-signs
+  the result with the build's own key, so launcher updates keep working.
+- **The server hot-switch is gone** from the menu: the address book, the libc
+  `connect()` hook, automatic failover, "remember last choice", the
+  `auth_host.txt` writer and menu entries 7-16. The server is always on the same
+  device, so switching could only break the link.
+- Kept: damage and defense multipliers, skill no-cooldown, God mode, forced hit,
+  BigHunt cap lift, and the BigHunt protection that disables the HP patches
+  there (they froze the wave-end animation).
+- `scripts/test_menu.py` covers finding the checkout, per-release workspaces,
+  stripping old signatures and picking the SDK build-tools.
+- Verified on Windows with the real 日服 APK: the injector merged the menu's
+  classes into `classes5.dex`, added `libniermenu.so` (no hot-switch strings,
+  features present), and the result verifies under Bunker's own certificate.
+
 ### Android only: iOS support removed
 
 - The iPhone/iPad build is gone: `ios/` (launcher framework, IPA packaging,

@@ -18,6 +18,7 @@ from prepare import ROOT, prepare
 
 sys.path.insert(0, str(ROOT / "android/tools"))
 import command  # noqa: E402
+import menu  # noqa: E402
 import region  # noqa: E402
 
 def addresses(port_offset):
@@ -57,7 +58,7 @@ def android_sdk(parser, env):
     return sdk
 
 
-def build_android(args, env, python, master, sdk, release):
+def build_android(args, env, python, master, sdk, release, menu_root=None):
     work = ROOT / ".build"
     run(ROOT / "android/tools/build_native.sh", env=env)
     run(ROOT / "android/gradlew", "assembleDebug", "lintDebug", cwd=ROOT / "android", env=env)
@@ -72,6 +73,8 @@ def build_android(args, env, python, master, sdk, release):
             "--companion-apk", ROOT / "android/app/build/outputs/apk/debug/app-debug.apk", "--game-apk", args.apk,
             "--output", output, "--sdk", sdk, "--keystore", args.keystore.resolve(), "--port-offset", args.port_offset,
             "--region", release, env=env)
+    if args.mod_menu:
+        menu.inject(release, output, output, python, args.keystore.resolve(), menu_root=menu_root)
     record_checksum(output)
     print(f"\nReady: {output}\nKeep your signing key: {args.keystore.resolve()}")
 
@@ -85,6 +88,9 @@ def main():
                         help="Move the game's local ports 8003/8080/3000 by this amount, for devices where another app uses them")
     parser.add_argument("--region", choices=["auto", *sorted(region.REGIONS)], default="auto",
                         help="Game release: detected from the package name unless given")
+    parser.add_argument("--mod-menu", action="store_true",
+                        help="Also inject the Bunker Mod Menu (needs the bunker-modmenu sources)")
+    parser.add_argument("--mod-menu-root", type=Path, help="bunker-modmenu checkout (default: $BUNKER_MODMENU or vendor/bunker-modmenu)")
     args = parser.parse_args()
     args.apk = args.apk.resolve(strict=True)
     detected, name = region.region_of_apk(args.apk)
