@@ -173,10 +173,23 @@ None of these are included in this repository. Put them anywhere; the commands b
 
 | File | Needed for |
 | --- | --- |
-| Original game APK, version 3.7.1, ARM64 (`…nierspww_3.7.1…apk`) | Android |
-| Decrypted game IPA, version 3.7.1 (`com.square-enix.NieRSPww_3.7.1.ipa`) | iPhone/iPad |
+| Original game APK, version 3.7.1, ARM64 (`…nierspww_3.7.1…apk`) | Android, 全球服 (EN) |
+| Original game APK, version 3.7.1, ARM64 (`…nierspjp_3.7.1…apk`) | Android, 日服 (JP) |
+| Decrypted game IPA, version 3.7.1 (`com.square-enix.NieRSPww_3.7.1.ipa`) | iPhone/iPad, 全球服 (EN) |
 | Master data `20240404193219.bin.e` | both |
 | Resource dump: `resource_dump_android.7z` and/or `resource_dump_ios.7z` | Android / iPhone/iPad |
+
+**Regions.** The game shipped twice, as 日服 (JP) and 全球服 (EN). One Lunar Tear
+serves both from the same save, but they are different binaries, so a build is
+one or the other. `scripts/build.py` reads the package name and picks the matching
+client patcher; `--region` overrides it and is refused if it contradicts the APK.
+To serve both, keep two Bunker builds installed, or rebuild for the other region.
+
+- **JP is Android only.** The JP client patcher works on the APK's smali, so it
+  needs apktool: use the command line, not the web builder.
+- **iPhone and iPad are EN only** (there is no JP iOS client patch).
+- An update never crosses regions: an installed EN build only accepts an EN
+  update, and a JP build only a JP one.
 
 ### 2. Install the tools
 

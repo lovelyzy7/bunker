@@ -15,6 +15,7 @@ sys.path.insert(0, str(REPO / "ios/tools"))
 
 import apk_sign  # noqa: E402
 import assemble_apk  # noqa: E402
+import region  # noqa: E402
 
 MASTER = "20240404193219.bin.e"
 
@@ -29,6 +30,13 @@ def addresses(port_offset=0):
 
 def build_android(apk, master, companion, output, log=print, port_offset=0):
     addresses(port_offset)  # Validate before the slow steps.
+    release, package = region.region_of_apk(Path(apk))
+    log(f"{region.REGIONS[release]['name']}: {package}")
+    if release != "en":
+        raise ValueError(
+            "日服 (JP) needs the desktop build: its client patch rewrites smali, which this builder cannot do. "
+            "Run scripts/build.py with the JP APK on macOS, Linux or Windows (WSL)."
+        )
     assemble_apk.assemble(Path(apk), Path(master), Path(companion), Path(output), log=log, port_offset=int(port_offset))
     log("Signing with the public Bunker key…")
     apk_sign.sign(Path(output))
@@ -36,6 +44,8 @@ def build_android(apk, master, companion, output, log=print, port_offset=0):
 
 
 def build_ios(ipa, master, framework_zip, python_zip, output, log=print, port_offset=0):
+    release, bundle = region.region_of_ipa(Path(ipa))
+    log(f"{region.REGIONS[release]['name']}: {bundle}")
     grpc, http, auth = addresses(port_offset)
     work = Path("/work/ios")
     shutil.rmtree(work, ignore_errors=True)

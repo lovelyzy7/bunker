@@ -6,6 +6,27 @@ sections it contains; its notes run down to the previous release.
 
 ## Unreleased
 
+### Regions (日服 / 全球服)
+
+- `scripts/build.py` reads the APK's package name and builds for that release:
+  `com.square_enix.android_googleplay.nierspjp` (日服) goes through
+  lunar-scripts-jp, `…nierspww` (全球服) through lunar-scripts as before.
+  `--region en|jp` overrides the detection and is refused when it contradicts
+  the files.
+- The 日服 client patch rewrites smali, so JP builds need apktool: the web
+  builder reports that and points at the command line. The iOS build stays
+  EN only, and a JP IPA is refused with the reason.
+- The local-reachability patch no longer uses a fixed address. It locates the
+  `UnityEngine.Application::get_internetReachability` wrapper through the name
+  string that only that wrapper computes, which finds it in both releases
+  (0x4910D4C EN, 0x4883AB0 JP) and still refuses an unknown library. It is
+  idempotent, so rebuilding over an already patched library works.
+- The build records its region (`assets/lunar/build.json` and the
+  `org.veritr1x.bunker.REGION` manifest entry), and an update keeps the region
+  of the build it replaces, so a JP build never turns into an EN one.
+- Verified end to end on Windows with both retail APKs: decode, client patch,
+  reachability, master data, merge, zipalign, sign (v3) and verify.
+
 ### Upstream
 
 - Lunar Tear is now the JP/EN fork (`lovelyzy7/lunar-tear-jp_en`, pinned
@@ -16,7 +37,7 @@ sections it contains; its notes run down to the previous release.
   `4211ecc06310e`), which adds a 中文/EN toggle on every page, one-click
   admin setup, and further editors.
 - Added Lunar Scripts (JP) (`lovelyzy7/lunar-scripts-jp`, pinned
-  `b84faf515fd94`) for the JP client patch pipeline (not used by builds yet).
+  `b84faf515fd94`) for the JP client patch pipeline.
 - All seven server patches were re-based onto the fork and the full Go test
   suite passes. The fork's Individualpop/Pvp stubs give way to Bunker's
   implementations, the premium draw keeps the original five-tier rates

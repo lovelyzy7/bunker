@@ -31,6 +31,7 @@ import zlib
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import axml  # noqa: E402
 import build_info  # noqa: E402
+import region  # noqa: E402
 from axml import Attr, Element  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -43,7 +44,6 @@ def addresses(port_offset=0):
     if not 0 <= port_offset <= 65535 - 8080:
         raise ValueError(f"Port offset must be 0–{65535 - 8080}")
     return f"127.0.0.1:{8003 + port_offset}", f"127.0.0.1:{8080 + port_offset}"
-PACKAGE = "com.square_enix.android_googleplay.nierspww"
 MASTER = "20240404193219.bin.e"
 LIB, METADATA = "lib/arm64-v8a/libil2cpp.so", "assets/bin/Data/Managed/Metadata/global-metadata.dat"
 
@@ -103,6 +103,7 @@ def patch_manifest(game_manifest, companion_manifest, port_offset=0):
     doc = axml.parse(game_manifest)
     companion = axml.parse(companion_manifest).root
     manifest = doc.root
+    package = manifest.get("package", ns=None).raw
     app = manifest.find_all("application")[0]
     for sdk in manifest.find_all("uses-sdk"):
         sdk.set(Attr.integer("minSdkVersion", 28, MIN_SDK))
@@ -128,18 +129,21 @@ def patch_manifest(game_manifest, companion_manifest, port_offset=0):
     if not game_activity:
         raise RuntimeError("Cannot find the game's launcher activity")
     if game_activity.startswith("."):
-        game_activity = PACKAGE + game_activity
+        game_activity = package + game_activity
     app.children.append(Element("meta-data", [Attr.string("name", "org.veritr1x.bunker.GAME_ACTIVITY", NAME),
                                               Attr.string("value", game_activity, VALUE)]))
     # The launcher and server read the ports the game was built for.
     app.children.append(Element("meta-data", [Attr.string("name", "org.veritr1x.bunker.PORT_OFFSET", NAME),
                                               Attr.integer("value", port_offset, VALUE)]))
+    # Which release this build is, so an update never crosses regions.
+    app.children.append(Element("meta-data", [Attr.string("name", "org.veritr1x.bunker.REGION", NAME),
+                                              Attr.string("value", region.region_for_package(package) or "", VALUE)]))
     for source in companion.find_all("application")[0].children:
         if isinstance(source, Element) and source.name in ("activity", "service", "provider"):
             if source.name == "activity":
                 source.set(Attr.reference("theme", THEME_MATERIAL_LIGHT_NO_ACTION_BAR, THEME))
             if source.name == "provider":  # Authorities are unique per device: use the game's.
-                source.set(Attr.string("authorities", PACKAGE + ".lunar_loopback", AUTHORITIES))
+                source.set(Attr.string("authorities", package + ".lunar_loopback", AUTHORITIES))
             app.children.append(source)
     return axml.serialize(doc), game_activity
 
@@ -212,6 +216,13 @@ def assemble(apk, master, companion_apk, output, log=print, port_offset=0):
         for required in ("AndroidManifest.xml", LIB, METADATA, "resources.arsc"):
             if required not in names:
                 raise RuntimeError(f"Not the ARM64 game APK: {required} is missing")
+        package = axml.parse(game.read("AndroidManifest.xml")).root.get("package", ns=None).raw
+        release = region.region_for_package(package)
+        if release is None:
+            raise RuntimeError(f"Not a game this build accepts: {package} ({', '.join(i['package'] for i in region.REGIONS.values())})")
+        if release != "en":
+            raise RuntimeError("日服 (JP) builds need the command line: the JP patcher rewrites smali, which this "
+                               "in-browser builder cannot do. Run scripts/build.py with the JP APK instead.")
         log("Patching the game library and metadata…")
         lib, metadata = patch_game_files(game.read(LIB), game.read(METADATA), port_offset)
         log("Updating the manifest…")
@@ -247,7 +258,7 @@ def assemble(apk, master, companion_apk, output, log=print, port_offset=0):
             writer.add("assets/lunar/original-master.bin.e", original_master)
             writer.add("assets/lunar/LUNAR_TEAR_LICENSE.txt", (ROOT / "LICENSE").read_bytes())
             # What an update in place needs (build_info.py).
-            info = build_info.describe(companion, len(dex), port_offset)
+            info = build_info.describe(companion, len(dex), port_offset, release)
             writer.add("assets/lunar/build.json", json.dumps(info, indent=1).encode())
             writer.add("assets/lunar/game-manifest.xml", game.read("AndroidManifest.xml"))
             writer.close()
@@ -266,6 +277,10 @@ def update(installed_apk, companion_apk, output, log=print):
         if "assets/lunar/build.json" not in names or "assets/lunar/game-manifest.xml" not in names:
             raise RuntimeError("This update needs the web builder: this build is older than Bunker 1.0.0")
         old = json.loads(game.read("assets/lunar/build.json"))
+        # Never cross regions on an update: the installed manifest decides.
+        release = region.region_for_package(axml.parse(game.read("assets/lunar/game-manifest.xml")).root.get("package", ns=None).raw)
+        if release is None:
+            raise RuntimeError("This update needs the web builder: the installed game is not a release Bunker knows")
         if old.get("gamePatch") != build_info.GAME_PATCH:
             raise RuntimeError("This update needs the web builder: it changes how the game itself is patched")
         log("Updating the manifest…")
@@ -294,7 +309,7 @@ def update(installed_apk, companion_apk, output, log=print):
                     if name.startswith(("lib/arm64-v8a/", "assets/chaquopy/", "assets/lunar/")) and name not in kept \
                             and name != "assets/lunar/build.json" and not name.endswith(".bin.e"):
                         writer.add(name, companion.read(name))
-                info = build_info.describe(companion, old["gameDex"], old["portOffset"])
+                info = build_info.describe(companion, old["gameDex"], old["portOffset"], release)
                 writer.add("assets/lunar/build.json", json.dumps(info, indent=1).encode())
                 writer.close()
             os.replace(temporary, output)

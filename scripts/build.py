@@ -10,9 +10,14 @@ from pathlib import Path
 import shutil
 import socket
 import subprocess
+import sys
 import tempfile
 
 from prepare import ROOT, prepare
+
+sys.path.insert(0, str(ROOT / "android/tools"))
+import command  # noqa: E402
+import region  # noqa: E402
 
 def addresses(port_offset):
     """The game's loopback addresses (game, assets, accounts), moved by --port-offset."""
@@ -25,7 +30,7 @@ def port_in_use(port):
 
 
 def run(*args, cwd=ROOT, env=None):
-    subprocess.run([str(arg) for arg in args], cwd=cwd, env=env, check=True)
+    subprocess.run(command.command(*args), cwd=cwd, env=env, check=True)
 
 
 def record_checksum(output):
@@ -39,14 +44,19 @@ def android_sdk(parser, env):
     default_sdk = Path.home() / ("Library/Android/sdk" if os.uname().sysname == "Darwin" else "Android/Sdk")
     sdk = Path(env.get("ANDROID_HOME", default_sdk)).expanduser().resolve()
     ndk = Path(env.get("ANDROID_NDK_HOME", sdk / "ndk/27.2.12479018")).expanduser().resolve()
-    for required in (sdk / "platforms/android-36/android.jar", sdk / "build-tools/36.0.0/apksigner", ndk):
+    tools = sdk / "build-tools/36.0.0"
+    if not (tools / "apksigner").exists():
+        series = sorted((p for p in (sdk / "build-tools").glob("36.*") if (p / "apksigner").exists()),
+                        key=lambda p: [int(x) if x.isdigit() else 0 for x in p.name.split(".")])
+        tools = series[-1] if series else tools
+    for required in (sdk / "platforms/android-36/android.jar", tools / "apksigner", ndk):
         if not required.exists():
             parser.error(f"Missing Android SDK component: {required}. See docs/BUILD.md.")
     env["ANDROID_HOME"], env["ANDROID_NDK_HOME"] = str(sdk), str(ndk)
     return sdk
 
 
-def build_android(args, env, python, master, sdk):
+def build_android(args, env, python, master, sdk, release):
     work = ROOT / ".build"
     run(ROOT / "android/tools/build_native.sh", env=env)
     run(ROOT / "android/gradlew", "assembleDebug", "lintDebug", cwd=ROOT / "android", env=env)
@@ -55,11 +65,12 @@ def build_android(args, env, python, master, sdk):
         decoded = Path(temp) / "decoded"
         run("apktool", "d", args.apk, "-o", decoded, env=env)
         grpc, http, auth = addresses(args.port_offset)
-        run(python, ROOT / "upstream/lunar-scripts/android/patch_apk.py", decoded,
+        run(python, ROOT / region.REGIONS[release]["patcher"], decoded,
             "--grpc-addr", grpc, "--http-addr", http, "--auth-host", auth, env=env)
         run(python, ROOT / "android/tools/package_game.py", "--decoded-dir", decoded,
             "--companion-apk", ROOT / "android/app/build/outputs/apk/debug/app-debug.apk", "--game-apk", args.apk,
-            "--output", output, "--sdk", sdk, "--keystore", args.keystore.resolve(), "--port-offset", args.port_offset, env=env)
+            "--output", output, "--sdk", sdk, "--keystore", args.keystore.resolve(), "--port-offset", args.port_offset,
+            "--region", release, env=env)
     record_checksum(output)
     print(f"\nReady: {output}\nKeep your signing key: {args.keystore.resolve()}")
 
@@ -99,6 +110,8 @@ def main():
     parser.add_argument("--profile", type=Path, help="iPhone: provisioning profile for --bundle-id")
     parser.add_argument("--port-offset", type=int, default=0,
                         help="Move the game's local ports 8003/8080/3000 by this amount, for devices where another app uses them")
+    parser.add_argument("--region", choices=["auto", *sorted(region.REGIONS)], default="auto",
+                        help="Game release: detected from the package name unless given")
     args = parser.parse_args()
     android = args.apk is not None
     if not android and bool(args.sign_identity) != bool(args.profile):
@@ -106,8 +119,12 @@ def main():
     source = (args.apk or args.ipa).resolve(strict=True)
     if android:
         args.apk = source
+        detected, name = region.region_of_apk(source)
     else:
         args.ipa = source
+        detected, name = region.region_of_ipa(source)
+    release = region.resolve(args.region, detected)
+    print(f"{region.REGIONS[release]['name']}: {name}")
     master = args.master.resolve(strict=True)
     env = os.environ.copy()
     if env.get("JAVA_HOME"):
@@ -150,7 +167,7 @@ def main():
         env["LUNAR_PORT_OFFSET"] = "20000"
     run("go", "test", "./...", cwd=ROOT / "server", env=env)
     if android:
-        build_android(args, env, python, patched_master, sdk)
+        build_android(args, env, python, patched_master, sdk, release)
     else:
         build_ios(args, env, python, patched_master)
 
