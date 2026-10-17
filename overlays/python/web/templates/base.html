@@ -2,11 +2,29 @@
 {%- set theme = request.cookies.get("lunar_theme", "") if request else "" -%}
 <html lang="en"{% if theme in ("light", "dark") %} data-theme="{{ theme }}"{% endif %}>
 <head>
+  {#- 中文为主：语言在首次绘制前生效。模板以英文撰写，Bunker 的页面由
+      bunker-i18n.js 按短语表翻译；未设置 lb_lang 时视为中文。先把 body 隐藏，
+      翻译完成（或 1.5 秒兜底）后再显示，避免每次翻页先闪一下英文。 -#}
+  <script>
+  (function () {
+    try {
+      if (localStorage.getItem("lb_lang") !== "en") {
+        var el = document.documentElement;
+        el.lang = "zh-CN";
+        el.className += " lang-zh i18n-loading";
+      }
+    } catch (e) {}
+  })();
+  </script>
+  <style>html.i18n-loading body { visibility: hidden; }</style>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <title>{% block title %}Pod Programs{% endblock %}</title>
   <link rel="stylesheet" href="/static/css/automata.css">
+  {#- lunar-base 的 i18n（data-i18n 元素 + 语言开关）与 Bunker 的短语表。 -#}
+  <script src="/static/js/i18n.js"></script>
+  <script src="/static/js/bunker-i18n.js"></script>
 </head>
 <body>
   <div class="terminal-bar">
@@ -15,7 +33,10 @@
       <span>Bunker Terminal</span>
       <span>Pod Programs</span>
     </div>
-    <div class="right">{% block bar_right %}{% endblock %}</div>
+    <div class="right">
+      <button type="button" id="lang-toggle" class="lang-toggle" aria-label="Switch language">EN</button>
+      {% block bar_right %}{% endblock %}
+    </div>
   </div>
   <nav class="primary">
     <a href="/" {% if active == "home" %}class="active"{% endif %}>Programs</a>
