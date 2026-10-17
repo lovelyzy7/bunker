@@ -29,8 +29,8 @@ import java.security.MessageDigest;
  * and hands it to Android's installer, which asks the player to confirm.
  */
 final class Updater {
-    static final String LATEST="https://api.github.com/repos/veritr1x/bunker/releases/latest";
-    static final String WEB_BUILDER="https://veritr1x.github.io/bunker/";
+    static final String LATEST="https://api.github.com/repos/lovelyzy7/bunker-jp-en/releases/latest";
+    static final String WEB_BUILDER="https://lovelyzy7.github.io/bunker-jp-en/";
     static final String INSTALL_RESULT="org.veritr1x.bunker.UPDATE_INSTALLED";
     private static final long SPACE=350L<<20;
     private static final String PREFS="lunar_update";

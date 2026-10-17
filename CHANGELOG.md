@@ -4,6 +4,16 @@ What changed in Bunker, newest first. Each day lists its changes by area.
 Commit ids are in brackets. Each release's heading sits above the dated
 sections it contains; its notes run down to the previous release.
 
+## 1.1.1 (2026-10-17)
+
+The update channel belongs to this fork.
+
+- The launcher checks **this** repository's releases for updates and opens this
+  fork's web builder, not the upstream author's. A fork that kept the upstream
+  URLs would have offered the original Bunker (no 日服, no Chinese, no menu) as
+  an update.
+- About now credits the original project and links here.
+
 ## 1.1.0 (2026-10-17)
 
 日服 and 全球服 from one app, Chinese first, and an optional Mod Menu.
