@@ -150,3 +150,10 @@ body:has(footer.player-bar[hidden]) { padding-bottom: 16px; }
 .sched-row .kind { font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--fg-mid); }
 a.sched-row:hover { background: var(--bg-cream-dark); color: var(--fg-dark); }
 .seg.tight a { letter-spacing: 0.04em; }
+
+/* 语言开关（档案馆） */
+nav.primary .lang-toggle {
+  margin-left: auto; align-self: center; font: 11px/1 ui-monospace, monospace;
+  letter-spacing: .12em; padding: 6px 10px; background: transparent;
+  color: inherit; border: 1px solid currentColor; cursor: pointer;
+}
