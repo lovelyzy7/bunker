@@ -52,10 +52,10 @@ public final class ToolsActivity extends Activity {
         // The same top bar as the Bunker: where you are, and the way back.
         LinearLayout bar=new LinearLayout(this);bar.setPadding(dp(18),dp(12),dp(18),dp(4));bar.setGravity(Gravity.CENTER_VERTICAL);body.addView(bar);
         LinearLayout titles=new LinearLayout(this);titles.setOrientation(LinearLayout.VERTICAL);
-        TextView caption=look.monoText("BUNKER // POD 042",10,look.mid);caption.setLetterSpacing(.2f);titles.addView(caption);
-        TextView title=look.text("POD PROGRAMS",22,look.ink);title.setTypeface(null,android.graphics.Typeface.BOLD);title.setLetterSpacing(.28f);titles.addView(title);
+        TextView caption=look.monoText(Text.of("BUNKER // POD 042"),10,look.mid);caption.setLetterSpacing(.2f);titles.addView(caption);
+        TextView title=look.text(Text.of("POD PROGRAMS"),22,look.ink);title.setTypeface(null,android.graphics.Typeface.BOLD);title.setLetterSpacing(.28f);titles.addView(title);
         bar.addView(titles,new LinearLayout.LayoutParams(0,-2,1));
-        close=look.outlined("CLOSE");close.setPadding(dp(16),0,dp(16),0);close.setOnClickListener(v->closeTools());bar.addView(close,new LinearLayout.LayoutParams(-2,dp(44)));
+        close=look.outlined(Text.of("CLOSE"));close.setPadding(dp(16),0,dp(16),0);close.setOnClickListener(v->closeTools());bar.addView(close,new LinearLayout.LayoutParams(-2,dp(44)));
         message=look.monoText("> Opening Pod Programs…",13,look.ink);message.setGravity(Gravity.CENTER);message.setPadding(dp(24),dp(24),dp(24),dp(24));body.addView(message,new LinearLayout.LayoutParams(-1,0,1));
         web=new WebView(this);web.setBackgroundColor(look.paper);web.setVisibility(View.GONE);body.addView(web,new LinearLayout.LayoutParams(-1,0,1));
         WebSettings settings=web.getSettings();settings.setJavaScriptEnabled(true);settings.setDomStorageEnabled(true);settings.setAllowFileAccess(false);settings.setAllowContentAccess(false);settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
@@ -102,12 +102,12 @@ public final class ToolsActivity extends Activity {
             final Uri target=data.getData();final String source=download,cookie=CookieManager.getInstance().getCookie(origin);
             close.setEnabled(false);
             new Thread(()->{
-                String feedback="Exported.";HttpURLConnection connection=null;
+                String feedback=Text.of("Exported.");HttpURLConnection connection=null;
                 try{
-                    connection=(HttpURLConnection)new URL(source).openConnection();connection.setRequestProperty("Cookie",cookie);connection.setConnectTimeout(15000);connection.setReadTimeout(60000);
-                    if(connection.getResponseCode()!=200)throw new IOException("Export failed");
-                    try(InputStream in=connection.getInputStream();OutputStream out=getContentResolver().openOutputStream(target)){if(out==null)throw new IOException("Cannot write file");byte[] bytes=new byte[65536];int count;while((count=in.read(bytes))!=-1)out.write(bytes,0,count);}
-                }catch(Exception error){feedback="Export failed: "+error.getMessage();}finally{if(connection!=null)connection.disconnect();}
+                    connection=(HttpURLConnection)new URL(source).openConnection();connection.setRequestProperty(Text.of("Cookie"),cookie);connection.setConnectTimeout(15000);connection.setReadTimeout(60000);
+                    if(connection.getResponseCode()!=200)throw new IOException(Text.of("Export failed"));
+                    try(InputStream in=connection.getInputStream();OutputStream out=getContentResolver().openOutputStream(target)){if(out==null)throw new IOException(Text.of("Cannot write file"));byte[] bytes=new byte[65536];int count;while((count=in.read(bytes))!=-1)out.write(bytes,0,count);}
+                }catch(Exception error){feedback=Text.of("Export failed: ")+error.getMessage();}finally{if(connection!=null)connection.disconnect();}
                 final String text=feedback;runOnUiThread(()->{close.setEnabled(true);Toast.makeText(this,text,Toast.LENGTH_LONG).show();});
             },"tools-export").start();
         }

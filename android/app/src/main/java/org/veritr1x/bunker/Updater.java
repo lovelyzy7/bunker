@@ -70,10 +70,10 @@ final class Updater {
     /** A message for the player: network failures in plain words, everything else as it is. */
     static String explain(Throwable e) {
         if(e instanceof java.net.UnknownHostException||e instanceof java.net.ConnectException||e instanceof java.net.NoRouteToHostException)
-            return "Can't reach the update server. Check the connection and try again.";
-        if(e instanceof java.net.SocketTimeoutException)return "The connection timed out. Try again.";
-        if(e instanceof HttpError)return "The update files aren't available (HTTP "+((HttpError)e).code+"). Try again later.";
-        if(e instanceof javax.net.ssl.SSLException)return "The secure connection to the update server failed. Try again.";
+            return Text.of("Can't reach the update server. Check the connection and try again.");
+        if(e instanceof java.net.SocketTimeoutException)return Text.of("The connection timed out. Try again.");
+        if(e instanceof HttpError)return Text.of("The update files aren't available (HTTP ")+((HttpError)e).code+Text.of("). Try again later.");
+        if(e instanceof javax.net.ssl.SSLException)return Text.of("The secure connection to the update server failed. Try again.");
         String message=e.getMessage()==null?e.toString():e.getMessage();
         // Python errors arrive as "RuntimeError: <message>".
         return message.replaceFirst("^[A-Za-z.]*Error: ","");
@@ -83,7 +83,7 @@ final class Updater {
         status=text;statusFailed=failed;
         new Handler(Looper.getMainLooper()).post(()->{Runnable l=listener;if(l!=null)l.run();});
     }
-    /** Checks again (the player turned "Check for updates" back on). */
+    /** Checks again (the player turned Text.of("Check for updates") back on). */
     static void recheck(Context c,Found found) { synchronized(Updater.class){checked=false;} check(c,found); }
     /** Test releases (update-test.json) are honoured only by development builds. */
     static boolean testReleasesAllowed(String version) { return version.contains("+dev"); }
@@ -203,10 +203,10 @@ final class Updater {
             try {
                 FilesStore.delete(work);FilesStore.mkdir(work);
                 if(new StatFs(activity.getCacheDir().getPath()).getAvailableBytes()<SPACE)
-                    throw new IOException("Updating needs about 350 MB free. Free some space and try again.");
+                    throw new IOException(Text.of("Updating needs about 350 MB free. Free some space and try again."));
                 File bundle=new File(work,"bundle.zip");
                 download(r.bundleUrl,bundle,r.update.getJSONObject("assets").getJSONObject("android").optLong("size",-1),report);
-                if(cancelled)throw new IOException("Update cancelled.");
+                if(cancelled)throw new IOException(Text.of("Update cancelled."));
                 stage(Stage.BUILDING);
                 File key=new File(work,"bunker-key.pem"),cert=new File(work,"bunker-cert.der");
                 copyAsset(activity,"lunar/signing/bunker-key.pem",key);copyAsset(activity,"lunar/signing/bunker-cert.der",cert);
@@ -214,14 +214,14 @@ final class Updater {
                 String apk=Python.getInstance().getModule("bunker_update").callAttr("build_android",activity.getPackageCodePath(),bundle.getAbsolutePath(),
                     r.update.getJSONObject("assets").getJSONObject("android").getString("sha256"),work.getAbsolutePath(),key.getAbsolutePath(),cert.getAbsolutePath(),report).toString();
                 bundle.delete();
-                if(cancelled)throw new IOException("Update cancelled.");
-                report.report("Stopping Lunar Tear and Pod Programs…");
+                if(cancelled)throw new IOException(Text.of("Update cancelled."));
+                report.report(Text.of("Stopping Lunar Tear and Pod Programs…"));
                 restartServer=new JSONObject(NativeBridge.status()).optString("state").equals("running");
                 new Handler(Looper.getMainLooper()).post(stopGame);
                 // Pod Programs may be finishing an edit (up to two minutes); never install over it.
                 for(int i=0;i<600&&!stopped();i++)Thread.sleep(250);
-                if(!stopped())throw new IOException("Pod Programs is still saving. Close it, wait a moment and try again.");
-                report.report("Opening the installer…");
+                if(!stopped())throw new IOException(Text.of("Pod Programs is still saving. Close it, wait a moment and try again."));
+                report.report(Text.of("Opening the installer…"));
                 stage(Stage.INSTALLING);
                 install(activity,new File(apk));
                 // The installer's answer arrives in MainActivity (installResult), which ends the update.
@@ -277,7 +277,7 @@ final class Updater {
         if(status==PackageInstaller.STATUS_SUCCESS)return null;
         restartIfStopped();
         String message=intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
-        return status==PackageInstaller.STATUS_FAILURE_ABORTED?"Update cancelled.":"The update could not be installed"+(message==null?".":": "+message);
+        return status==PackageInstaller.STATUS_FAILURE_ABORTED?Text.of("Update cancelled."):Text.of("The update could not be installed")+(message==null?".":": "+message);
     }
 
     private static void download(String url,File target,long size,Reporter report) throws IOException {
@@ -291,7 +291,7 @@ final class Updater {
                 if(cancelled)return;
                 out.write(buffer,0,n);done+=n;
                 int percent=total>0?(int)(done*100/total):-1;
-                if(percent!=last){last=percent;report.report(percent>=0?"Downloading "+percent+"%":"Downloading…");}
+                if(percent!=last){last=percent;report.report(percent>=0?Text.of("Downloading ")+percent+"%":Text.of("Downloading…"));}
             }
         } finally {c.disconnect();}
     }
@@ -299,7 +299,7 @@ final class Updater {
     private static String get(String url) throws IOException {
         HttpURLConnection c=(HttpURLConnection)new URL(url).openConnection();
         c.setConnectTimeout(5000);c.setReadTimeout(5000);
-        c.setRequestProperty("Accept","application/vnd.github+json");
+        c.setRequestProperty(Text.of("Accept"),"application/vnd.github+json");
         if(c.getResponseCode()!=200){int code=c.getResponseCode();c.disconnect();throw new HttpError(code);}
         try(InputStream in=c.getInputStream()) {
             return new String(read(in),StandardCharsets.UTF_8);

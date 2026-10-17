@@ -33,8 +33,8 @@ public final class ServerService extends Service {
     @Override public void onCreate() {
         super.onCreate();
         NativeBridge.setLogDir(FilesStore.logs(this).getAbsolutePath());NativeBridge.setBackupDir(new java.io.File(new java.io.File(getFilesDir(),"tools"),"backups").getAbsolutePath());
-        NotificationChannel channel=new NotificationChannel("server","Local game server",NotificationManager.IMPORTANCE_LOW);
-        channel.setDescription("Server status and Stop control while you play.");
+        NotificationChannel channel=new NotificationChannel("server",Text.of("Local game server"),NotificationManager.IMPORTANCE_LOW);
+        channel.setDescription(Text.of("Server status and Stop control while you play."));
         getSystemService(NotificationManager.class).createNotificationChannel(channel);
         wake=((PowerManager)getSystemService(POWER_SERVICE)).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"lunartear:server");
         wake.setReferenceCounted(false);
@@ -42,20 +42,20 @@ public final class ServerService extends Service {
     /** The state as the player reads it; the launcher compares the raw values. */
     private static String shown(String state){
         switch(state){
-            case "Server running": return "Running";
-            case "Server stopped": return "Stopped";
-            case "Starting server": return "Starting";
-            case "Preparing tools": return "Opening Pod Programs";
-            case "Tools ready": return "Pod Programs open";
-            default: return state;
+            case "Server running": return Text.of("Running");
+            case "Server stopped": return Text.of("Stopped");
+            case "Starting server": return Text.of("Starting");
+            case "Preparing tools": return Text.of("Opening Pod Programs");
+            case "Tools ready": return Text.of("Pod Programs open");
+            default: return Text.of(state);
         }
     }
     private Notification notification() {
         PendingIntent open=PendingIntent.getActivity(this,0,new Intent(this,MainActivity.class).putExtra("manage",true).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
         PendingIntent stop=PendingIntent.getService(this,1,new Intent(this,ServerService.class).setAction(STOP),PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
         Notification.Builder builder=new Notification.Builder(this,"server").setSmallIcon(Look.moon()).setContentTitle("Lunar Tear · "+shown(state))
-            .setContentText(detail).setContentIntent(open).setOngoing(true).setOnlyAlertOnce(true)
-            .addAction(new Notification.Action.Builder(null,busy?"Cancel":"Stop",stop).build());
+            .setContentText(Text.of(detail)).setContentIntent(open).setOngoing(true).setOnlyAlertOnce(true)
+            .addAction(new Notification.Action.Builder(null,busy?Text.of("Cancel"):Text.of("Stop"),stop).build());
         if(busy&&permille>=0)builder.setProgress(1000,permille,false).setStyle(new Notification.BigTextStyle().bigText(detail));
         return builder.build();
     }
@@ -85,7 +85,7 @@ public final class ServerService extends Service {
                     else {state="Tools ready";detail="Close Pod Programs to return to the game.";}
                 } catch(Exception|LinkageError error) {
                     tools=false;state="Needs attention";detail=error.getMessage()==null?error.toString():error.getMessage();
-                    android.util.Log.e("LunarTear","Tools startup failed",error);
+                    android.util.Log.e("LunarTear",Text.of("Tools startup failed"),error);
                 } finally {
                     busy=false;
                     if(tools)getSystemService(NotificationManager.class).notify(1,notification());else finishForeground();
@@ -107,7 +107,7 @@ public final class ServerService extends Service {
         if(busy||running||tools) return START_NOT_STICKY;
         busy=true; cancelled=false; permille=-1;
         state=START.equals(action)?"Starting server":BACKUP.equals(action)?"Exporting saves":SAVE.equals(action)?"Importing save":"Importing files";
-        detail=START.equals(action)?"Loading game data…":"Keep the source files available until this finishes.";
+        detail=START.equals(action)?Text.of("Loading game data…"):Text.of("Keep the source files available until this finishes.");
         if(Build.VERSION.SDK_INT>=34) startForeground(1,notification(),ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
         else startForeground(1,notification());
         wake.acquire(12*60*60*1000L);
@@ -118,10 +118,10 @@ public final class ServerService extends Service {
                 if(START.equals(action)) {
                     FilesStore.ensureBootstrap(this);
                     String error=NativeBridge.setPortOffset(Ports.offset(this));
-                    if(error==null||!error.isEmpty()) throw new IllegalStateException(error==null?"Native server did not respond":error);
+                    if(error==null||!error.isEmpty()) throw new IllegalStateException(error==null?Text.of("Native server did not respond"):error);
                     error=NativeBridge.start(FilesStore.data(this).getAbsolutePath(),FilesStore.root(this).getAbsolutePath());
-                    if(error==null||!error.isEmpty()) throw new IllegalStateException(error==null?"Native server did not respond":error);
-                    if(cancelled) { NativeBridge.stop(); throw new InterruptedException("Start cancelled"); }
+                    if(error==null||!error.isEmpty()) throw new IllegalStateException(error==null?Text.of("Native server did not respond"):error);
+                    if(cancelled) { NativeBridge.stop(); throw new InterruptedException(Text.of("Start cancelled")); }
                     // Confirm the game can reach this server on every port before playing.
                     String failure=selfTestFailure(NativeBridge.selfTest());
                     if(failure!=null) { NativeBridge.stop(); throw new IllegalStateException(failure); }
@@ -140,12 +140,12 @@ public final class ServerService extends Service {
                     else if(MASTER.equals(action)) FilesStore.importMaster(this,uri,progress);
                     else if(BACKUP.equals(action)) FilesStore.backup(this,uri);
                     else if(SAVE.equals(action)) { FilesStore.importSave(this,uri); closeGame(); }
-                    else throw new IllegalArgumentException("Unknown operation");
-                    state=BACKUP.equals(action)?"Saves exported":SAVE.equals(action)?"Save imported":"Import complete";
-                    detail=BACKUP.equals(action)?"Keep your backup somewhere safe.":SAVE.equals(action)?"Save imported. Tap Play to continue with it.":FilesStore.ready(this)?"Your files are ready. Start the server when you want to play.":"Import the remaining game files to continue.";
+                    else throw new IllegalArgumentException(Text.of("Unknown operation"));
+                    state=BACKUP.equals(action)?Text.of("Saves exported"):SAVE.equals(action)?Text.of("Save imported"):Text.of("Import complete");
+                    detail=BACKUP.equals(action)?Text.of("Keep your backup somewhere safe."):SAVE.equals(action)?Text.of("Save imported. Tap Play to continue with it."):FilesStore.ready(this)?Text.of("Your files are ready. Start the server when you want to play."):Text.of("Import the remaining game files to continue.");
                 }
             } catch(Exception|LinkageError error) {
-                running=false;state=cancelled?"Operation cancelled":"Needs attention";
+                running=false;state=cancelled?Text.of("Operation cancelled"):Text.of("Needs attention");
                 detail=error.getMessage()==null?error.toString():error.getMessage();
                 android.util.Log.e("LunarTear",detail,error);
             } finally {
@@ -169,14 +169,14 @@ public final class ServerService extends Service {
         try {
             JSONObject r=new JSONObject(report);
             if(r.optBoolean("ok")) return null;
-            StringBuilder text=new StringBuilder("The game could not reach its server:");
+            StringBuilder text=new StringBuilder(Text.of("The game could not reach its server:"));
             org.json.JSONArray checks=r.getJSONArray("checks");
             for(int i=0;i<checks.length();i++){
                 JSONObject c=checks.getJSONObject(i);
                 if(!c.optBoolean("ok")) text.append("\n• Port ").append(c.optInt("port")).append(" (").append(c.optString("name")).append("): ").append(c.optString("detail"));
             }
             return text.toString();
-        } catch(Exception e) { return "Server check failed: "+e.getMessage(); }
+        } catch(Exception e) { return Text.of("Server check failed: ")+e.getMessage(); }
     }
     private void finishForeground() {
         if(wake!=null&&wake.isHeld())wake.release();

@@ -38,20 +38,20 @@ public final class ArchiveActivity extends Activity {
         // The Bunker's top bar: where you are, and the way back.
         LinearLayout bar=new LinearLayout(this);bar.setPadding(dp(18),dp(12),dp(18),dp(4));bar.setGravity(Gravity.CENTER_VERTICAL);body.addView(bar);
         LinearLayout titles=new LinearLayout(this);titles.setOrientation(LinearLayout.VERTICAL);
-        TextView caption=look.monoText("BUNKER // ARCHIVE",10,look.mid);caption.setLetterSpacing(.2f);titles.addView(caption);
-        TextView title=look.text("ARCHIVE",22,look.ink);title.setTypeface(null,android.graphics.Typeface.BOLD);title.setLetterSpacing(.28f);titles.addView(title);
+        TextView caption=look.monoText(Text.of("BUNKER // ARCHIVE"),10,look.mid);caption.setLetterSpacing(.2f);titles.addView(caption);
+        TextView title=look.text(Text.of("ARCHIVE"),22,look.ink);title.setTypeface(null,android.graphics.Typeface.BOLD);title.setLetterSpacing(.28f);titles.addView(title);
         bar.addView(titles,new LinearLayout.LayoutParams(0,-2,1));
-        Button close=look.outlined("CLOSE");close.setPadding(dp(16),0,dp(16),0);close.setOnClickListener(v->finish());bar.addView(close,new LinearLayout.LayoutParams(-2,dp(44)));
-        message=look.monoText("> Opening the Archive…",13,look.ink);message.setGravity(Gravity.CENTER);message.setPadding(dp(24),dp(24),dp(24),dp(24));body.addView(message,new LinearLayout.LayoutParams(-1,0,1));
+        Button close=look.outlined(Text.of("CLOSE"));close.setPadding(dp(16),0,dp(16),0);close.setOnClickListener(v->finish());bar.addView(close,new LinearLayout.LayoutParams(-2,dp(44)));
+        message=look.monoText(Text.of("> Opening the Archive…"),13,look.ink);message.setGravity(Gravity.CENTER);message.setPadding(dp(24),dp(24),dp(24),dp(24));body.addView(message,new LinearLayout.LayoutParams(-1,0,1));
         web=new WebView(this);web.setBackgroundColor(look.paper);web.setVisibility(View.GONE);body.addView(web,new LinearLayout.LayoutParams(-1,0,1));
         WebSettings settings=web.getSettings();settings.setJavaScriptEnabled(true);settings.setDomStorageEnabled(true);settings.setAllowFileAccess(false);settings.setAllowContentAccess(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);settings.setMediaPlaybackRequiresUserGesture(false);
         web.setWebViewClient(new WebViewClient(){
             @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request){return !local(request.getUrl().toString());}
             @Override public void onPageFinished(WebView view,String url){if(local(url)){message.setVisibility(View.GONE);web.setVisibility(View.VISIBLE);}}
-            @Override public void onReceivedError(WebView view,WebResourceRequest request,WebResourceError error){if(request.isForMainFrame())show("> Unable to open the Archive. Close and try again.");}
+            @Override public void onReceivedError(WebView view,WebResourceRequest request,WebResourceError error){if(request.isForMainFrame())show(Text.of("> Unable to open the Archive. Close and try again."));}
         });
-        // Pictures from the page ("Save PNG", the 3D snapshot) go where the user picks; WebView ignores download links.
+        // Pictures from the page (Text.of("Save PNG"), the 3D snapshot) go where the user picks; WebView ignores download links.
         web.addJavascriptInterface(new Object(){
             @JavascriptInterface public void savePng(String name,String dataUrl){
                 byte[] png;
@@ -93,8 +93,8 @@ public final class ArchiveActivity extends Activity {
                     CookieManager.getInstance().setCookie(origin,"lunar_archive="+token+"; Path=/; HttpOnly; SameSite=Strict",ok->web.loadUrl(origin+"/"));
                 });
             }catch(Exception|LinkageError error){
-                android.util.Log.e("LunarTear","Archive startup failed",error);
-                runOnUiThread(()->show("> The Archive could not start: "+(error.getMessage()==null?error.toString():error.getMessage())));
+                android.util.Log.e("LunarTear",Text.of("Archive startup failed"),error);
+                runOnUiThread(()->show(Text.of("> The Archive could not start: ")+(error.getMessage()==null?error.toString():error.getMessage())));
             }
         },"archive-start").start();
     }
@@ -127,8 +127,8 @@ public final class ArchiveActivity extends Activity {
         if(result!=RESULT_OK||data==null||data.getData()==null||png==null)return;
         try(java.io.OutputStream out=getContentResolver().openOutputStream(data.getData())){
             out.write(png);
-            Toast.makeText(this,"Picture saved",Toast.LENGTH_SHORT).show();
-        }catch(Exception e){Toast.makeText(this,"The picture could not be saved",Toast.LENGTH_LONG).show();}
+            Toast.makeText(this,Text.of("Picture saved"),Toast.LENGTH_SHORT).show();
+        }catch(Exception e){Toast.makeText(this,Text.of("The picture could not be saved"),Toast.LENGTH_LONG).show();}
     }
     @Override protected void onPause(){super.onPause();web.onPause();}
     @Override protected void onResume(){super.onResume();web.onResume();}
