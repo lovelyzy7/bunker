@@ -27,10 +27,12 @@
   {# 语言按钮放在顶部操作区，不放进会换行的 nav：导航在最右侧的链接之后换行时，
      按钮不会与链接重叠，也不会贴到屏幕边缘。 #}
   <div class="terminal-bar">
+    {% set region = request.cookies.get("lunar_region", "") if request else "" %}
     <div class="left">
-      <span>YoRHa</span>
-      <span>Bunker Terminal</span>
+      <span class="bar-sys">YoRHa</span>
+      <span class="bar-sys">Bunker Terminal</span>
       <span>Archive</span>
+      {% if region %}<span class="region-badge {{ region }}">{{ region|upper }}</span>{% endif %}
     </div>
     <div class="right">
       <button type="button" id="archive-lang" class="lang-toggle" aria-label="Switch language">EN</button>

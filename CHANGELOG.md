@@ -6,8 +6,23 @@ sections it contains; its notes run down to the previous release.
 
 ## Unreleased
 
-Pod Programs' save editors work again on the device, and the panel gained a dark
-theme.
+The panel takes less room and shows which release it belongs to; a 日服 build's
+Archive now speaks Japanese.
+
+- **The top of every page was too tall**: the bar and nav together took 87px of a
+  phone screen before any content (`main` started at 131px). They are now 65px on
+  desktop and 71px on a phone, with the same 44px targets; the narrow bar keeps
+  only `POD PROGRAMS`, so the page title stops wrapping to two lines.
+- **Two installs looked identical**: an `EN` / `JP` tag now sits next to the
+  launcher title, in the Pod Programs bar and in the Archive bar (JP red). The
+  Android side reads `assets/lunar/build.json` (`Region.java`) and hands it to
+  both web apps; the desktop panel can set `LUNAR_BUILD_REGION`.
+- **A 日服 build still read English story text**: the Archive hard-coded
+  `assetbundle/text/en` and `voice/en`. It now takes the language from the region
+  (`ja` for JP, `en` otherwise), records it in the index signature and rebuilds
+  automatically — `FORMAT` 17 → 18.
+- `archive/schedule.py` formatted dates with `%-d`, which only glibc understands:
+  building the index on Windows (and in the browser builder) crashed.
 
 - **Profile / Mission / Quest editors were broken on the phone**: their services
   still called the desktop grant executable, whose path the device config never

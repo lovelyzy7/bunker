@@ -187,6 +187,12 @@ To serve both, keep two Bunker builds installed, or rebuild for the other region
   needs apktool: use the command line, not the web builder.
 - An update never crosses regions: an installed EN build only accepts an EN
   update, and a JP build only a JP one.
+- **The build knows its region.** The launcher, the Pod Programs bar and the
+  Archive all show `EN` or `JP` next to the title (JP in red), read from
+  `assets/lunar/build.json`, so two installs are told apart at a glance. The
+  Archive also follows it: an EN build reads the English scenario text and voice
+  tracks, a JP build the Japanese ones (`assetbundle/text/{en,ja}`), and rebuilds
+  its index once when that setting changes.
 
 ### 2. Install the tools
 
