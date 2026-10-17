@@ -209,6 +209,10 @@ player 1 and the prepared resources. The test makes its own working copies:
 
 ```sh
 .build/venv/bin/pip install -r scripts/requirements-test.txt
+# Fast, no save needed: every editor service is wired to the native bridge
+# instead of the desktop grant executable.
+.build/venv/bin/python android/tools/test_services.py
+
 .build/venv/bin/python android/tools/test_tools.py \
   --save /path/to/game.db \
   --assets /path/to/prepared/assets \
