@@ -4,6 +4,17 @@ What changed in Bunker, newest first. Each day lists its changes by area.
 Commit ids are in brackets. Each release's heading sits above the dated
 sections it contains; its notes run down to the previous release.
 
+## 1.2.8 (2026-10-18)
+
+The vendored Python runtime was missing one file, so every build still fell back
+to the CDN.
+
+- **`pyodide.asm.js` was not copied into `site/pyodide/`**: Pyodide loads that
+  glue file next to the wasm, so the first attempt failed with
+  "The script at …/pyodide.asm.js failed to load" and the builder quietly used
+  jsDelivr — the dependency 1.2.7 set out to remove. It is copied now, and a
+  local build loads the runtime from the page's own host.
+
 ## 1.2.7 (2026-10-18)
 
 A build can be stopped, the log can be copied and filtered, the launcher comes

@@ -17,9 +17,12 @@
 - **Source**: a finished build shows 来源 本站 in the card; the log printed
   `Speed: site 6 ms` and `Speed: proxy no answer` (the dev site's release url is
   a +dev tag), and the site won.
-- **Vendored Python**: `site/pyodide/` holds `pyodide.js`, `pyodide.asm.wasm`
-  (8.6 MB), `python_stdlib.zip` (2.4 MB), the lock and the three wheels; the site
-  grew from 26 MB to 38 MB and the worker logs a 127.0.0.1 runtime host.
+- **Vendored Python**: `site/pyodide/` holds `pyodide.js`, `pyodide.asm.js`
+  (1.0 MB), `pyodide.asm.wasm` (8.6 MB), `python_stdlib.zip` (2.4 MB), the lock
+  and the three wheels; the site grew from 26 MB to 39 MB and a build loads the
+  runtime from the page's own host. On the live site 1.2.7 the missing
+  `pyodide.asm.js` showed up as `Python from lovelyzy7.github.io failed: …` and a
+  quiet fallback to jsDelivr; 1.2.8 adds it.
 - **Checks**: `ruff check web scripts android/tools` passes (74 findings fixed or
   configured away); `tests/browser/encoding_scan.py` reports 0 problems in 319
   tracked files; `tests/browser/build_test.py` replaces the Windows-only driver.

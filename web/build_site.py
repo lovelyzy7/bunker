@@ -75,7 +75,7 @@ def vendor_pyodide(out, cache):
     """Copy the Python runtime next to the page, so the builder has no CDN to reach."""
     lock = _download(PYODIDE_URL + "pyodide-lock.json", cache)
     packages = json.loads(lock).get("packages", {})
-    names = ["pyodide.js", "pyodide.asm.wasm", "python_stdlib.zip"]
+    names = ["pyodide.js", "pyodide.asm.js", "pyodide.asm.wasm", "python_stdlib.zip"]
     names += [packages[name]["file_name"] for name in PYODIDE_PACKAGES if name in packages]
     target = out / "pyodide"
     target.mkdir(parents=True, exist_ok=True)
