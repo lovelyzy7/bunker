@@ -4,14 +4,14 @@
   <input type="text" name="q" placeholder="Search story lines and records" aria-label="Search the archive">
 </form>
 <h1>Archive</h1>
-<div class="tool-grid">
-  <a href="/story">Story <span>main story · character stories · events · side stories · library</span></a>
-  <a href="/records">Records <span>weapon stories · reports · lost archives · memoirs · debris</span></a>
-  <a href="/movies">Movies <span>{{ count(counts.movies, "movie") }}</span></a>
-  <a href="/characters">Characters <span>costumes · companions · cast · enemies</span></a>
-  <a href="/gallery">Gallery <span>stills · event scenes · library art · photos</span></a>
-  <a href="/music">Music <span>soundtrack</span></a>
-  <a href="/schedule">Schedule <span>summons · events · shops · banners · campaigns, with their dates</span></a>
+<div class="home-tiles">
+  <a href="/story"><b>Story</b><span>main story · character stories · events · side stories · library</span></a>
+  <a href="/records"><b>Records</b><span>weapon stories · reports · lost archives · memoirs · debris</span></a>
+  <a href="/movies"><b>Movies</b><span>{{ count(counts.movies, "movie") }}</span></a>
+  <a href="/characters"><b>Characters</b><span>costumes · companions · cast · enemies</span></a>
+  <a href="/gallery"><b>Gallery</b><span>stills · event scenes · library art · photos</span></a>
+  <a href="/music"><b>Music</b><span>soundtrack</span></a>
+  <a href="/schedule"><b>Schedule</b><span>summons · events · shops · banners · campaigns, with their dates</span></a>
 </div>
 {% if summary %}<p class="note">Index built {{ built }}.</p>{% endif %}
 {% endblock %}

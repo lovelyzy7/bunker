@@ -74,6 +74,7 @@
     "main · season · chapter ·": "主线 · 赛季 · 章节 ·",
     "of": "／",
     "soundtrack": "原声带",
+    "Search story lines and records": "搜索剧情文本与记录",
     "stills · event scenes · library art · photos": "剧照 · 活动场景 · 文库插画 · 照片",
     "summons · events · shops · banners · campaigns, with their dates": "召唤 · 活动 · 商店 · 卡池 · 战役，含各自时间",
     "voiced line": "语音台词",
@@ -105,6 +106,7 @@
     ["^(.*) · Season (\\d+) · (.*)$", "{1} · 赛季 {2} · {3}"],
     ["^Season (\\d+)$", "赛季 {1}"],
     ["^(\\d+) of (\\d+)$", "{1} / {2}"],
+    ["^Index built (.+)\\.$", "索引构建于 {1}"],
   ];
   var KEY = "archive_lang";
   var SKIP = {SCRIPT: 1, STYLE: 1, PRE: 1, CODE: 1, TEXTAREA: 1, SELECT: 1};

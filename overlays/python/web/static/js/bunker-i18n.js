@@ -76,6 +76,7 @@
     "Ends": "结束时间",
     "Event medals expire when their shop closes.": "活动兑换币会在其商店关闭时失效。",
     "Event or summon name": "活动或召唤名称",
+    "Choose the player": "选择玩家",
     "Events & shops": "活动与商店",
     "Everything open": "全部开放",
     "Exalt All Available Characters": "升华所有可用角色",
