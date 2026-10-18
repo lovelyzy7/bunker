@@ -73,14 +73,16 @@ Light or dark follows the phone, or choose one in ⋮ → Display. Screenshots a
 
 ## Build in your browser
 
-**[Open the web builder](https://veritr1x.github.io/bunker/)**: choose your own 3.7.1 game APK and
+**[Open the web builder](https://lovelyzy7.github.io/bunker-jp-en/)**: choose your own 3.7.1 game APK and
 master data, and download the offline Android app. Everything runs in your browser; your files are
 never uploaded. No tools to install. It builds 日服 and 全球服 APKs alike: see [Regions](#regions).
 
 Limitations:
 
 - **You still need your own files**: the original 3.7.1 ARM64 APK, the
-  `20240404193219.bin.e` master data, and the resource dump. Other versions are refused.
+  `20240404193219.bin.e` master data, and the resource dump. Other versions are refused:
+  the page checks both SHA-256 values before it builds (a split APK exported from an
+  installed copy can be allowed through under advanced options).
 - **The Android APK is signed with a public key**, so it installs as it is, and every web build
   updates over the previous one. The key ([`web/signing/bunker-key.p12`](web/signing/bunker-key.p12),
   password and alias `bunker`) is public: anyone can sign a build that installs over yours. To
@@ -184,7 +186,7 @@ client patcher; `--region` overrides it and is refused if it contradicts the APK
 To serve both, keep two Bunker builds installed, or rebuild for the other region.
 
 - **JP is Android only.** Both routes build it: `scripts/build.py` (desktop,
-  apktool) and the web builder or CI, which patch the library, metadata and
+  apktool) and the web builder, which patches the library, metadata and
   `network_config` in place. What the browser cannot do is the JP patcher's
   smali steps — Facebook login and the SQUARE ENIX BRIDGE account transfer.
   Offline play creates its own anonymous account and does not use them.

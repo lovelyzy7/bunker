@@ -80,6 +80,24 @@
   button#build { min-height: 56px; border: 0; background: var(--command); color: var(--on-command); font: 700 15px var(--sans); letter-spacing: .32em; cursor: pointer; }
   button#build:disabled { opacity: .4; cursor: default; }
   #log { white-space: pre-wrap; font: 12px/1.8 var(--mono); background: var(--log); color: var(--on-log); padding: 12px 14px; max-height: 260px; overflow: auto; }
+  /* Progress: one chip per stage, filled as the build reaches it. */
+  .steps { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0; padding: 0; }
+  .steps li { font: 11px var(--mono); letter-spacing: .08em; padding: 5px 9px; border: 1px solid var(--line); color: var(--mid); }
+  .steps li.on { border-color: var(--ink); color: var(--ink); font-weight: 700; }
+  .steps li.done { background: var(--ok); border-color: var(--ok); color: var(--on-ok); }
+  .meter { height: 6px; background: var(--chip); }
+  .meter span { display: block; height: 100%; width: 0; background: var(--ink); transition: width .4s ease; }
+  /* Failure: what went wrong, what to do, and the raw text underneath. */
+  /* display:flex would beat the hidden attribute's display:none, so say it again. */
+  #failure { border: 2px solid var(--alert); padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+  #failure[hidden], #progress[hidden] { display: none; }
+  #failure .title { margin: 0; font-weight: 700; color: var(--alert); letter-spacing: .04em; }
+  #failure p { margin: 0; font-size: 14px; }
+  #failure pre { margin: 6px 0 0; white-space: pre-wrap; font: 11px/1.6 var(--mono); color: var(--mid); }
+  /* The finished APK's facts. */
+  .built { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 4px 12px; margin: 0; font: 13px var(--mono); }
+  .built dt { color: var(--mid); letter-spacing: .08em; }
+  .built dd { margin: 0; overflow-wrap: anywhere; }
   #log:empty { display: none; }
   #result { display: none; }
   #download { align-self: flex-start; text-decoration: none; background: var(--command); color: var(--on-command); padding: 14px 20px; font-weight: 700; letter-spacing: .2em; font-size: 13px; }
@@ -146,7 +164,7 @@
     <section>
       <h2 class="head"><span>[</span><span>02 Build</span><span class="rule"></span><span>]</span></h2>
       <div class="frame">
-        <p>Takes a few minutes and needs about 2 GB of free memory. A desktop browser works best.</p>
+        <p>Takes a few minutes and needs about 2 GB of free memory. A desktop browser works best; a phone may run out of memory for a 300 MB APK.</p>
         <details>
           <summary>ADVANCED :: MOD MENU</summary>
           <p style="margin:8px 0">The optional memory menu (damage and defense multipliers, no skill cooldown,
@@ -161,6 +179,17 @@
           </label>
         </details>
         <details>
+          <summary>ADVANCED :: SKIP THE FILE CHECK</summary>
+          <p style="margin:8px 0">The build checks that your APK is the original 3.7.1 release and that the master data is
+            the untouched 20240404193219.bin.e, because the patch offsets were read from those files.
+            A split APK exported from an installed app has the same library and metadata, so it can still build,
+            but a different game version will not.</p>
+          <label style="display:flex;gap:10px;align-items:center">
+            <input type="checkbox" id="skip-check">
+            <span>Build even if the files do not match</span>
+          </label>
+        </details>
+        <details>
           <summary>EXPERIMENTAL :: PORT OFFSET</summary>
           <p style="margin:8px 0">The game talks to its server on this device through ports 8003, 8080 and 3000. If another app
             already uses one of them, the launcher says so. An offset moves all three, for example 30000 gives 38003, 38080
@@ -168,6 +197,21 @@
           <label>Offset <input type="number" id="port-offset" value="0" min="0" max="57455" step="1"></label>
         </details>
         <button id="build" disabled>BUILD ▶</button>
+        <div id="progress" hidden>
+          <ol class="steps" id="steps">
+            <li data-stage="0">CHECK FILES</li>
+            <li data-stage="1">PATCH LIBRARY</li>
+            <li data-stage="2">MANIFEST + MASTER</li>
+            <li data-stage="3">WRITE APK</li>
+            <li data-stage="4">SIGN + VERIFY</li>
+          </ol>
+          <div class="meter"><span id="meter"></span></div>
+        </div>
+        <div id="failure" role="alert" hidden>
+          <p class="title" id="fail-title"></p>
+          <p id="fail-hint"></p>
+          <details><summary>RAW ERROR</summary><pre id="fail-raw"></pre></details>
+        </div>
         <div id="log" role="log" aria-live="polite"></div>
       </div>
     </section>
@@ -175,6 +219,13 @@
     <section id="result">
       <h2 class="head"><span>[</span><span>03 Install</span><span class="rule"></span><span>]</span></h2>
       <div class="frame">
+        <dl class="built">
+          <dt>VERSION</dt><dd id="built-version">—</dd>
+          <dt>REGION</dt><dd id="built-region">—</dd>
+          <dt>MOD MENU</dt><dd id="built-menu">—</dd>
+          <dt>SIZE</dt><dd id="built-size">—</dd>
+          <dt>SHA-256</dt><dd id="built-sha">—</dd>
+        </dl>
         <a id="download" download>Download</a>
         <p class="note" id="sign-android">The APK is signed and ready to install. Every APK built on this page is signed
           with the same public Bunker key, so a newer build installs over an older one and keeps your saves.

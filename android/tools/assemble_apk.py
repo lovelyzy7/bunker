@@ -23,6 +23,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import struct
 import sys
 import tempfile
@@ -86,24 +87,33 @@ def run_cli(module, *args):
         sys.argv = old
 
 
-def patch_game_files(lib, metadata, port_offset=0):
-    """Apply lunar-scripts' library and metadata patches, plus local reachability."""
-    with tempfile.TemporaryDirectory() as work:
-        work = Path(work)
-        (work / LIB).parent.mkdir(parents=True)
-        (work / METADATA).parent.mkdir(parents=True)
-        (work / LIB).write_bytes(lib)
-        (work / METADATA).write_bytes(metadata)
-        # The upstream patcher also edits a text manifest; that change is made
-        # on the binary manifest below instead.
-        (work / "AndroidManifest.xml").write_text("<application >")
-        grpc, http = addresses(port_offset)
-        run_cli(load("patch_apk", SCRIPTS / "android/patch_apk.py"), work, "--grpc-addr", grpc, "--http-addr", http)
-        load("package_game", ROOT / "android/tools/package_game.py").patch_local_reachability(work)
-        return (work / LIB).read_bytes(), (work / METADATA).read_bytes()
+def extract(archive, name, target):
+    """Copy one entry of an open APK to disk, in chunks: the 120 MB library is never one Python object."""
+    target = Path(target)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with archive.open(name) as source, open(target, "wb") as sink:
+        shutil.copyfileobj(source, sink, 1 << 20)
+    return target
 
 
-def patch_game_files_jp(lib, metadata, network_config, port_offset=0):
+def patch_game_files(archive, work, port_offset=0):
+    """Patch the library and metadata inside work, there; returns their paths.
+
+    Paths rather than bytes keep the browser build's peak memory down: the game
+    library is written straight from its work file into the new APK.
+    """
+    work = Path(work)
+    lib, metadata = extract(archive, LIB, work / LIB), extract(archive, METADATA, work / METADATA)
+    # The upstream patcher also edits a text manifest; that change is made
+    # on the binary manifest below instead.
+    (work / "AndroidManifest.xml").write_text("<application >")
+    grpc, http = addresses(port_offset)
+    run_cli(load("patch_apk", SCRIPTS / "android/patch_apk.py"), work, "--grpc-addr", grpc, "--http-addr", http)
+    load("package_game", ROOT / "android/tools/package_game.py").patch_local_reachability(work)
+    return lib, metadata
+
+
+def patch_game_files_jp(archive, work, port_offset=0):
     """The 日服 (JP) library, metadata and network_config patches, without the smali."""
     jp = load("patch_apk_jp", SCRIPTS_JP / "android/patch_apk_jp.py")
     grpc, http = addresses(port_offset)
@@ -119,21 +129,17 @@ def patch_game_files_jp(lib, metadata, network_config, port_offset=0):
         ("https://resources-api.app.nierreincarnation.jp/", f"{web}/"),
         ("https://dev-web.dark.abot.sh", web),
     ]
-    with tempfile.TemporaryDirectory() as work:
-        work = Path(work)
-        (work / LIB).parent.mkdir(parents=True)
-        (work / METADATA).parent.mkdir(parents=True)
-        (work / NETWORK_CONFIG).parent.mkdir(parents=True, exist_ok=True)
-        (work / LIB).write_bytes(lib)
-        (work / METADATA).write_bytes(metadata)
-        (work / NETWORK_CONFIG).write_bytes(network_config)
+    work = Path(work)
+    lib, metadata = extract(archive, LIB, work / LIB), extract(archive, METADATA, work / METADATA)
+    network_config = extract(archive, NETWORK_CONFIG, work / NETWORK_CONFIG)
+    if True:
         patched = jp.patch_metadata_strings(str(work / METADATA), replacements)
         if patched != len(replacements):
             raise RuntimeError(f"Only {patched}/{len(replacements)} JP metadata strings were patched")
         jp.patch_network_config(str(work), host, int(port))
         jp.patch_libil2cpp(str(work / LIB))
         load("package_game", ROOT / "android/tools/package_game.py").patch_local_reachability(work)
-        return (work / LIB).read_bytes(), (work / METADATA).read_bytes(), (work / NETWORK_CONFIG).read_bytes()
+        return lib, metadata, network_config
 
 
 def patch_master(original):
@@ -260,6 +266,35 @@ class ApkWriter:
         else:
             self._write(name, 0, crc, len(data), len(data), data)
 
+    def add_file(self, name, path, compress=True):
+        """Add a file from disk, in chunks: the 120 MB library never becomes one Python object.
+
+        A ZIP header carries the length before the data, so a stored entry
+        takes its size from the filesystem and a deflated one is packed as it
+        is read. Only the patched metadata and master data are compressed.
+        """
+        path = Path(path)
+        size = path.stat().st_size
+        if compress:
+            deflater, packed, crc = zlib.compressobj(6, zlib.DEFLATED, -15), io.BytesIO(), 0
+            with open(path, "rb") as source:
+                for chunk in iter(lambda: source.read(1 << 20), b""):
+                    crc = zlib.crc32(chunk, crc)
+                    packed.write(deflater.compress(chunk))
+            packed.write(deflater.flush())
+            data = packed.getvalue()
+            self._write(name, 8, crc, len(data), size, data)
+            return
+        crc = 0
+        with open(path, "rb") as source:
+            for chunk in iter(lambda: source.read(1 << 20), b""):
+                crc = zlib.crc32(chunk, crc)
+
+        def stream(out):
+            with open(path, "rb") as source:
+                shutil.copyfileobj(source, out, 1 << 20)
+        self._write(name, 0, crc, size, size, stream)
+
     def copy(self, source, info):
         """Copy an entry's compressed bytes from the source APK unchanged."""
         source.seek(info.header_offset)
@@ -288,6 +323,14 @@ class ApkWriter:
 
 def assemble(apk, master, companion_apk, output, log=print, port_offset=0, menu=None):
     """Build the APK. menu=(dex files, libniermenu.so) adds the Mod Menu."""
+    work = Path(tempfile.mkdtemp(prefix="bunker-"))
+    try:
+        return _assemble(Path(apk), Path(master), Path(companion_apk), Path(output), work, log, port_offset, menu)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def _assemble(apk, master, companion_apk, output, work, log, port_offset, menu):
     with zipfile.ZipFile(apk) as game, zipfile.ZipFile(companion_apk) as companion, open(apk, "rb") as raw:
         names = set(game.namelist())
         for required in ("AndroidManifest.xml", LIB, METADATA, "resources.arsc"):
@@ -301,10 +344,9 @@ def assemble(apk, master, companion_apk, output, log=print, port_offset=0, menu=
             raise RuntimeError(f"Not the 日服 (JP) game APK: {NETWORK_CONFIG} is missing")
         log("Patching the game library and metadata…")
         if release == "jp":
-            lib, metadata, network_config = patch_game_files_jp(
-                game.read(LIB), game.read(METADATA), game.read(NETWORK_CONFIG), port_offset)
+            lib, metadata, network_config = patch_game_files_jp(game, work, port_offset)
         else:
-            lib, metadata = patch_game_files(game.read(LIB), game.read(METADATA), port_offset)
+            lib, metadata = patch_game_files(game, work, port_offset)
         log("Updating the manifest…")
         manifest, game_activity = patch_manifest(game.read("AndroidManifest.xml"),
                                                  companion.read("AndroidManifest.xml"),
@@ -327,7 +369,13 @@ def assemble(apk, master, companion_apk, output, log=print, port_offset=0, menu=
                 if name.startswith("META-INF/") and re.search(r"\.(SF|RSA|DSA|EC)$|MANIFEST\.MF$", name) or name == "stamp-cert-sha256":
                     continue
                 if name in replaced:
-                    writer.add(name, replaced[name], compress=name != LIB or info.compress_type != 0)
+                    # pop(): the patched library is 120 MB that nothing below
+                    # needs, and the browser build has no memory to spare.
+                    value = replaced.pop(name)
+                    if isinstance(value, bytes):   # the manifest, which is small
+                        writer.add(name, value)
+                    else:                          # the patched files, written from disk
+                        writer.add_file(name, value, compress=name != LIB or info.compress_type != 0)
                 else:
                     writer.copy(raw, info)
             for name in sorted(companion.namelist(), key=lambda n: (len(n), n)):
@@ -353,7 +401,9 @@ def assemble(apk, master, companion_apk, output, log=print, port_offset=0, menu=
             writer.add("assets/lunar/game-manifest.xml", game.read("AndroidManifest.xml"))
             writer.close()
         os.replace(temporary, output)
-    return game_activity
+    return {"activity": game_activity, "region": release, "name": region.REGIONS[release]["name"],
+            "package": package, "version": info["version"], "modMenu": bool(menu),
+            "portOffset": int(port_offset), "size": Path(output).stat().st_size}
 
 
 def update(installed_apk, companion_apk, output, log=print):

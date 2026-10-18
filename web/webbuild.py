@@ -18,7 +18,21 @@ import apk_sign  # noqa: E402
 import assemble_apk  # noqa: E402
 import region  # noqa: E402
 
-MASTER = "20240404193219.bin.e"
+MASTER = region.MASTER
+
+
+def verify(apk, master, release):
+    """Refuse files that are not the release this build's offsets were read from.
+
+    Only the SHA-256 is compared: the size follows from it, and a split APK
+    from an app bundle has the same library and metadata but a different
+    overall size, which is why the page offers an override.
+    """
+    expected = region.REGIONS[release]
+    if region.sha256_of(apk) != expected["sha256"]:
+        raise ValueError(f"The game APK is not the original 3.7.1 {expected['name']} release (SHA-256 does not match)")
+    if region.sha256_of(master) != region.MASTER_SHA256:
+        raise ValueError(f"The master data is not the original {MASTER} (SHA-256 does not match)")
 
 
 def addresses(port_offset=0):
@@ -60,20 +74,24 @@ def menu_payload(resources, release):
             "lib": read(f"{release}/libniermenu.so")}
 
 
-def build_android(apk, master, companion, output, log=print, port_offset=0, modmenu=None):
+def build_android(apk, master, companion, output, log=print, port_offset=0, modmenu=None, verify_inputs=True):
     addresses(port_offset)  # Validate before the slow steps.
     release, package = region.region_of_apk(Path(apk))
     log(f"{region.REGIONS[release]['name']}: {package}")
+    if verify_inputs:
+        log("Checking the game APK and master data…")
+        verify(apk, master, release)
     menu = menu_payload(modmenu, release)
     if modmenu and menu is None:
         log("The Mod Menu payload is missing; building without it.")
     elif menu:
         log(f"Adding the Mod Menu ({release})…")
-    assemble_apk.assemble(Path(apk), Path(master), Path(companion), Path(output),
-                          log=log, port_offset=int(port_offset), menu=menu)
+    built = assemble_apk.assemble(Path(apk), Path(master), Path(companion), Path(output),
+                                  log=log, port_offset=int(port_offset), menu=menu)
     log("Signing with the public Bunker key…")
     apk_sign.sign(Path(output))
     log("Signed APK ready to install.")
+    return built
 
 
 
@@ -89,9 +107,10 @@ def main():
     parser.add_argument("--port-offset", type=int, default=0)
     parser.add_argument("--mod-menu", nargs="?", const=str(REPO / "web/modmenu"), default=None,
                         help="Add the Mod Menu; optionally name the payload folder or zip")
+    parser.add_argument("--skip-checks", action="store_true", help="Build even if the input SHA-256 differs")
     args = parser.parse_args()
-    build_android(args.apk, args.master, args.companion_apk, args.output,
-                  port_offset=args.port_offset, modmenu=args.mod_menu)
+    build_android(args.apk, args.master, args.companion_apk, args.output, port_offset=args.port_offset,
+                  modmenu=args.mod_menu, verify_inputs=not args.skip_checks)
 
 
 if __name__ == "__main__":

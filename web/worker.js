@@ -27,6 +27,24 @@ async function fetchBytes(url, label) {
   return bytes;
 }
 
+const CHUNK = 8 << 20;   // Read the finished APK in 8 MB pieces; a 300 MB Uint8Array is a lot to hold twice.
+
+/** A Blob for the finished APK, built piece by piece so the page never sees a second copy. */
+function readBlob(FS, path, size) {
+  const parts = [];
+  const fd = FS.open(path, "r");
+  try {
+    for (let position = 0; position < size; position += CHUNK) {
+      const part = new Uint8Array(Math.min(CHUNK, size - position));
+      FS.read(fd, part, 0, part.length, position);
+      parts.push(part);
+    }
+  } finally {
+    FS.close(fd);
+  }
+  return new Blob(parts, { type: "application/vnd.android.package-archive" });
+}
+
 function writeFile(pyodide, path, bytes) {
   pyodide.FS.mkdirTree(path.slice(0, path.lastIndexOf("/")));
   pyodide.FS.writeFile(path, bytes);
@@ -47,7 +65,7 @@ async function setup() {
 }
 
 self.onmessage = async ({ data }) => {
-  const { game, master, portOffset = 0, modMenu = false } = data;
+  const { game, master, portOffset = 0, modMenu = false, verify = true } = data;
   try {
     ready = ready || setup();
     const pyodide = await ready;
@@ -67,11 +85,17 @@ self.onmessage = async ({ data }) => {
     }
     const output = "/output/bunker.apk";
     FS.mkdirTree("/output");
-    builder.build_android(gamePath, masterPath, "/bundles/android.zip", output, log, portOffset, payload);
-    const bytes = FS.readFile(output);
+    const built = builder.build_android(gamePath, masterPath, "/bundles/android.zip", output, log,
+                                        portOffset, payload, verify);
+    const info = built && built.toJs ? built.toJs({ dict_converter: Object.fromEntries }) : {};
+    if (built && built.destroy) built.destroy();
+    log("Computing the checksum…");
+    const sha256 = pyodide.runPython(
+      `import hashlib\nhashlib.file_digest(open(${JSON.stringify(output)}, "rb"), "sha256").hexdigest()`);
+    const blob = readBlob(FS, output, FS.stat(output).size);
     FS.unlink(output);
     for (const name of FS.readdir("/bundles")) if (name !== "." && name !== "..") FS.unlink("/bundles/" + name);
-    self.postMessage({ type: "done", value: { name: output.split("/").pop(), bytes } }, [bytes.buffer]);
+    self.postMessage({ type: "done", value: { name: "bunker.apk", blob, sha256, info } });
   } catch (error) {
     post("error", String(error.message || error).split("\n").filter(Boolean).slice(-3).join("\n"));
   }

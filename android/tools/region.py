@@ -25,13 +25,43 @@ REGIONS = {
         "package": EN_PACKAGE,
         # The upstream patcher, present in every lunar-scripts checkout.
         "patcher": "upstream/lunar-scripts/android/patch_apk.py",
+        # The 3.7.1 release this build's offsets were read from. A different
+        # build is refused unless the caller allows it: its metadata offsets
+        # move, and the patched metadata would corrupt the game.
+        "size": 263571029,
+        "sha256": "9ded0797ee607b6892b531ba3a02f4c4510774f5fe098ccada78ccff881c9209",
     },
     "jp": {
         "name": "日服 (JP)",
         "package": JP_PACKAGE,
         "patcher": "upstream/lunar-scripts-jp/android/patch_apk_jp.py",
+        "size": 254131762,
+        "sha256": "25b6326c610290dd1f581fc3b41e60efb1126172aae45804d5345caa0b653609",
     },
 }
+
+# The master data both releases use, named after its release date. The build
+# patches it, so it must be the untouched file.
+MASTER = "20240404193219.bin.e"
+MASTER_SIZE = 7801104
+MASTER_SHA256 = "60555788242de9a0580b0d86f6d109d67bd9cabd16d7bcda9b9a99745f270778"
+
+CHUNK = 1 << 20
+
+
+def file_digest(path, digest=None):
+    """A file's SHA-256, read in chunks: a 250 MB APK never sits in memory whole."""
+    import hashlib
+    digest = digest or hashlib.sha256()
+    with open(path, "rb") as source:
+        while chunk := source.read(CHUNK):
+            digest.update(chunk)
+    return digest
+
+
+def sha256_of(path):
+    return file_digest(path).hexdigest()
+
 
 def region_for_package(package):
     """The region a package name belongs to, or None."""

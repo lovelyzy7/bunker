@@ -141,31 +141,34 @@ reach the game's server on the phone, so loading used to stall for minutes
 (working only in airplane mode). The app now sends the game's requests to its
 own server directly; everything else still uses the phone's proxy.
 
-## Build in the cloud (no tools to install)
+## Build in the browser (no tools to install)
 
-`.github/workflows/build-apk.yml` builds the same APK on a GitHub runner. Run it
-from **Actions → Build APK → Run workflow** and give it two links:
+The [web builder](https://lovelyzy7.github.io/bunker-jp-en/) runs the same
+assembly as this page, in the browser, for 日服 and 全球服 alike. Choose your
+own game APK and `20240404193219.bin.e`; nothing is uploaded.
 
-| Input | What it is |
-| --- | --- |
-| `region` | `jp` for 日服, `en` for 全球服 |
-| `game_apk_url` | The original 3.7.1 ARM64 APK: a Google Drive link, a release asset or any direct URL |
-| `master_url` | `20240404193219.bin.e` |
-| `game_apk_sha256`, `master_sha256` | Optional; the build stops when a download differs |
-| `mod_menu` | Add the prebuilt Mod Menu (off by default) |
-| `port_offset` | Leave `0` unless 8003/8080 are taken |
+- **It checks your files first.** Both SHA-256 values are compared with the
+  3.7.1 releases the patch offsets were read from, and the page says which file
+  is wrong. A split APK exported from an installed copy can be allowed through
+  under *advanced options*; a different game version cannot.
+- **Progress and failures are named.** The page shows which step is running,
+  and every known failure (wrong release, damaged zip, master data a content
+  patcher has rewritten, out of memory) says what to do next.
+- **The APK is signed while it is written**, with the public Bunker key
+  (`web/signing/`), so one build updates another and keeps your saves. The
+  finished card shows the build version, region, whether the Mod Menu is in it,
+  the size and the APK's SHA-256.
+- **Memory**: the assembly streams the patched game library from a work file
+  into the new APK instead of holding it in Python, which keeps a 300 MB build
+  inside a desktop browser's tab budget. A phone is not promised: see the
+  limitation in the [README](../README.md#build-in-your-browser).
+- **What it cannot do** is the JP patcher's smali steps — Facebook login and the
+  SQUARE ENIX BRIDGE transfer. Offline play creates its own anonymous account
+  and uses neither.
 
-The workflow downloads the files with `scripts/fetch_input.py`, which handles
-Drive's confirmation page (through `gdown`) and private release assets (through
-the API, using the `GAME_ASSET_TOKEN` secret). It then builds the launcher,
-assembles and signs the APK with the public Bunker key, and uploads
-`bunker-<region>.apk`, `SHA256SUMS` and `build.log` as one artifact.
-
-The assemble step is the same code the browser and `scripts/build.py` run
-(`web/webbuild.py`), so a cloud build matches a local one apart from the signing
-key: an APK from CI updates another CI build but not a local-keystore install.
-What CI cannot do is the JP patcher's smali steps — Facebook login and the
-SQUARE ENIX BRIDGE transfer — which no offline build uses.
+The site is built by `.github/workflows/pages.yml` from
+`web/build_site.py`; it contains no game files and refuses to publish master
+data.
 
 ## Keep your saves
 

@@ -27,6 +27,7 @@ PYTHON = [
     "android/tools/package_game.py",
     "android/tools/region.py",
     "upstream/lunar-scripts/android/patch_apk.py",
+    "upstream/lunar-scripts-jp/android/patch_apk_jp.py",
     "upstream/lunar-scripts/patch_masterdata.py",
     "web/signing/bunker-key.pem",
     "web/signing/bunker-cert.der",

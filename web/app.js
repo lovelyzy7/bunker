@@ -20,10 +20,91 @@ function update() {
   }
 }
 
+// ---- progress ---------------------------------------------------------------
+// The worker logs the build steps as it reaches them; each line that starts a
+// step moves the chips and the bar. Percentages are what each step costs.
+const STAGES = [
+  [/^Checking the game APK/, 0, 8],
+  [/^Patching the game library/, 1, 38],
+  [/^Updating the manifest|^Patching master data/, 2, 52],
+  [/^Writing the APK/, 3, 70],
+  [/^Signing with the public Bunker key|^Computing the checksum/, 4, 92],
+];
+
+function setStage(stage, percent) {
+  for (const li of document.querySelectorAll("#steps li")) {
+    const own = Number(li.dataset.stage);
+    li.classList.toggle("done", own < stage);
+    li.classList.toggle("on", own === stage);
+  }
+  if (percent !== undefined) $("meter").style.width = percent + "%";
+}
+
 function log(line) {
   const box = $("log");
   box.textContent += line + "\n";
   box.scrollTop = box.scrollHeight;
+  for (const [re, stage, percent] of STAGES) {
+    if (re.test(line)) { setStage(stage, percent); break; }
+  }
+}
+
+// ---- failures ---------------------------------------------------------------
+// Every known failure says what went wrong and what to do about it; anything
+// else is shown raw, because a precise error is better than a vague apology.
+const FAILURES = [
+  [/SHA-256 does not match.*game|The game APK is not the original/,
+    ["这不是原版 3.7.1 游戏包", "请使用官方 3.7.1 的日服或全球服 APK。若你确信文件正确（例如从已安装应用导出的拆分包），可在「进阶选项」里勾选「忽略文件校验」。"],
+    ["This is not the original 3.7.1 game", "Use the official 3.7.1 日服 or 全球服 APK. If you are sure the file is right (a split APK exported from an installed app, for example), tick \"Build even if the files do not match\" under advanced options."]],
+  [/The master data is not the original/,
+    ["主数据不是原版文件", "请使用 20240404193219.bin.e 原文件（约 7.4 MB），未被内容修补器改过的那个。"],
+    ["The master data is not the original", "Use the untouched 20240404193219.bin.e (about 7.4 MB), not one a content patcher has rewritten."]],
+  [/Not the ARM64 game APK/,
+    ["这个 APK 不是游戏本体", "请选择 64 位（arm64-v8a）的游戏原始 APK，而不是启动器、补丁包或存档。"],
+    ["This APK is not the game itself", "Choose the original arm64-v8a game APK, not a launcher, patch or save file."]],
+  [/Not a game this build accepts/,
+    ["不是本页支持的版本", "只支持 3.7.1 的日服或全球服。"],
+    ["Not a release this page builds", "Only the 3.7.1 日服 and 全球服 releases are supported."]],
+  [/Not the 日服 \(JP\) game APK/,
+    ["日服 APK 不完整", "文件里缺少日服专用的网络配置，请换一个未修改的原版 APK。"],
+    ["The 日服 APK is incomplete", "Its 日服 network configuration is missing; use an untouched original APK."]],
+  [/BadZipFile|not a ZIP|Bad magic number|File is not a zip/,
+    ["文件已损坏或不完整", "重新下载或重新复制文件后再试。"],
+    ["The file is damaged or incomplete", "Download or copy it again and retry."]],
+  [/Cannot download/,
+    ["站点文件下载失败", "刷新页面重试；如果一直失败，可能是网络拦截了 cdn.jsdelivr.net。"],
+    ["A site file could not be downloaded", "Reload the page. If it keeps failing, your network may block cdn.jsdelivr.net."]],
+  [/memory|MemoryError|Cannot enlarge|RangeError|out of memory/i,
+    ["浏览器内存不足", "关闭其他标签页，或改用桌面浏览器。手机上构建 300 MB 的 APK 容易超出浏览器的内存上限。"],
+    ["The browser ran out of memory", "Close other tabs, or use a desktop browser; a phone often cannot hold a 300 MB APK build."]],
+  [/Port offset/,
+    ["端口偏移无效", "把端口偏移改回 0。"],
+    ["The port offset is invalid", "Set the port offset back to 0."]],
+];
+
+function fail(raw) {
+  const [zh, en] = (FAILURES.find(([re]) => re.test(raw)) || [null,
+    ["构建失败", "请把下面的原始错误发到项目的 issue。"],
+    ["The build failed", "Please report the raw error below in the project's issues."]]).slice(1);
+  const [title, hint] = currentLang() === "zh" ? zh : en;
+  $("fail-title").textContent = title;
+  $("fail-hint").textContent = hint;
+  $("fail-raw").textContent = raw;
+  $("failure").hidden = false;
+  $("failure").scrollIntoView({ block: "center", behavior: "smooth" });
+}
+
+function regionName(info) {
+  return info.name || (info.region === "jp" ? "日服 (JP)" : "全球服 (EN)");
+}
+
+function fillResult(value) {
+  const info = value.info || {};
+  $("built-version").textContent = info.version || "—";
+  $("built-region").textContent = regionName(info);
+  $("built-menu").textContent = info.modMenu ? tr("included") : tr("not included");
+  $("built-size").textContent = `${(value.blob.size / 1048576).toFixed(0)} MB`;
+  $("built-sha").textContent = value.sha256 || "—";
 }
 
 $("game").addEventListener("change", update);
@@ -40,24 +121,35 @@ $("build").addEventListener("click", () => {
   building = true;
   $("build").disabled = true;
   $("result").style.display = "none";
+  $("failure").hidden = true;
+  $("progress").hidden = false;
   $("log").textContent = "";
-  if (url) URL.revokeObjectURL(url);
-  worker.postMessage({ game, master, portOffset, modMenu: !!document.getElementById("mod-menu").checked });
+  setStage(0, 2);
+  if (url) { URL.revokeObjectURL(url); url = null; }
+  worker.postMessage({ game, master, portOffset, modMenu: !!document.getElementById("mod-menu").checked,
+                       verify: !$("skip-check").checked });
 });
 
 worker.onmessage = ({ data }) => {
   if (data.type === "log") log(data.value);
-  if (data.type === "error") { log(tr("Build failed: ") + data.value); building = false; $("build").disabled = false; }
+  if (data.type === "error") {
+    log(tr("Build failed: ") + data.value);
+    fail(data.value);
+    building = false;
+    $("build").disabled = false;
+  }
   if (data.type === "done") {
-    const { name, bytes } = data.value;
-    url = URL.createObjectURL(new Blob([bytes], { type: "application/octet-stream" }));
+    const { name, blob, sha256, info } = data.value;
+    url = URL.createObjectURL(blob);
     $("download").href = url;
     $("download").download = name;
-    $("download").textContent = tr(`Download ${name} (${Math.round(bytes.length / 1048576)} MB)`);
+    $("download").textContent = tr(`Download ${name} (${Math.round(blob.size / 1048576)} MB)`);
+    fillResult(data.value);
 
     $("result").style.display = "block";
     building = false;
     $("build").disabled = false;
+    setStage(5, 100);
     log(tr("Done."));
   }
 };
@@ -118,6 +210,25 @@ const ZH = {
   "Choose the game .apk file.": "请选择游戏的 .apk 文件。",
   "Takes a few minutes and needs about 2 GB of free memory. A desktop browser works best.":
     "需要几分钟，并占用约 2 GB 内存。建议使用桌面浏览器。",
+  "Takes a few minutes and needs about 2 GB of free memory. A desktop browser works best; a phone may run out of memory for a 300 MB APK.":
+    "需要几分钟，并占用约 2 GB 内存。建议使用桌面浏览器；手机上构建 300 MB 的 APK 容易内存不足。",
+  "ADVANCED :: SKIP THE FILE CHECK": "进阶选项 :: 跳过文件校验",
+  "The build checks that your APK is the original 3.7.1 release and that the master data is the untouched 20240404193219.bin.e, because the patch offsets were read from those files. A split APK exported from an installed app has the same library and metadata, so it can still build, but a different game version will not.":
+    "构建前会校验你的 APK 是原版 3.7.1、主数据是未被改动的 20240404193219.bin.e，因为补丁偏移量就是从这些文件里读出来的。从已安装应用导出的拆分包，其游戏库与元数据相同，仍可构建；但其他游戏版本不行。",
+  "Build even if the files do not match": "即使文件不匹配也继续构建",
+  "CHECK FILES": "校验文件",
+  "PATCH LIBRARY": "改写游戏库",
+  "MANIFEST + MASTER": "清单与主数据",
+  "WRITE APK": "打包 APK",
+  "SIGN + VERIFY": "签名与校验",
+  "VERSION": "版本",
+  "REGION": "区域",
+  "MOD MENU": "MOD 菜单",
+  "SIZE": "大小",
+  "RAW ERROR": "原始错误",
+  "included": "已包含",
+  "not included": "未包含",
+  "Computing the checksum…": "正在计算校验值……",
   "EXPERIMENTAL :: PORT OFFSET": "实验性 :: 端口偏移",
   "Offset": "偏移",
   "BUILD ▶": "开始构建 ▶",

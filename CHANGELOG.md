@@ -32,12 +32,32 @@ Archive now speaks Japanese.
   build JP. Verified on a phone: a fresh anonymous account reaches the story, and
   the Mod Menu's JP payload works. `scripts/build.py` keeps the full apktool
   route for anyone who wants the social login redirects.
-- **Cloud builds**: `.github/workflows/build-apk.yml` runs the same assembly on
-  a GitHub runner (Actions → Build APK), for either release, with an optional
-  Mod Menu. `scripts/fetch_input.py` downloads the game APK and master data from
-  Drive, a public URL or a private release asset (`GAME_ASSET_TOKEN`), checking
-  SHA-256 when given; `web/webbuild.py` gained a command-line entry point so CI
-  and local runs share one path.
+- **The browser is now the only route for 日服**: the page ships the JP patcher
+  (`upstream/lunar-scripts-jp/android/patch_apk_jp.py` was missing from
+  `web/build_site.py`), so selecting the 日服 APK builds a working JP APK with no
+  tools and no GitHub account.
+- **A wrong file now says so**: the page checks the APK's and the master data's
+  SHA-256 against the 3.7.1 releases the patch offsets come from, shows which
+  step is running (five stages and a bar), names the failure and what to do
+  about it, and on success shows the version, region, Mod Menu, size and
+  SHA-256 of the APK it just built. Advanced options can skip the check for a
+  split APK exported from an installed copy.
+- **The build no longer holds the game in memory twice**: the patched library is
+  streamed from its work file into the APK (the 120 MB `libil2cpp.so` is not a
+  Python object any more), each patched entry is freed as soon as it is written,
+  and the finished APK is handed to the page as a Blob built in the worker, so
+  the page never holds a second 300 MB copy.
+- **The cloud build route is gone**: `build-apk.yml`, `scripts/fetch_input.py`
+  and the private assets repository were removed. Visitors supply their own
+  APKs, so nothing game-related is published, and one route is easier to keep
+  honest than two.
+- **Status page tiles**: the ten Pod Programs links were one run-on paragraph
+  (nothing styled their `tool-grid` class). They are now tiles — name over
+  description with a chevron, four across on a desktop and one per row on a
+  phone — and `Choose the player` gained its Chinese label.
+- **Archive home tiles**: the seven sections were inline text that ran together
+  on a phone. They are now the same kind of tile, and the page's search box and
+  build stamp are translated (`搜索剧情文本与记录`, `索引构建于 …`).
 
 - **Profile / Mission / Quest editors were broken on the phone**: their services
   still called the desktop grant executable, whose path the device config never
