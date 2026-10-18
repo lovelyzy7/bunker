@@ -93,6 +93,7 @@
   .steps li { font: 11px var(--mono); letter-spacing: .08em; padding: 5px 9px; border: 1px solid var(--line); color: var(--mid); }
   .steps li.on { border-color: var(--ink); color: var(--ink); font-weight: 700; }
   .steps li.done { background: var(--ok); border-color: var(--ok); color: var(--on-ok); }
+  .steps li.skipped { text-decoration: line-through; opacity: .55; }
   .meter { height: 6px; background: var(--chip); }
   .meter span { display: block; height: 100%; width: 0; background: var(--ink); transition: width .4s ease; }
   /* Failure: what went wrong, what to do, and the raw text underneath. */
@@ -241,11 +242,12 @@
         <button id="build" disabled>BUILD ▶</button>
         <div id="progress" hidden>
           <ol class="steps" id="steps">
-            <li data-stage="0">CHECK FILES</li>
-            <li data-stage="1">PATCH LIBRARY</li>
-            <li data-stage="2">MANIFEST + MASTER</li>
-            <li data-stage="3">WRITE APK</li>
-            <li data-stage="4">SIGN + VERIFY</li>
+            <li data-stage="0">LOAD RUNTIME</li>
+            <li data-stage="1">CHECK FILES</li>
+            <li data-stage="2">PATCH LIBRARY</li>
+            <li data-stage="3">MANIFEST + MASTER</li>
+            <li data-stage="4">WRITE APK</li>
+            <li data-stage="5">SIGN + VERIFY</li>
           </ol>
           <div class="meter"><span id="meter"></span></div>
         </div>

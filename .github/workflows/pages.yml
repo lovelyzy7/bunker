@@ -110,10 +110,14 @@ jobs:
           name: android-launcher
           path: bundles/android
       - name: Build the site
-        run: >
-          python3 web/build_site.py
-          --companion-apk bundles/android/app-debug.apk
-          --output site
+        # A second source for the 25 MB launcher bundle, if the repository has
+        # one (Settings > Variables > BUNDLE_MIRROR). It must send a CORS header.
+        env:
+          MIRROR: ${{ vars.BUNDLE_MIRROR }}
+        run: |
+          extra=()
+          if [ -n "$MIRROR" ]; then extra+=(--mirror "$MIRROR"); fi
+          python3 web/build_site.py --companion-apk bundles/android/app-debug.apk --output site "${extra[@]}"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site

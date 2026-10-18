@@ -6,6 +6,43 @@
 
 # Validation
 
+## The web builder's phone layout, checksum hint and caching — 2026-10-18
+
+- **01 Your files on the device**: at 392 CSS px each file is three rows (label,
+  description, chip beside the button), the chip clips a long name with an
+  ellipsis and the button reads 更换 once a file is there; at 520px the same grid
+  holds, at 521px and above the desktop row is unchanged, and no width from 360
+  to 1280 scrolls sideways.
+- **The page names the release it was given**: the 日服 APK shows `✓ 日服 · JP`,
+  the 全球服 APK `✓ 全球服 · EN`, a 3.7.1-sized file with other bytes
+  `✗ 不是原版 3.7.1（SHA-256 不匹配）`. On the phone the digest of the 254 MB APK
+  takes about a second and is cached per file.
+- **The Mod Menu checkbox builds again**: the same page with the box ticked
+  produced a 283 MB APK, `built-menu: 已包含`, SHA-256 `fce79190…a56de`; the
+  unticked build is `51b4cd22…282676`, the same file as before these changes.
+- **The runtime starts while files are being chosen**: a phone build was 26.9 s
+  when the runtime and launcher were already warm, and 57 s cold after the
+  release stamp replaced the cache; on the second build the launcher line reads
+  `the launcher (25 MB) in 0.1 s (cached)`. Desktop builds are 14–16 s. Every
+  build produced `51b4cd22…282676`.
+- **Chips say what is skipped**: with *skip the file check* ticked the chips end
+  as `done,skipped,done,done,done,on`, and the first chip is 准备运行时 rather
+  than 校验文件.
+- **A mirror is used, and a wrong mirror is refused**: with the same-origin
+  bundle removed, the build fetched it from a second origin, logged
+  `the launcher came from http://…/bundles/android.zip` and finished; pointed at
+  a copy with one byte flipped, it stopped with 站点文件校验失败
+  (*The launcher does not match the site's checksum*). A mirror needs a CORS
+  header — GitHub's release downloads do not send one.
+- **The cache is per release**: 29–35 entries under `bunker-<version>-<stamp>`,
+  the Pyodide host chosen on the first visit is reused on the next (the wasm is
+  matched in the cache before the latency race), and a rebuilt site (a new
+  stamp) installs a new worker and drops the old cache.
+- **The master picker on Android**: without an `accept` type Chrome opened the
+  photo picker, where `20240404193219.bin.e` cannot be selected; with
+  `application/octet-stream` the system file browser opens and both files were
+  picked that way, then built.
+
 ## 日服 (JP) builds, the region badge and the Archive's language — 2026-10-18
 
 - **Nav compression, measured on the device**: the bar and nav went from 48+39px

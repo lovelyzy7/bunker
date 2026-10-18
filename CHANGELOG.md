@@ -4,6 +4,57 @@ What changed in Bunker, newest first. Each day lists its changes by area.
 Commit ids are in brackets. Each release's heading sits above the dated
 sections it contains; its notes run down to the previous release.
 
+## 1.2.1 (2026-10-18)
+
+The web builder is quicker to start, survives a slow or blocked CDN, and says
+which release your APK is before you build. The Mod Menu checkbox works again.
+
+- **The Mod Menu could not be built in the browser at all**: `menu_payload()` took
+  a `ZipFile.read` and called it after the `with` block had closed the archive —
+  `ValueError: Attempt to use ZIP archive that was already closed`. Only the site
+  passes a zip (the command line passes the folder), so every browser build with
+  the checkbox failed after downloading the launcher. It now reads inside the
+  block, and a regression test builds the payload as a zip (`test_menu`, 13 tests).
+- **Filling in the two files on a phone looked scattered**: the label held a fixed
+  column, the description wrapped around it and the file chip fell to a third
+  line. On a phone each file is now three rows — label, description, then the
+  file chip beside the button — with a long file name cut with an ellipsis; the
+  button says *change* once a file is there. The `01 Your files` block is a grid
+  below 520px and unchanged on a desktop.
+- **The page can name the release**: picking an APK computes its SHA-256 (about
+  one second for 254 MB on a phone) and shows `✓ 日服 · JP` or `✓ 全球服 · EN`
+  under the description, or `✗ not the original 3.7.1` when the bytes are not one
+  of the two releases. The table behind it (`regions.json`) is generated from
+  `android/tools/region.py`, the same digests the build checks.
+- **The English page showed Chinese**: the base string was "The original 3.7.1
+  ARM64 game APK (日服 or 全球服)." It is now "(JP or global)", with 日服/全球服
+  in the Chinese dictionary, and the failure hints say "JP or global" too. A
+  `notranslate` meta stops Chrome from translating the English page into Chinese
+  ("JP or global" used to arrive as 日本版或全球版).
+- **Two minutes of waiting before anything happened**: the step chips had no
+  *load runtime* step, so a build lit "check files" while Pyodide was still
+  booting, and ticking *skip the file check* changed nothing on screen. There are
+  now six chips; the skipped check is struck through, and the runtime and the
+  25 MB launcher start loading as soon as a file is picked.
+- **The runtime and the launcher are kept on the device**: a service worker
+  caches `bundles/`, `py/` and Pyodide (about 35 MB) under the release's build
+  stamp, so a second build reads them from disk, and a new release drops the old
+  cache instead of mixing versions. Chrome kills a worker whose Python has died,
+  so a failed build now gets a fresh worker rather than "Pyodide already fatally
+  failed".
+- **A blocked CDN stopped a build**: Pyodide now comes from whichever of
+  jsDelivr's three endpoints (`cdn`, `fastly`, `gcore`) answers first, and the
+  launcher has a mirror slot (`build_site.py --mirror`, or the `BUNDLE_MIRROR`
+  repository variable). Every bundle is hashed against `mirrors.json` (generated
+  when the site is built) and bytes that do not match are refused, so a mirror
+  cannot put code into the APK. A mirror needs a CORS header; GitHub's release
+  downloads do not send one, so a release asset cannot be the second source.
+- **Picking the master data on a phone opened the photo picker**, where a
+  `.bin.e` cannot be chosen at all. The input asks for `application/octet-stream`
+  so the system file browser opens instead.
+- The APK's SHA-256 is computed after the finished file is handed to the page,
+  so the card and the download no longer wait for it.
+
 ## 1.2.0 (2026-10-18)
 
 The browser builds 日服 by itself, on a phone too; the panel and the Archive are

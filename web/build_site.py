@@ -9,6 +9,7 @@ supplies it. No game files are included, and there is no iOS build at all.
 Serve the output folder over HTTP to test it.
 """
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -34,6 +35,11 @@ PYTHON = [
     "web/signing/bunker-cert.der",
 ]
 PAGES_LIMIT = 100 * 1024 * 1024  # GitHub Pages refuses larger files.
+# A second copy of bundles/android.zip may be given with --mirror (the Pages
+# workflow passes the BUNDLE_MIRROR repository variable). It has to be readable
+# by the browser, so it needs a CORS header: GitHub's own release downloads do
+# not send one, which is why a release asset cannot serve as the mirror. The
+# page checks the bytes against the digest below before it uses them.
 
 
 def is_master(name):
@@ -61,11 +67,13 @@ def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--companion-apk", type=Path, required=True, help="android/app build output")
     p.add_argument("--output", type=Path, default=ROOT / ".build/site")
+    p.add_argument("--mirror", action="append", default=[], metavar="URL",
+                   help="a second source for bundles/android.zip (must send a CORS header); repeatable")
     args = p.parse_args()
     out = args.output.resolve()
     shutil.rmtree(out, ignore_errors=True)
     (out / "bundles").mkdir(parents=True)
-    for name in ("index.html", "app.js", "worker.js"):
+    for name in ("index.html", "app.js", "worker.js", "sw.js"):
         shutil.copy2(ROOT / "web" / name, out / name)
     shutil.copy2(ROOT / "web/signing/bunker-key.p12", out / "bunker-key.p12")
     for name in PYTHON:
@@ -87,12 +95,22 @@ def main():
     # The version this site builds, shown in the page header.
     with zipfile.ZipFile(args.companion_apk) as companion:
         version = companion.read("assets/lunar/bunker-version.txt").decode().strip()
-    (out / "version.json").write_text(json.dumps({"version": version}))
     # Names the picked APK on the page, from the same digests the build checks.
     sys.path.insert(0, str(ROOT / "android/tools"))
     import region  # noqa: E402  (after sys.path, which only this writer needs)
     known = {key: {"sha256": value["sha256"], "size": value["size"]} for key, value in region.REGIONS.items()}
     (out / "regions.json").write_text(json.dumps(known))
+    # Where the page may fetch each bundle from, and what its bytes must hash to.
+    # The release asset is a second source: GitHub's Pages and its download host
+    # are reached differently, so one of them usually works when the other does not.
+    def source(path, urls):
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        return {"sha256": digest, "urls": urls}
+
+    mirrors = {"bundle": source(out / "bundles/android.zip", ["bundles/android.zip", *args.mirror])}
+    if (out / "bundles/modmenu.zip").exists():
+        mirrors["modmenu"] = source(out / "bundles/modmenu.zip", ["bundles/modmenu.zip"])
+    (out / "mirrors.json").write_text(json.dumps(mirrors))
     for path in out.rglob("*"):
         if path.is_file() and path.stat().st_size > PAGES_LIMIT:
             raise SystemExit(f"{path.name} is over GitHub Pages' 100 MB limit")
@@ -100,6 +118,17 @@ def main():
             with zipfile.ZipFile(path) as bundle:
                 if any(is_master(n) for n in bundle.namelist()):
                     raise SystemExit(f"{path.name} contains master data")
+    # A stamp over everything but the bundles: the page registers
+    # sw.js?v=<version>-<stamp>, so a rebuild (even of a +dev site, where the
+    # version does not change) installs a new cache instead of serving the old
+    # one. Without it a changed py/webbuild.py would never reach the browser.
+    stamp = hashlib.sha256()
+    for path in sorted(out.rglob("*")):
+        relative = path.relative_to(out).as_posix()
+        if path.is_file() and not relative.startswith("bundles/") and relative != "version.json":
+            stamp.update(relative.encode())
+            stamp.update(path.read_bytes())
+    (out / "version.json").write_text(json.dumps({"version": version, "build": stamp.hexdigest()[:12]}))
     total = sum(p.stat().st_size for p in out.rglob("*") if p.is_file())
     print(f"Site ready: {out} ({total / 1048576:.0f} MB). Test with: python3 -m http.server -d {out}")
 

@@ -1,13 +1,24 @@
 // Page logic: collect the files, run the build in a worker, offer the result.
 const $ = (id) => document.getElementById(id);
-const worker = new Worker("worker.js");
+let worker = new Worker("worker.js");
 let url = null;
 let building = false;  // One build at a time, however fast the button is pressed.
 
 // The Bunker version this site builds (version.json, written by build_site.py).
 fetch("version.json").then((r) => r.ok ? r.json() : null).then((v) => {
-  if (v && v.version) $("bunker-version").textContent = tr("BUILDS BUNKER " + v.version);
+  if (v && v.version) {
+    $("bunker-version").textContent = tr("BUILDS BUNKER " + v.version);
+    keepOffline(v.build ? `${v.version}-${v.build}` : v.version);
+  }
 }).catch(() => {});
+
+/** Cache the 35 MB of runtime and launcher, so a second build is a local read. */
+function keepOffline(version) {
+  if (!("serviceWorker" in navigator)) return;
+  // A new release links a different sw.js, which installs a new cache and
+  // drops the old one; outside https/localhost the browser just refuses.
+  navigator.serviceWorker.register(`sw.js?v=${encodeURIComponent(version)}`).catch(() => {});
+}
 
 // The releases this page builds, keyed by SHA-256 (regions.json, same table as
 // android/tools/region.py). Only used to name the picked file; the build still
@@ -78,6 +89,9 @@ async function describeGame() {
 function update() {
   $("game-help").textContent = tr("The original 3.7.1 ARM64 game APK (JP or global).");
   $("game").accept = ".apk";
+  // Without an accept, Chrome on Android opens the photo picker and a .bin.e
+  // cannot be chosen at all; a non-media type gets the file browser instead.
+  $("master").accept = "application/octet-stream";
   $("build").disabled = !($("game").files[0] && $("master").files[0]);
   for (const id of ["game", "master"]) {
     const file = $(id).files[0], chip = $(id + "-name");
@@ -90,24 +104,29 @@ function update() {
     }
   }
   describeGame();
+  if ($("game").files[0] || $("master").files[0]) warmUp();
 }
 
 // ---- progress ---------------------------------------------------------------
 // The worker logs the build steps as it reaches them; each line that starts a
 // step moves the chips and the bar. Percentages are what each step costs.
 const STAGES = [
-  [/^Checking the game APK/, 0, 8],
-  [/^Patching the game library/, 1, 38],
-  [/^Updating the manifest|^Patching master data/, 2, 52],
-  [/^Writing the APK/, 3, 70],
-  [/^Signing with the public Bunker key|^Computing the checksum/, 4, 92],
+  [/^Loading Python|^Python runtime from|^Downloading the launcher/, 0, 3],
+  [/^Checking the game APK/, 1, 10],
+  [/^Patching the game library/, 2, 40],
+  [/^Updating the manifest|^Patching master data/, 3, 54],
+  [/^Writing the APK/, 4, 72],
+  [/^Signing with the public Bunker key|^Computing the checksum/, 5, 94],
 ];
 
 function setStage(stage, percent) {
+  const skip = $("skip-check").checked;
   for (const li of document.querySelectorAll("#steps li")) {
     const own = Number(li.dataset.stage);
-    li.classList.toggle("done", own < stage);
-    li.classList.toggle("on", own === stage);
+    const skipped = skip && own === 1;   // the check is not run, so it is not called done
+    li.classList.toggle("skipped", skipped);
+    li.classList.toggle("done", own < stage && !skipped);
+    li.classList.toggle("on", own === stage && !skipped);
   }
   if (percent !== undefined) $("meter").style.width = percent + "%";
 }
@@ -116,6 +135,7 @@ function log(line) {
   const box = $("log");
   box.textContent += line + "\n";
   box.scrollTop = box.scrollHeight;
+  if (!building) return;   // the warm-up logs too, and it is not a build yet
   for (const [re, stage, percent] of STAGES) {
     if (re.test(line)) { setStage(stage, percent); break; }
   }
@@ -146,6 +166,9 @@ const FAILURES = [
   [/FileReaderSync|readAsArrayBuffer/,
     ["浏览器读不到这个文件", "请用页面上的「选择」按钮重新挑选文件。手机上通过其他方式塞进文件框的文件，浏览器无权读取。"],
     ["The browser cannot read that file", "Pick it again with the page's CHOOSE button; a file put into the input by script is not readable on Android."]],
+  [/does not match the site's checksum/,
+    ["站点文件校验失败", "下载到的启动器与站点公布的校验值不一致，已停止构建。请刷新页面重试；若反复出现，说明这个下载来源的内容可能被替换了，请不要继续。"],
+    ["A site file did not match its checksum", "The launcher that was downloaded does not match the checksum this site publishes, so the build stopped. Reload and retry; if it keeps happening, that source may be serving altered bytes, so do not continue."]],
   [/Cannot download/,
     ["站点文件下载失败", "刷新页面重试；如果一直失败，可能是网络拦截了 cdn.jsdelivr.net。"],
     ["A site file could not be downloaded", "Reload the page. If it keeps failing, your network may block cdn.jsdelivr.net."]],
@@ -181,7 +204,21 @@ function fillResult(value) {
   $("built-region").textContent = regionName(info);
   $("built-menu").textContent = info.modMenu ? tr("included") : tr("not included");
   $("built-size").textContent = `${(value.blob.size / 1048576).toFixed(0)} MB`;
-  $("built-sha").textContent = value.sha256 || "—";
+  $("built-sha").textContent = value.sha256 || "…";   // filled in by the sha256 message
+}
+
+let runtimeReady = false;
+let warmTimer = null, warmed = false;
+
+/** Start Pyodide and the 25 MB launcher while the reader is still choosing files. */
+function warmUp() {
+  if (warmed) return;
+  clearTimeout(warmTimer);
+  warmTimer = setTimeout(() => {
+    warmed = true;
+    log(tr("Loading the runtime and the launcher in the background…"));
+    worker.postMessage({ type: "preload" });
+  }, 600);
 }
 
 $("game").addEventListener("change", update);
@@ -197,6 +234,9 @@ $("build").addEventListener("click", () => {
   if (!Number.isInteger(portOffset) || portOffset < 0 || portOffset > 57455) { log(tr("The port offset must be a whole number from 0 to 57455.")); return; }
   building = true;
   $("build").disabled = true;
+  setStage(0, 1);
+  if (runtimeReady) setStage(1, 10);   // the warm-up already loaded it
+  if ($("skip-check").checked) log(tr("Skipping the file check."));
   $("result").style.display = "none";
   $("failure").hidden = true;
   $("progress").hidden = false;
@@ -207,16 +247,22 @@ $("build").addEventListener("click", () => {
                        verify: !$("skip-check").checked });
 });
 
+function listen() {
 worker.onmessage = ({ data }) => {
   if (data.type === "log") log(data.value);
+  if (data.type === "runtime") runtimeReady = true;
+  if (data.type === "sha256") $("built-sha").textContent = data.value || "—";
   if (data.type === "error") {
     log(tr("Build failed: ") + data.value);
     fail(data.value);
     building = false;
     $("build").disabled = false;
+    // A Pyodide that failed once stays failed, so the next build gets a new
+    // worker instead of "Pyodide already fatally failed".
+    restartWorker();
   }
   if (data.type === "done") {
-    const { name, blob, sha256, info } = data.value;
+    const { name, blob, info } = data.value;
     url = URL.createObjectURL(blob);
     $("download").href = url;
     $("download").download = name;
@@ -230,7 +276,18 @@ worker.onmessage = ({ data }) => {
     log(tr("Done."));
   }
 };
+}
 
+listen();
+
+/** A worker whose Python died cannot be reused: start a clean one. */
+function restartWorker() {
+  worker.terminate();
+  worker = new Worker("worker.js");
+  runtimeReady = false;
+  warmed = false;
+  listen();
+}
 
 // ---- 中文界面（默认中文，右上角切换）-------------------------------------
 // 页面以英文撰写；这里按「英文原文 → 中文」替换文本、placeholder 与 aria-label，
@@ -300,6 +357,7 @@ const ZH = {
   "The build checks that your APK is the original 3.7.1 release and that the master data is the untouched 20240404193219.bin.e, because the patch offsets were read from those files. A split APK exported from an installed app has the same library and metadata, so it can still build, but a different game version will not.":
     "构建前会校验你的 APK 是原版 3.7.1、主数据是未被改动的 20240404193219.bin.e，因为补丁偏移量就是从这些文件里读出来的。从已安装应用导出的拆分包，其游戏库与元数据相同，仍可构建；但其他游戏版本不行。",
   "Build even if the files do not match": "即使文件不匹配也继续构建",
+  "LOAD RUNTIME": "准备运行时",
   "CHECK FILES": "校验文件",
   "PATCH LIBRARY": "改写游戏库",
   "MANIFEST + MASTER": "清单与主数据",
@@ -327,6 +385,8 @@ const ZH = {
   "Choose two different files.": "请选择两个不同的文件。",
   "The port offset must be a whole number from 0 to 57455.": "端口偏移必须是 0 到 57455 之间的整数。",
   "Done.": "完成。",
+  "Loading the runtime and the launcher in the background…": "正在后台准备运行时与启动器……",
+  "Skipping the file check.": "已跳过文件校验。",
   "Downloading": "正在下载",
   "Build": "构建",
   "END OF TRANSMISSION // GLORY TO MANKIND": "通信结束 // 愿人类荣光永存",

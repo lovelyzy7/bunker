@@ -163,6 +163,21 @@ own game APK and `20240404193219.bin.e`; nothing is uploaded.
   handed to the page as a Blob built in the worker. A 12 GB phone built a 日服
   APK in 44 s in Chrome, with the same SHA-256 as the desktop build; an older
   phone can still run out of memory for a 300 MB APK.
+- **The slow parts start while you choose files.** Picking either file loads
+  Python and the 25 MB launcher in the background, and a service worker keeps
+  them (and Pyodide's 8 MB wasm) on the device: after one build, another one on
+  the same device reads them from disk. The cache belongs to the release, so a
+  new build of the site never mixes in the previous one. The step chips say
+  *load runtime* / *check files* separately, and a build with the check skipped
+  shows that chip struck through.
+- **More than one source for the network.** Pyodide is fetched from whichever
+  of jsDelivr's three endpoints answers first (`cdn`, `fastly`, `gcore`), and
+  the launcher bundle has a mirror slot: `build_site.py --mirror <url>` (the
+  Pages workflow reads the `BUNDLE_MIRROR` repository variable). A mirror has to
+  be readable by the browser, so it needs a CORS header — GitHub's release
+  downloads do not send one, which is why a release asset cannot be used. The
+  page hashes whatever arrives against `mirrors.json` and refuses bytes that do
+  not match, so a mirror cannot inject code into your APK.
 - **What it cannot do** is the JP patcher's smali steps — Facebook login and the
   SQUARE ENIX BRIDGE transfer. Offline play creates its own anonymous account
   and uses neither.
