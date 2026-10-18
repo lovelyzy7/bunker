@@ -51,6 +51,14 @@ Archive now speaks Japanese.
   and the private assets repository were removed. Visitors supply their own
   APKs, so nothing game-related is published, and one route is easier to keep
   honest than two.
+- **A phone builds 日服 on its own**: the same page in the phone's Chrome, with
+  the files chosen in the system picker, produced an APK with the identical
+  SHA-256 as the desktop build (296,237,450 B, `51b4cd22…`) in 44 s. No OPFS
+  staging or chunked output was needed for a 12 GB device.
+- **Chrome translated the Chinese page into Chinese**: the builder declared
+  `lang="en"` while displaying Chinese, so the phone offered a translation and
+  mangled the text (「几分钟」 became 「三十」). The page now sets `lang` from the
+  language on screen.
 - **Status page tiles**: the ten Pod Programs links were one run-on paragraph
   (nothing styled their `tool-grid` class). They are now tiles — name over
   description with a chevron, four across on a desktop and one per row on a

@@ -159,9 +159,10 @@ own game APK and `20240404193219.bin.e`; nothing is uploaded.
   finished card shows the build version, region, whether the Mod Menu is in it,
   the size and the APK's SHA-256.
 - **Memory**: the assembly streams the patched game library from a work file
-  into the new APK instead of holding it in Python, which keeps a 300 MB build
-  inside a desktop browser's tab budget. A phone is not promised: see the
-  limitation in the [README](../README.md#build-in-your-browser).
+  into the new APK instead of holding it in Python, and the finished APK is
+  handed to the page as a Blob built in the worker. A 12 GB phone built a 日服
+  APK in 44 s in Chrome, with the same SHA-256 as the desktop build; an older
+  phone can still run out of memory for a 300 MB APK.
 - **What it cannot do** is the JP patcher's smali steps — Facebook login and the
   SQUARE ENIX BRIDGE transfer. Offline play creates its own anonymous account
   and uses neither.

@@ -32,9 +32,23 @@
 - **The web builder now builds 日服 too**: `web/webbuild.py --apk …game-jp.apk`
   produced a signed APK with the JP Mod Menu payload; it installed over the
   existing 日服 build, kept its data and booted with the menu.
-- **Cloud build**: Actions run 39052873101 finished in 3.5 minutes; the artifact
-  (164 MB for a 296 MB APK) installed on the phone, showed `JP` and the new
-  version, and `SHA256SUMS` matched the downloaded APK.
+- **The browser builds 日服, on a phone too**: desktop Chrome (headless) and the
+  phone's own Chrome each built the same 日服 APK from the original APK and
+  master data — 296,237,450 B, SHA-256 `51b4cd22…282676` on both, in 20 s and
+  44 s. The desktop download was installed over the existing 日服 build, kept
+  its data, showed `JP`, and both web apps ran; the phone's build had the same
+  hash, so it is the same file.
+- **The page refuses the wrong file**: pointing the master-data input at another
+  file stopped the build at the check with 「主数据不是原版文件」 and where to get
+  the right one, instead of failing later inside the patcher.
+- **Chrome translated the Chinese page into Chinese**: the builder's markup said
+  `lang="en"` while the page showed Chinese, so Android Chrome offered to
+  translate it and rewrote 「几分钟」 into 「三十」. The page now sets
+  `lang` from the chosen language, and the phone no longer offers to translate.
+- A first phone attempt that filled the file inputs through DevTools (而不是
+  文件选择器) failed with `FileReaderSync … readAsArrayBuffer`, because Chrome on
+  Android cannot read a path set that way; the page names that case instead of
+  showing a bare traceback. Choosing the files in the picker works.
 - `archive/schedule.py` no longer uses `%-d` in `strftime`, which crashed index
   builds on Windows and in the browser.
 

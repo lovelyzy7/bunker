@@ -71,6 +71,9 @@ const FAILURES = [
   [/BadZipFile|not a ZIP|Bad magic number|File is not a zip/,
     ["文件已损坏或不完整", "重新下载或重新复制文件后再试。"],
     ["The file is damaged or incomplete", "Download or copy it again and retry."]],
+  [/FileReaderSync|readAsArrayBuffer/,
+    ["浏览器读不到这个文件", "请用页面上的「选择」按钮重新挑选文件。手机上通过其他方式塞进文件框的文件，浏览器无权读取。"],
+    ["The browser cannot read that file", "Pick it again with the page's CHOOSE button; a file put into the input by script is not readable on Android."]],
   [/Cannot download/,
     ["站点文件下载失败", "刷新页面重试；如果一直失败，可能是网络拦截了 cdn.jsdelivr.net。"],
     ["A site file could not be downloaded", "Reload the page. If it keeps failing, your network may block cdn.jsdelivr.net."]],
@@ -212,6 +215,8 @@ const ZH = {
     "需要几分钟，并占用约 2 GB 内存。建议使用桌面浏览器。",
   "Takes a few minutes and needs about 2 GB of free memory. A desktop browser works best; a phone may run out of memory for a 300 MB APK.":
     "需要几分钟，并占用约 2 GB 内存。建议使用桌面浏览器；手机上构建 300 MB 的 APK 容易内存不足。",
+  "Takes a minute or two and needs about 2 GB of free memory. A modern phone manages it (a 12 GB phone built it in 44 s); an older one can run out of memory for a 300 MB APK.":
+    "需要一两分钟，并占用约 2 GB 内存。较新的手机可以完成（12 GB 的机器实测 44 秒）；较旧的手机在构建 300 MB 的 APK 时可能内存不足。",
   "ADVANCED :: SKIP THE FILE CHECK": "进阶选项 :: 跳过文件校验",
   "The build checks that your APK is the original 3.7.1 release and that the master data is the untouched 20240404193219.bin.e, because the patch offsets were read from those files. A split APK exported from an installed app has the same library and metadata, so it can still build, but a different game version will not.":
     "构建前会校验你的 APK 是原版 3.7.1、主数据是未被改动的 20240404193219.bin.e，因为补丁偏移量就是从这些文件里读出来的。从已安装应用导出的拆分包，其游戏库与元数据相同，仍可构建；但其他游戏版本不行。",
@@ -324,6 +329,9 @@ function currentLang() {
 
 function setLang(lang) {
   try { localStorage.setItem(LANG_KEY, lang); } catch (e) {}
+  // lang="en" on a page that shows Chinese makes Chrome offer to translate it,
+  // and its own translation mangles the text; say which language is on screen.
+  document.documentElement.lang = lang === "zh" ? "zh-Hans" : "en";
   const toggle = document.getElementById("lang");
   if (toggle) toggle.textContent = lang === "zh" ? "EN" : "中文";
   translatePage(lang === "zh");
