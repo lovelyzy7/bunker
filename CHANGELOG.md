@@ -4,6 +4,26 @@ What changed in Bunker, newest first. Each day lists its changes by area.
 Commit ids are in brackets. Each release's heading sits above the dated
 sections it contains; its notes run down to the previous release.
 
+## 1.2.3 (2026-10-18)
+
+Every step the build takes is on screen now, the Mod Menu included, and the
+long waits say what they are waiting for.
+
+- **The Mod Menu had no step of its own**: the chips went from 打包 APK straight
+  to 签名与校验 while the menu's dex files and library were being written. A
+  写入 MOD 菜单 chip now sits between them, with the details in the log
+  (dex 1/3（1 KB）…, libniermenu.so（1 MB）…). When the menu is not ticked the chip
+  is struck through, like a skipped file check. On a phone the seven chips are
+  3 + 3, with the last one spanning the row.
+- **The last chip never turned green**: completion jumped to one short of the
+  end of the list, so 签名与校验 stayed outlined on "Done". It now passes the last
+  step, and every chip is filled.
+- **准备运行时 was silent during its two big downloads**: it now reports the
+  Python runtime and standard library with a percentage, the packages, the
+  builder sources and "Python ready".
+- **Signing a 300 MB APK was a silent wait**: the signing read reports every 10%
+  (正在签名 60%…), and the archive's central directory gets its own line.
+
 ## 1.2.2 (2026-10-18)
 
 A build can no longer hang on a stalled download, the six step chips are two

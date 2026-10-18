@@ -6,6 +6,23 @@
 
 # Validation
 
+## The Mod Menu step, the finished chips and the signing progress — 2026-10-18
+
+- **Seven chips on a phone**: 3 + 3 + one full-width 签名与校验 (measured at 390px:
+  106px cells at x=30/142/254, rows at y=455/487, the last 330px wide at y=519;
+  screenshot `.build/chips-7-390.png`). The skipped file check is struck through.
+- **The Mod Menu has its own step**: with the box ticked the phone build logged
+  MOD 菜单内容：3 dex, 1 library. → 正在写入 MOD 菜单…… → dex 1/3（1 KB）……
+  … → libniermenu.so（1 MB）……, and finished with all seven chips filled; without
+  the box the chip is `skipped` (`done,done,done,done,done,skipped,done`).
+- **"Done" fills the last chip**: `setStage(7, 100)` marks every chip done; the
+  phone showed `done,skipped,done,done,done,done,done` and no outlined chip.
+- **准备运行时 has details**: 正在下载 Python 运行时…… 7%…, 正在下载 Python 标准库…,
+  正在下载 Python 组件……, 正在加载构建脚本（14 个文件）……, Python 已就绪。
+- **Signing reports progress**: 正在签名 10%… … 100% on a desktop build, and
+  正在写入压缩包目录…… before the central directory; the APK is still
+  `51b4cd22…282676` (`fce79190…a56de` with the menu).
+
 ## A stalled download, the chip grid and one-pass signing — 2026-10-18
 
 - **A source that goes quiet no longer hangs the build**: a test server that

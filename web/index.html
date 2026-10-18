@@ -166,6 +166,8 @@
        bar then sat against with no gap. */
     .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
     .steps li { text-align: center; padding: 6px 4px; font-size: 10px; letter-spacing: .04em; }
+    /* Seven chips: the last one is the finish, so it takes the whole row. */
+    .steps li:last-child { grid-column: 1 / -1; }
   }
 </style>
 </head>
@@ -252,7 +254,8 @@
             <li data-stage="2">PATCH LIBRARY</li>
             <li data-stage="3">MANIFEST + MASTER</li>
             <li data-stage="4">WRITE APK</li>
-            <li data-stage="5">SIGN + VERIFY</li>
+            <li data-stage="5">WRITE MOD MENU</li>
+            <li data-stage="6">SIGN + VERIFY</li>
           </ol>
           <div class="meter"><span id="meter"></span></div>
         </div>

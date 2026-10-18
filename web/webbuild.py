@@ -94,13 +94,14 @@ def build_android(apk, master, companion, output, log=print, port_offset=0, modm
     if modmenu and menu is None:
         log("The Mod Menu payload is missing; building without it.")
     elif menu:
-        log(f"Adding the Mod Menu ({release})…")
+        log(f"Mod Menu payload: {len(menu['dex'])} dex, 1 library.")
     built = assemble_apk.assemble(Path(apk), Path(master), Path(companion), Path(output),
                                   log=log, port_offset=int(port_offset), menu=menu)
     log("Signing with the public Bunker key…")
     # The digest comes out of the signing pass, so the finished APK is not read
     # a second time just to hash it.
-    certificate, sha256 = apk_sign.sign_and_digest(Path(output))
+    certificate, sha256 = apk_sign.sign_and_digest(
+        Path(output), progress=lambda percent: log(f"  signing {percent}%…"))
     log("Signed APK ready to install.")
     built = built if isinstance(built, dict) else {}
     built["sha256"] = sha256

@@ -111,19 +111,22 @@ function update() {
 // The worker logs the build steps as it reaches them; each line that starts a
 // step moves the chips and the bar. Percentages are what each step costs.
 const STAGES = [
-  [/^Loading Python|^Python runtime from|^Downloading the launcher/, 0, 3],
+  [/^Loading Python|^Python runtime from|^Downloading the/, 0, 3],
   [/^Checking the game APK/, 1, 10],
-  [/^Patching the game library/, 2, 40],
-  [/^Updating the manifest|^Patching master data/, 3, 54],
-  [/^Writing the APK/, 4, 72],
-  [/^Signing with the public Bunker key|^Computing the checksum/, 5, 94],
+  [/^Patching the game library/, 2, 36],
+  [/^Updating the manifest|^Patching master data|^Mod Menu payload/, 3, 48],
+  [/^Writing the APK/, 4, 62],
+  [/^Writing the Mod Menu/, 5, 78],
+  [/^Signing with the public Bunker key|^Computing the checksum/, 6, 94],
 ];
 
 function setStage(stage, percent) {
-  const skip = $("skip-check").checked;
+  // A step whose work is not done at all is struck through, not ticked:
+  // the file check when it is skipped, the Mod Menu when it is not built in.
+  const unused = { 1: $("skip-check").checked, 5: !$("mod-menu").checked };
   for (const li of document.querySelectorAll("#steps li")) {
     const own = Number(li.dataset.stage);
-    const skipped = skip && own === 1;   // the check is not run, so it is not called done
+    const skipped = !!unused[own];
     li.classList.toggle("skipped", skipped);
     li.classList.toggle("done", own < stage && !skipped);
     li.classList.toggle("on", own === stage && !skipped);
@@ -134,13 +137,29 @@ function setStage(stage, percent) {
 /** The build's own log lines, in Chinese when the page is Chinese. */
 const LOG_PATTERNS = [
   [/^Downloading the launcher… (\d+)%$/, "正在下载启动器…… $1%"],
+  [/^Downloading the Python runtime… (\d+)%$/, "正在下载 Python 运行时…… $1%"],
+  [/^Downloading the Python standard library… (\d+)%$/, "正在下载 Python 标准库…… $1%"],
+  [/^Downloading the Mod Menu… (\d+)%$/, "正在下载 MOD 菜单…… $1%"],
   [/^Loading Python…$/, "正在加载 Python……"],
   [/^Python runtime from (.+)$/, "Python 运行时来自 $1"],
   [/^Checking the game APK and master data…$/, "正在校验游戏 APK 与主数据……"],
   [/^Patching the game library and metadata…$/, "正在改写游戏库与元数据……"],
   [/^Updating the manifest…$/, "正在更新清单……"],
   [/^Patching master data…$/, "正在改写主数据……"],
-  [/^Adding the Mod Menu \((.+)\)…$/, "正在加入 MOD 菜单（$1）……"],
+  [/^Mod Menu payload: (.+)$/, "MOD 菜单内容：$1"],
+  [/^Writing the Mod Menu…$/, "正在写入 MOD 菜单……"],
+  [/^Finalizing the archive…$/, "正在写入压缩包目录……"],
+  [/^  signing (\d+)%…$/, "  正在签名 $1%……"],
+  [/^  dex (\d+)\/(\d+) \((\d+) KB\)…$/, "  dex $1/$2（$3 KB）……"],
+  [/^  libniermenu\.so \((\d+) MB\)…$/, "  libniermenu.so（$1 MB）……"],
+  [/^Downloading Python packages…$/, "正在下载 Python 组件……"],
+  [/^Loading the builder sources \((\d+) files\)…$/, "正在加载构建脚本（$1 个文件）……"],
+  [/^Python ready\.$/, "Python 已就绪。"],
+  [/^Downloading the Python runtime…$/, "正在下载 Python 运行时……"],
+  [/^the Python runtime \((\d+) MB\) in ([\d.]+) s \(cached\)$/, "Python 运行时（$1 MB）来自本地缓存"],
+  [/^the Python runtime \((\d+) MB\) in ([\d.]+) s$/, "Python 运行时（$1 MB）用时 $2 秒"],
+  [/^the Python standard library \((\d+) MB\) in ([\d.]+) s \(cached\)$/, "Python 标准库（$1 MB）来自本地缓存"],
+  [/^the Python standard library \((\d+) MB\) in ([\d.]+) s$/, "Python 标准库（$1 MB）用时 $2 秒"],
   [/^Writing the APK…$/, "正在打包 APK……"],
   [/^Signing with the public Bunker key…$/, "正在用公开的 Bunker 密钥签名……"],
   [/^Signed APK ready to install\.$/, "APK 已签名，可以安装。"],
@@ -149,8 +168,8 @@ const LOG_PATTERNS = [
   [/^the launcher \((\d+) MB\) in ([\d.]+) s \(cached\)$/, "启动器（$1 MB）来自本地缓存"],
   [/^the launcher \((\d+) MB\) in ([\d.]+) s$/, "启动器（$1 MB）用时 $2 秒"],
   [/^the launcher came from (.+)$/, "启动器来自镜像：$1"],
-  [/^The Mod Menu \((\d+) MB\) in ([\d.]+) s \(cached\)$/, "MOD 菜单（$1 MB）来自本地缓存"],
-  [/^The Mod Menu \((\d+) MB\) in ([\d.]+) s$/, "MOD 菜单（$1 MB）用时 $2 秒"],
+  [/^the Mod Menu \((\d+) MB\) in ([\d.]+) s \(cached\)$/, "MOD 菜单（$1 MB）来自本地缓存"],
+  [/^the Mod Menu \((\d+) MB\) in ([\d.]+) s$/, "MOD 菜单（$1 MB）用时 $2 秒"],
   [/^Cannot download the launcher from (.+): (.+)$/, "无法从 $1 下载启动器：$2"],
   [/^Cannot download the Mod Menu from (.+): (.+)$/, "无法从 $1 下载 MOD 菜单：$2"],
   [/^Trying (.+) again…$/, "正在重试 $1……"],
@@ -330,7 +349,7 @@ worker.onmessage = ({ data }) => {
     $("result").style.display = "block";
     building = false;
     $("build").disabled = false;
-    setStage(5, 100);
+    setStage(7, 100);   // one past the last chip: every step is done, none is "on"
     log(tr("Done."));
   }
 };
@@ -444,6 +463,7 @@ const ZH = {
   "Build even if the files do not match": "即使文件不匹配也继续构建",
   "LOAD RUNTIME": "准备运行时",
   "CHECK FILES": "校验文件",
+  "WRITE MOD MENU": "写入 MOD 菜单",
   "PATCH LIBRARY": "改写游戏库",
   "MANIFEST + MASTER": "清单与主数据",
   "WRITE APK": "打包 APK",

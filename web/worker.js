@@ -228,6 +228,15 @@ async function pyodideBases() {
   return pyodideBasesList;
 }
 
+/** Fetch a file the runtime is about to need anyway, so the log shows progress. */
+async function warm(url, label) {
+  try {
+    await fetchBytes(url, label);
+  } catch (error) {
+    // loadPyodide reports a missing file itself; a warm-up that fails is silent.
+  }
+}
+
 async function setup() {
   post("log", "Loading Python…");
   let lastError = null;
@@ -235,17 +244,27 @@ async function setup() {
     try {
       if (typeof loadPyodide === "undefined") importScripts(base + "pyodide.js");
       post("log", `Python runtime from ${new URL(base).host}`);
+      // These are the two big downloads; fetching them here puts real progress
+      // in the log instead of a silent pause while loadPyodide works.
+      post("log", "Downloading the Python runtime…");
+      await Promise.all([
+        warm(base + "pyodide.asm.wasm", "the Python runtime"),
+        warm(base + "python_stdlib.zip", "the Python standard library"),
+      ]);
       const pyodide = await loadPyodide({ indexURL: base });
+      post("log", "Downloading Python packages…");
       await pyodide.loadPackage(["pycryptodome", "msgpack", "lz4"]);
       pyodide.setStdout({ batched: (line) => post("log", line) });
       pyodide.setStderr({ batched: (line) => post("log", line) });
       const stamp = await buildStamp();
       const manifest = await (await fetch(`py/manifest.json?b=${encodeURIComponent(stamp)}`)).json();
+      post("log", `Loading the builder sources (${manifest.length} files)…`);
       for (const file of manifest) {
         const bytes = await (await fetch(`py/${file}?b=${encodeURIComponent(stamp)}`)).arrayBuffer();
         writeFile(pyodide, "/repo/" + file, new Uint8Array(bytes));
       }
       pyodide.runPython("import sys; sys.path.insert(0, '/repo/web'); import webbuild");
+      post("log", "Python ready.");
       post("runtime", true);
       return pyodide;
     } catch (error) {

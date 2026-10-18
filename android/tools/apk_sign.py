@@ -45,7 +45,7 @@ def _end_of_central_directory(f):
     return eocd, directory, size
 
 
-def _digest(f, entries_end, central, eocd, whole=None):
+def _digest(f, entries_end, central, eocd, whole=None, progress=None):
     """The v2 content digest: SHA-256 over 1 MB chunks of the entries, central directory and end record.
 
     whole, when given, is a running SHA-256 that receives the entries as they
@@ -58,11 +58,17 @@ def _digest(f, entries_end, central, eocd, whole=None):
     def add(data):
         chunks.append(hashlib.sha256(b"\xa5" + struct.pack("<I", len(data)) + data).digest())
     f.seek(0)
+    shown = 0
     for position in range(0, entries_end, CHUNK):
         data = f.read(min(CHUNK, entries_end - position))
         if whole is not None:
             whole.update(data)
         add(data)
+        if progress is not None:
+            percent = min(100, (position + len(data)) * 100 // max(1, entries_end))
+            if percent >= shown + 10:
+                shown = percent
+                progress(percent)
     for section in (central, eocd):
         for position in range(0, len(section), CHUNK):
             add(section[position:position + CHUNK])
@@ -74,11 +80,13 @@ def sign(apk, key_pem=KEYS / "bunker-key.pem", cert_der=KEYS / "bunker-cert.der"
     return sign_and_digest(apk, key_pem, cert_der)[0]
 
 
-def sign_and_digest(apk, key_pem=KEYS / "bunker-key.pem", cert_der=KEYS / "bunker-cert.der"):
+def sign_and_digest(apk, key_pem=KEYS / "bunker-key.pem", cert_der=KEYS / "bunker-cert.der", progress=None):
     """Sign the APK in place; returns (certificate SHA-256, signed file's SHA-256).
 
     The file digest comes from the bytes read while signing, so the caller does
-    not need a second pass over the finished APK.
+    not need a second pass over the finished APK. progress(percent), if given,
+    is called every 10% of the read: signing a 300 MB APK is a long silent wait
+    on a phone, and the page shows it.
     """
     key = RSA.import_key(Path(key_pem).read_bytes())
     cert = Path(cert_der).read_bytes()
@@ -88,7 +96,7 @@ def sign_and_digest(apk, key_pem=KEYS / "bunker-key.pem", cert_der=KEYS / "bunke
         central = f.read(eocd_at - directory)
         eocd = f.read()
         whole = hashlib.sha256()
-        digest = _digest(f, directory, central, eocd, whole)
+        digest = _digest(f, directory, central, eocd, whole, progress)
         signed_data = (_prefixed(_prefixed(struct.pack("<I", RSA_PKCS1_SHA256) + _prefixed(digest)))
                        + _prefixed(_prefixed(cert)) + _prefixed(b""))
         signature = pkcs1_15.new(key).sign(SHA256.new(signed_data))

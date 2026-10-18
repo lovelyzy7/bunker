@@ -396,10 +396,12 @@ def _assemble(apk, master, companion_apk, output, work, log, port_offset, menu):
                     writer.add(name, companion.read(name))
             if menu:
                 # The menu's classes and its native library, after the game's own.
-                log("Adding the Mod Menu…")
-                for blob in menu["dex"]:
+                log("Writing the Mod Menu…")
+                for index, blob in enumerate(menu["dex"], 1):
                     writer.add("classes%d.dex" % next_dex, blob); next_dex += 1
+                    log(f"  dex {index}/{len(menu['dex'])} ({len(blob) >> 10} KB)…")
                 writer.add("lib/arm64-v8a/libniermenu.so", menu["lib"])
+                log(f"  libniermenu.so ({len(menu['lib']) >> 20} MB)…")
             writer.add("assets/lunar/" + MASTER, patched_master)
             writer.add("assets/lunar/original-master.bin.e", original_master)
             writer.add("assets/lunar/LUNAR_TEAR_LICENSE.txt", (ROOT / "LICENSE").read_bytes())
@@ -407,6 +409,7 @@ def _assemble(apk, master, companion_apk, output, work, log, port_offset, menu):
             info = build_info.describe(companion, len(dex), port_offset, release, menu=bool(menu))
             writer.add("assets/lunar/build.json", json.dumps(info, indent=1).encode())
             writer.add("assets/lunar/game-manifest.xml", game.read("AndroidManifest.xml"))
+            log("Finalizing the archive…")
             writer.close()
         os.replace(temporary, output)
     return {"activity": game_activity, "region": release, "name": region.REGIONS[release]["name"],
