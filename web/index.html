@@ -110,6 +110,14 @@
   details input[type=number] { font: 14px var(--mono); background: transparent; color: var(--ink); border: 2px solid var(--ink); padding: 8px 10px; width: 9em; }
   button#build { min-height: 56px; border: 0; background: var(--command); color: var(--on-command); font: 700 15px var(--sans); letter-spacing: .32em; cursor: pointer; }
   button#build:disabled { opacity: .4; cursor: default; }
+  button#cancel { min-height: 56px; margin-top: 8px; width: 100%; border: 2px solid var(--ink); background: transparent; color: var(--ink); font: 700 13px var(--sans); letter-spacing: .24em; cursor: pointer; }
+  button#cancel[hidden] { display: none; }
+  /* Log toolbar: a copy button and the error filter. */
+  #logbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font: 11px var(--mono); letter-spacing: .08em; color: var(--mid); }
+  #logbar button { min-height: 32px; padding: 0 10px; border: 1px solid var(--line); background: transparent; color: var(--ink); font: 11px var(--mono); letter-spacing: .08em; cursor: pointer; }
+  #logbar button:hover { border-color: var(--ink); }
+  #logbar label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+  #logbar input { accent-color: var(--ink); width: 14px; height: 14px; margin: 0; }
   #log { white-space: pre-wrap; font: 12px/1.8 var(--mono); background: var(--log); color: var(--on-log); padding: 12px 14px; max-height: 260px; overflow: auto; }
   /* Progress: one chip per stage, filled as the build reaches it. */
   .steps { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0; padding: 0; }
@@ -260,7 +268,8 @@
                 <small>For a network where GitHub is slow or blocked. Give a proxy that takes a full GitHub URL, such as https://gh-proxy.com/; the download is still checked against this site's SHA-256.</small></span>
             </label>
             <div class="optline off" id="proxy-line">
-              <input type="url" id="proxy-url" placeholder="https://gh-proxy.com/" inputmode="url" autocomplete="off" spellcheck="false">
+              <input type="url" id="proxy-url" placeholder="https://gh-proxy.com/" inputmode="url" autocomplete="off" spellcheck="false" list="proxy-list">
+              <datalist id="proxy-list"></datalist>
               <span class="hint" id="proxy-hint"></span>
             </div>
           </div>
@@ -324,6 +333,7 @@
           <label>Offset <input type="number" id="port-offset" value="0" min="0" max="57455" step="1"></label>
         </details>
         <button id="build" disabled>BUILD ▶</button>
+        <button id="cancel" hidden>STOP ■</button>
         <div id="progress" hidden>
           <ol class="steps" id="steps">
             <li data-stage="0">LOAD RUNTIME</li>
@@ -341,6 +351,10 @@
           <p id="fail-hint"></p>
           <details><summary>RAW ERROR</summary><pre id="fail-raw"></pre></details>
         </div>
+        <div id="logbar">
+          <button type="button" id="copy-log">COPY LOG</button>
+          <label><input type="checkbox" id="only-errors">ONLY ERRORS</label>
+        </div>
         <div id="log" role="log" aria-live="polite"></div>
       </div>
     </section>
@@ -354,6 +368,7 @@
           <dt>MOD MENU</dt><dd id="built-menu">—</dd>
           <dt>SIZE</dt><dd id="built-size">—</dd>
           <dt>SHA-256</dt><dd id="built-sha">—</dd>
+          <dt>SOURCE</dt><dd id="built-source">—</dd>
         </dl>
         <a id="download" download>Download</a>
         <p class="note" id="sign-android">The APK is signed and ready to install. Every APK built on this page is signed

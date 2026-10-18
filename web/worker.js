@@ -11,6 +11,7 @@ const PYODIDE_HOSTS = ["cdn.jsdelivr.net", "fastly.jsdelivr.net", "gcore.jsdeliv
 
 let pyodideBasesList = null;
 let BUILD = null;      // the site's build stamp: its files change whenever the site is rebuilt
+let usedSource = "site";  // where the launcher came from, for the result card
 let sources = null;    // mirrors.json: {bundle: {urls, sha256}, modmenu: {...}}
 let ready = null;      // promise of the loaded Pyodide instance
 const post = (type, value) => self.postMessage({ type, value });
@@ -23,6 +24,19 @@ function timed(url, options, ms) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ms);
   return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
+}
+
+/** How long 64 KB takes to arrive, or Infinity when it does not. */
+async function timeRange(url, ms = 5000) {
+  const started = performance.now();
+  try {
+    const response = await timed(url, { headers: { Range: "bytes=0-65535" }, cache: "no-store" }, ms);
+    if (!response.ok && response.status !== 206) return Infinity;
+    await response.arrayBuffer();   // the body is what takes the time
+    return performance.now() - started;
+  } catch (error) {
+    return Infinity;
+  }
 }
 
 /** How long a source takes to answer, or Infinity when it does not. */
@@ -182,11 +196,55 @@ async function proxyBytes(url, label, expected) {
   throw lastError;
 }
 
-async function launcherFrom(url) {
-  const known = ((await loadSources()).bundle || {}).sha256;
-  const bytes = await proxyBytes(url, "the launcher", known);
-  post("log", `the launcher came from ${url}`);
-  return bytes;
+function describeMs(ms) {
+  return Number.isFinite(ms) ? `${Math.round(ms)} ms` : "no answer";
+}
+
+/**
+ * The launcher: the picked file, the site, or the proxy. With a proxy the two
+ * downloads are timed first (64 KB each) so a slow proxy does not win just
+ * because it was chosen, and either one can cover for the other.
+ */
+async function launcherBytes(launcher, launcherUrl, proxies) {
+  if (launcher) {
+    const bytes = new Uint8Array(await launcher.arrayBuffer());
+    post("log", `Using the local launcher bundle (${Math.round(bytes.length / 1048576)} MB)`);
+    await checkLauncher(bytes, "The local launcher bundle");
+    usedSource = "local";
+    return bytes;
+  }
+  if (!launcherUrl) {
+    usedSource = "site";
+    return bundleBytes("bundle", "the launcher");
+  }
+  const sources = await loadSources();
+  const known = (sources.bundle || {}).sha256;
+  const siteUrl = await versioned("bundles/android.zip");
+  // The entered proxy, plus the other known ones, so one dead proxy is not the
+  // end of it. Everything is timed first: a slow proxy must not win because it
+  // happened to be the one chosen.
+  const endpoints = [["site", siteUrl]];
+  for (const url of [launcherUrl, ...(proxies || []).map((base) => base + (sources.github || ""))]) {
+    if (url && !endpoints.some(([, seen]) => seen === url)) endpoints.push(["proxy", url]);
+  }
+  const timed = await Promise.all(endpoints.map(async ([kind, url]) => ({ kind, url, ms: await timeRange(url) })));
+  timed.sort((a, b) => a.ms - b.ms);
+  for (const item of timed) post("log", `Speed: ${item.kind} ${describeMs(item.ms)}`);
+  let lastError = null;
+  for (const { kind, url } of timed) {
+    try {
+      const bytes = kind === "site"
+        ? await bundleBytes("bundle", "the launcher")
+        : await proxyBytes(url, "the launcher", known);
+      usedSource = kind;
+      post("log", `the launcher came from ${url}`);
+      return bytes;
+    } catch (error) {
+      lastError = error;
+      post("log", `Cannot download the launcher from ${url}: ${error.message || error}`);
+    }
+  }
+  throw lastError || new Error("Cannot download the launcher");
 }
 
 async function modmenuFrom(url) {
@@ -262,24 +320,28 @@ function writeFile(pyodide, path, bytes) {
 }
 
 /**
- * The Pyodide directories to try: the host a previous visit already stored
- * first (so the wasm comes off the disk), then the quickest, then the rest.
+ * The Pyodide directories to try: this site's own copy first (it cannot be
+ * blocked when the page itself loads), then the jsDelivr endpoints ordered by
+ * how fast 64 KB of the wasm actually arrives.
  */
 async function pyodideBases() {
   if (pyodideBasesList) return pyodideBasesList;
-  const bases = PYODIDE_HOSTS.map((host) => `https://${host}/pyodide/${PYODIDE_VERSION}/full/`);
-  for (const base of bases) {
-    try {
+  const local = new URL("pyodide/", self.location).href;
+  const remote = PYODIDE_HOSTS.map((host) => `https://${host}/pyodide/${PYODIDE_VERSION}/full/`);
+  const bases = [local, ...remote];
+  try {
+    for (const base of bases) {
       if (await caches.match(base + "pyodide.asm.wasm")) {
         pyodideBasesList = [base, ...bases.filter((other) => other !== base)];
         return pyodideBasesList;
       }
-    } catch (error) {
-      break;   // no CacheStorage: order by latency only
     }
+  } catch (error) {
+    // No CacheStorage: order by the probe below.
   }
-  const files = await byPing(bases.map((base) => base + "pyodide.js"), 2500);
-  pyodideBasesList = files.map((url) => url.slice(0, url.lastIndexOf("/") + 1));
+  const measured = await Promise.all(remote.map(async (base) => ({ base, ms: await timeRange(base + "pyodide.asm.wasm") })));
+  measured.sort((a, b) => a.ms - b.ms);
+  pyodideBasesList = [local, ...measured.map((item) => item.base)];
   return pyodideBasesList;
 }
 
@@ -379,23 +441,7 @@ async function build(data) {
     const gamePath = "/input/" + game.name, masterPath = "/input/" + master.name;
     const log = (line) => post("log", line);
     const builder = pyodide.globals.get("webbuild");
-    if (launcher) {
-      // A file the reader picked: no network at all.
-      const bytes = new Uint8Array(await launcher.arrayBuffer());
-      post("log", `Using the local launcher bundle (${Math.round(bytes.length / 1048576)} MB)`);
-      await checkLauncher(bytes, "The local launcher bundle");
-      writeFile(pyodide, "/bundles/android.zip", bytes);
-    } else if (launcherUrl) {
-      try {
-        writeFile(pyodide, "/bundles/android.zip", await launcherFrom(launcherUrl));
-      } catch (error) {
-        // The proxy is a convenience; the site itself may still answer.
-        post("log", "The proxy did not work; trying this site…");
-        writeFile(pyodide, "/bundles/android.zip", await bundleBytes("bundle", "the launcher"));
-      }
-    } else {
-      writeFile(pyodide, "/bundles/android.zip", await bundleBytes("bundle", "the launcher"));
-    }
+    writeFile(pyodide, "/bundles/android.zip", await launcherBytes(launcher, launcherUrl, data.proxies));
     let payload = null;
     if (modMenu) {
       let bytes = null;
@@ -418,7 +464,7 @@ async function build(data) {
     if (built && built.destroy) built.destroy();
     const blob = readBlob(FS, output, FS.stat(output).size);
     // info.sha256 comes from the signing pass; the finished APK is not hashed again.
-    post("done", { name: "bunker.apk", blob, info });
+    post("done", { name: "bunker.apk", blob, info: { ...info, source: usedSource } });
     FS.unlink(output);
     for (const name of FS.readdir("/bundles")) if (name !== "." && name !== "..") FS.unlink("/bundles/" + name);
   } catch (error) {

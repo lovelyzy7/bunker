@@ -1,0 +1,19 @@
+# Style checks for the Python here: correctness rules only, not formatting.
+line-length = 120
+target-version = "py311"
+
+[lint]
+select = ["E", "F", "W", "B"]
+ignore = [
+  "E501",  # long lines are common in tables and messages
+  "E402",  # module imports after sys.path setup are deliberate
+  "B008",  # function calls in argument defaults (argparse helpers) are fine
+  "E701",  # `if x: return` on one line is used throughout
+  "E702",  # `a; b` inside a short block, likewise
+  "E401",  # `import os, sys`
+  "E731",  # lambdas assigned to a name, in the signer's helpers
+]
+
+[lint.per-file-ignores]
+"scripts/test_*.py" = ["B011"]
+"android/tools/test_*.py" = ["B011"]

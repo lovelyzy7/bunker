@@ -94,6 +94,10 @@ async function describeGame() {
 }
 
 // ---- 00 the launcher source -------------------------------------------------
+// Proxies that answer a GitHub release download with a CORS header (checked).
+// The page offers them as suggestions and the build can fall back to the other.
+const PROXIES = ["https://gh-proxy.com/", "https://gh-proxy.org/"];
+
 const SOURCE_KEY = "bunker_source";
 const PROXY_KEY = "bunker_proxy";
 
@@ -180,6 +184,76 @@ function syncSource() {
   updateBuildEnabled();
 }
 
+function resetStages() {
+  for (const li of document.querySelectorAll("#steps li")) li.className = "";
+  $("meter").style.width = "0%";
+}
+
+function cancelBuild() {
+  if (!building) return;
+  building = false;
+  $("cancel").hidden = true;
+  // Terminating the worker is the only way to stop Python mid-step: its long
+  // calls do not yield to JavaScript. The runtime comes back from the cache
+  // (or the service worker) on the next build.
+  restartWorker();
+  resetStages();
+  $("progress").hidden = true;
+  $("cancel").hidden = true;
+  log(tr("Build cancelled."));
+  updateBuildEnabled();
+}
+
+$("cancel").addEventListener("click", cancelBuild);
+
+$("copy-log").addEventListener("click", async () => {
+  const text = logLines.map((line) => line.text).join("\n");
+  try {
+    await navigator.clipboard.writeText(text);
+    $("copy-log").textContent = tr("COPIED");
+    setTimeout(() => { $("copy-log").textContent = tr("COPY LOG"); }, 1500);
+  } catch (error) {
+    // No clipboard permission: select the log so a long-press can copy it.
+    const range = document.createRange();
+    range.selectNodeContents($("log"));
+    const selection = getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+});
+
+$("only-errors").addEventListener("change", () => {
+  try { localStorage.setItem(CHECKS_KEY, JSON.stringify(checks())); } catch (error) { /* private mode */ }
+  renderLog();
+});
+
+// The three switches survive a reload.
+const CHECKS_KEY = "bunker_checks";
+
+function checks() {
+  return { skip: $("skip-check").checked, menu: $("mod-menu").checked, offset: $("port-offset").value || "0",
+           errors: $("only-errors").checked };
+}
+
+function restoreChecks() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CHECKS_KEY) || "null");
+    if (!saved) return;
+    $("skip-check").checked = !!saved.skip;
+    $("mod-menu").checked = !!saved.menu;
+    $("port-offset").value = saved.offset || "0";
+    $("only-errors").checked = !!saved.errors;
+  } catch (error) { /* private mode */ }
+}
+
+function saveChecks() {
+  try { localStorage.setItem(CHECKS_KEY, JSON.stringify(checks())); } catch (error) { /* private mode */ }
+}
+
+for (const id of ["skip-check", "mod-menu", "port-offset"]) {
+  $(id).addEventListener("change", () => { saveChecks(); markSkipped(); });
+}
+
 function update() {
   $("game-help").textContent = tr("The original 3.7.1 ARM64 game APK (JP or global).");
   $("game").accept = ".apk";
@@ -215,9 +289,16 @@ const STAGES = [
   [/^Signing with the public Bunker key|^Computing the checksum/, 6, 94],
 ];
 
+/** Mark the steps this build will not do: the skipped check, an unused menu. */
+function markSkipped() {
+  const unused = { 1: $("skip-check").checked, 5: !$("mod-menu").checked };
+  for (const li of document.querySelectorAll("#steps li")) {
+    const own = Number(li.dataset.stage);
+    if (own in unused) li.classList.toggle("skipped", !!unused[own]);
+  }
+}
+
 function setStage(stage, percent) {
-  // A step whose work is not done at all is struck through, not ticked:
-  // the file check when it is skipped, the Mod Menu when it is not built in.
   const unused = { 1: $("skip-check").checked, 5: !$("mod-menu").checked };
   for (const li of document.querySelectorAll("#steps li")) {
     const own = Number(li.dataset.stage);
@@ -266,6 +347,8 @@ const LOG_PATTERNS = [
   [/^the launcher came from (.+)$/, "启动器来自 $1"],
   [/^the Mod Menu came from (.+)$/, "MOD 菜单来自 $1"],
   [/^The proxy did not work; trying this site…$/, "代理不可用，改为从本站下载……"],
+  [/^Speed: site (.+)$/, "测速：本站 $1"],
+  [/^Speed: proxy (.+)$/, "测速：代理 $1"],
   [/^the Mod Menu \((\d+) MB\) in ([\d.]+) s \(cached\)$/, "MOD 菜单（$1 MB）来自本地缓存"],
   [/^the Mod Menu \((\d+) MB\) in ([\d.]+) s$/, "MOD 菜单（$1 MB）用时 $2 秒"],
   [/^Cannot download the launcher from (.+): (.+)$/, "无法从 $1 下载启动器：$2"],
@@ -283,7 +366,8 @@ const LOG_REASONS = [
 ];
 
 // Words that appear inside those lines, after the line itself has been translated.
-const LOG_WORDS = [["the launcher", "启动器"], ["the Mod Menu", "MOD 菜单"]];
+const LOG_WORDS = [["the launcher", "启动器"], ["the Mod Menu", "MOD 菜单"],
+                   ["the Python runtime", "Python 运行时"], ["the Python standard library", "Python 标准库"]];
 
 function logLine(line) {
   if (currentLang() !== "zh") return line;
@@ -301,10 +385,21 @@ function logLine(line) {
   return text;
 }
 
-function log(line) {
+// The log keeps its lines so the error filter and COPY LOG can work on them.
+const logLines = [];
+const BAD_LINE = /error|failed|cannot|refus|失败|无法|错误/i;
+
+function renderLog() {
   const box = $("log");
-  box.textContent += logLine(line) + "\n";
+  const onlyErrors = $("only-errors").checked;
+  box.textContent = logLines.filter((item) => !onlyErrors || item.bad).map((item) => item.text).join("\n")
+    + (logLines.length ? "\n" : "");
   box.scrollTop = box.scrollHeight;
+}
+
+function log(line) {
+  logLines.push({ text: logLine(line), bad: BAD_LINE.test(line) });
+  renderLog();
   if (!building) return;   // the warm-up logs too, and it is not a build yet
   for (const [re, stage, percent] of STAGES) {
     if (re.test(line)) { setStage(stage, percent); break; }
@@ -365,6 +460,8 @@ function fail(raw) {
   $("failure").scrollIntoView({ block: "center", behavior: "smooth" });
 }
 
+const SOURCE_LABEL = { site: "this site", local: "the local file", proxy: "the GitHub proxy" };
+
 function regionName(info) {
   if (info.region === "jp") return `${tr("Japan")} (JP)`;
   if (info.region === "en") return `${tr("Global")} (EN)`;
@@ -378,6 +475,7 @@ function fillResult(value) {
   $("built-menu").textContent = info.modMenu ? tr("included") : tr("not included");
   $("built-size").textContent = `${(value.blob.size / 1048576).toFixed(0)} MB`;
   $("built-sha").textContent = info.sha256 || "—";
+  $("built-source").textContent = tr(SOURCE_LABEL[info.source] || "site");
 }
 
 let runtimeReady = false;
@@ -430,18 +528,20 @@ $("build").addEventListener("click", () => {
   if (!Number.isInteger(portOffset) || portOffset < 0 || portOffset > 57455) { log(tr("The port offset must be a whole number from 0 to 57455.")); return; }
   building = true;
   $("build").disabled = true;
+  $("cancel").hidden = false;
   setStage(0, 1);
   if (runtimeReady) setStage(1, 10);   // the warm-up already loaded it
   if ($("skip-check").checked) log(tr("Skipping the file check."));
   $("result").style.display = "none";
   $("failure").hidden = true;
   $("progress").hidden = false;
-  $("log").textContent = "";
+  logLines.length = 0;
+  renderLog();
   setStage(0, 2);
   if (url) { URL.revokeObjectURL(url); url = null; }
   worker.postMessage({ game, master, portOffset, modMenu: !!document.getElementById("mod-menu").checked,
                        verify: !$("skip-check").checked, launcher, launcherUrl: launcherURL,
-                       modmenuUrl: modmenuURL });
+                       modmenuUrl: modmenuURL, proxies: PROXIES });
 });
 
 let lastSignal = Date.now();
@@ -455,6 +555,7 @@ worker.onmessage = ({ data }) => {
     log(tr("Build failed: ") + data.value);
     fail(data.value);
     building = false;
+    $("cancel").hidden = true;
     updateBuildEnabled();
     // A Pyodide that failed once stays failed, so the next build gets a new
     // worker instead of "Pyodide already fatally failed".
@@ -470,6 +571,7 @@ worker.onmessage = ({ data }) => {
 
     $("result").style.display = "block";
     building = false;
+    $("cancel").hidden = true;
     updateBuildEnabled();
     setStage(7, 100);   // one past the last chip: every step is done, none is "on"
     log(tr("Done."));
@@ -478,6 +580,7 @@ worker.onmessage = ({ data }) => {
 worker.onerror = (event) => {
   lastSignal = Date.now();
   building = false;
+  $("cancel").hidden = true;
   updateBuildEnabled();
   fail(String(event.message || "The build worker stopped."));
   restartWorker();
@@ -491,12 +594,16 @@ listen();
   try {
     const saved = localStorage.getItem(SOURCE_KEY);
     let proxy = localStorage.getItem(PROXY_KEY) || "";
-    if (!saved && !proxy && mainlandChina()) proxy = "https://gh-proxy.com/";
+    if (!saved && !proxy && mainlandChina()) proxy = PROXIES[0];
     if (proxy) $("proxy-url").value = proxy;
     const wanted = saved || (mainlandChina() ? "proxy" : "site");
     const mode = wanted === "local" ? "site" : wanted;
+    const list = $("proxy-list");
+    if (list) list.innerHTML = PROXIES.map((url) => `<option value="${url}">`).join("");
     const radio = document.querySelector(`input[name="launcher-source"][value="${mode}"]`);
     if (radio) radio.checked = true;
+    restoreChecks();
+    renderLog();
     syncSource();
   } catch (error) {
     // Private mode: keep the defaults.
@@ -510,6 +617,7 @@ setInterval(() => {
   // "stuck" is worse than a late one.
   if (!building || Date.now() - lastSignal < 180000) return;
   building = false;
+  $("cancel").hidden = true;
   updateBuildEnabled();
   fail("The build stopped responding for 3 minutes.");
   restartWorker();
@@ -520,6 +628,7 @@ setInterval(() => {
 window.addEventListener("pageshow", (event) => {
   if (!event.persisted || !building) return;
   building = false;
+  $("cancel").hidden = true;
   updateBuildEnabled();
   fail("The browser suspended the page while it was building.");
   restartWorker();
@@ -646,6 +755,15 @@ const ZH = {
   "Choose two different files.": "请选择两个不同的文件。",
   "The port offset must be a whole number from 0 to 57455.": "端口偏移必须是 0 到 57455 之间的整数。",
   "Done.": "完成。",
+  "STOP ■": "停止 ■",
+  "COPY LOG": "复制日志",
+  "COPIED": "已复制",
+  "ONLY ERRORS": "只看错误",
+  "Build cancelled.": "已取消构建。",
+  "SOURCE": "来源",
+  "this site": "本站",
+  "the local file": "本地启动器包",
+  "the GitHub proxy": "GitHub 代理",
   "Loading the runtime and the launcher in the background…": "正在后台准备运行时与启动器……",
   "Skipping the file check.": "已跳过文件校验。",
   "Downloading": "正在下载",

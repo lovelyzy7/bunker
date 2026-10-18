@@ -5,7 +5,6 @@ read-only under /input and the prebuilt bundles under /bundles. Nothing is
 uploaded anywhere; everything runs in the browser.
 """
 from pathlib import Path
-import shutil
 import sys
 import zipfile
 
@@ -51,7 +50,6 @@ def menu_payload(resources, release):
     """
     if not resources:
         return None
-    import zipfile
     bundle = Path(resources)
     if bundle.is_dir():
         read = lambda name: (bundle / name).read_bytes()

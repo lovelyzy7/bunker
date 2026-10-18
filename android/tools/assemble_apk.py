@@ -16,7 +16,6 @@ not run apktool. Offline play, Tools and save import do not use them — a fresh
 install reaches the story on its own anonymous account.
 """
 import argparse
-import hashlib
 import importlib.util
 import io
 import json
@@ -82,7 +81,7 @@ def run_cli(module, *args):
         module.main()
     except SystemExit as e:
         if e.code not in (None, 0):
-            raise RuntimeError(f"{module.__name__} failed: {e.code}")
+            raise RuntimeError(f"{module.__name__} failed: {e.code}") from e
     finally:
         sys.argv = old
 

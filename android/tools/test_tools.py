@@ -7,7 +7,7 @@ under server/tmp and the isolated database and catalogs are removed afterwards.
 """
 from pathlib import Path
 import argparse
-import sys, shutil, subprocess, os, json, sqlite3, tempfile, contextlib
+import sys, shutil, subprocess, json, sqlite3, tempfile, contextlib
 
 root = Path(__file__).resolve().parents[2]
 parser = argparse.ArgumentParser(description=__doc__)
@@ -66,7 +66,7 @@ with tempfile.TemporaryDirectory(prefix='lunar-tools-') as work, tempfile.Tempor
     backup_service.restore_backup(before.filename)
     assert gems() == initial_gems
     print('Backup and restore passed',flush=True)
-    from web.services import costume_service,weapon_service,memoir_service,userdata_service
+    from web.services import costume_service,weapon_service,userdata_service
 
     def post(path, payload=None):
         response=client.post(path,json=payload or {})

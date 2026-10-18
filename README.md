@@ -88,7 +88,8 @@ Limitations:
   password and alias `bunker`) is public: anyone can sign a build that installs over yours. To
   avoid that, re-sign with your own key, and keep using that key for updates. An app signed with
   a different key has to be uninstalled first, which deletes its data.
-- **About 2 GB of free memory.** A 12 GB phone built a 日服 APK in 44 s in its own Chrome; an older
+- **About 2 GB of free memory.** A 12 GB phone builds a 日服 APK in about half a minute to a minute
+  in its own Chrome (the runtime and launcher stay on the device after the first build); an older
   phone may run out of memory for a 300 MB APK, so a desktop browser is the safer choice.
 - **The Android web build has no in-game Facebook account link**, because that patch needs a
   decompiler. Offline play, Pod Programs, the Archive and save backup and import all work.

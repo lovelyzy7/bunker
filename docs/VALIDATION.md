@@ -6,6 +6,24 @@
 
 # Validation
 
+## Cancel, stamped scripts, source racing and a vendored runtime — 2026-10-18
+
+- **Stop**: the button appears during a build; clicking it hid the progress,
+  re-enabled BUILD and logged 已取消构建。 A full build afterwards took 29 s and
+  produced `51b4cd22…282676`.
+- **Stamped scripts**: `index.html` loads `app.js?b=1e40cb84e121` and that file
+  creates `worker.js?b=1e40cb84e121`, so a new index can never pair with an old
+  script.
+- **Source**: a finished build shows 来源 本站 in the card; the log printed
+  `Speed: site 6 ms` and `Speed: proxy no answer` (the dev site's release url is
+  a +dev tag), and the site won.
+- **Vendored Python**: `site/pyodide/` holds `pyodide.js`, `pyodide.asm.wasm`
+  (8.6 MB), `python_stdlib.zip` (2.4 MB), the lock and the three wheels; the site
+  grew from 26 MB to 38 MB and the worker logs a 127.0.0.1 runtime host.
+- **Checks**: `ruff check web scripts android/tools` passes (74 findings fixed or
+  configured away); `tests/browser/encoding_scan.py` reports 0 problems in 319
+  tracked files; `tests/browser/build_test.py` replaces the Windows-only driver.
+
 ## The 00 groups, the proxy default and the Mod Menu bundle — 2026-10-18
 
 - **No rule through the controls**: each choice is a `.group` whose border comes

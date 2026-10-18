@@ -160,9 +160,20 @@ own game APK and `20240404193219.bin.e`; nothing is uploaded.
   the size and the APK's SHA-256.
 - **Memory**: the assembly streams the patched game library from a work file
   into the new APK instead of holding it in Python, and the finished APK is
-  handed to the page as a Blob built in the worker. A 12 GB phone built a 日服
-  APK in 44 s in Chrome, with the same SHA-256 as the desktop build; an older
-  phone can still run out of memory for a 300 MB APK.
+  handed to the page as a Blob built in the worker. A 12 GB phone builds a 日服
+  APK in about 30–60 s in Chrome, with the same SHA-256 as the desktop build; an
+  older phone can still run out of memory for a 300 MB APK.
+- **Cancel while it runs.** *Stop* ends a build at once by terminating the
+  worker — Python's long calls cannot be interrupted from JavaScript — and the
+  next build reloads the runtime from the cache.
+- **The launcher comes from the fastest source.** With a proxy chosen, the site,
+  the proxy and the other known proxy are each timed with 64 KB before the
+  download, and the winner fetches it; if it fails, the next one covers for it.
+  A proxy has to send a CORS header, which is why only two of the public ones
+  work (`gh-proxy.com`, `gh-proxy.org`).
+- **Python ships with the site**: `build_site.py` copies Pyodide into
+  `site/pyodide/` (about 13 MB), so the builder has no CDN to reach; the
+  jsDelivr endpoints stay as fallbacks, ordered by how fast 64 KB arrives.
 - **The slow parts start while you choose files.** Picking either file loads
   Python and the 25 MB launcher in the background, and a service worker keeps
   them (and Pyodide's 8 MB wasm) on the device: after one build, another one on

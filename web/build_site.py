@@ -11,6 +11,7 @@ Serve the output folder over HTTP to test it.
 import argparse
 import hashlib
 import json
+import urllib.request
 from pathlib import Path
 import re
 import shutil
@@ -38,6 +39,11 @@ PAGES_LIMIT = 100 * 1024 * 1024  # GitHub Pages refuses larger files.
 # A fixed timestamp inside the zips: the same inputs must give the same bytes,
 # or the launcher the release carries would never match the site's digest.
 STAMP = (1980, 1, 1, 0, 0, 0)
+# Pyodide is vendored into the site: the page cannot work without it, so it must
+# not depend on a CDN that may be slow or blocked where the page itself loads.
+PYODIDE_VERSION = "v0.28.3"
+PYODIDE_URL = f"https://cdn.jsdelivr.net/pyodide/{PYODIDE_VERSION}/full/"
+PYODIDE_PACKAGES = ("pycryptodome", "msgpack", "lz4")
 # The same launcher bundle is attached to the release, so the page can offer a
 # GitHub download proxy for networks where this site is slow. A direct fetch of
 # the asset is not possible (GitHub sends no CORS header), which is why the page
@@ -51,6 +57,32 @@ REPO = "lovelyzy7/bunker"
 
 def is_master(name):
     return name.endswith(".bin.e")
+
+
+def _download(url, cache):
+    name = url.rsplit("/", 1)[-1]
+    cached = cache / name
+    if cached.exists() and cached.stat().st_size:
+        return cached.read_bytes()
+    with urllib.request.urlopen(url, timeout=120) as response:
+        data = response.read()
+    cache.mkdir(parents=True, exist_ok=True)
+    cached.write_bytes(data)
+    return data
+
+
+def vendor_pyodide(out, cache):
+    """Copy the Python runtime next to the page, so the builder has no CDN to reach."""
+    lock = _download(PYODIDE_URL + "pyodide-lock.json", cache)
+    packages = json.loads(lock).get("packages", {})
+    names = ["pyodide.js", "pyodide.asm.wasm", "python_stdlib.zip"]
+    names += [packages[name]["file_name"] for name in PYODIDE_PACKAGES if name in packages]
+    target = out / "pyodide"
+    target.mkdir(parents=True, exist_ok=True)
+    (target / "pyodide-lock.json").write_bytes(lock)
+    for name in names:
+        (target / name).write_bytes(_download(PYODIDE_URL + name, cache))
+    return sum((target / name).stat().st_size for name in names) + len(lock)
 
 
 def _entry(name, compress=zipfile.ZIP_DEFLATED):
@@ -84,6 +116,9 @@ def main():
                    help="the released android.zip: the site then serves exactly those bytes, "
                         "so a download proxy can be checked against the same digest")
     p.add_argument("--output", type=Path, default=ROOT / ".build/site")
+    p.add_argument("--no-pyodide", action="store_true",
+                   help="leave the vendored Python runtime out (the page then uses jsDelivr)")
+    p.add_argument("--pyodide-cache", type=Path, default=ROOT / ".build/pyodide-cache")
     p.add_argument("--mirror", action="append", default=[], metavar="URL",
                    help="a second source for bundles/android.zip (must send a CORS header); repeatable")
     args = p.parse_args()
@@ -99,7 +134,7 @@ def main():
         target = out / "py" / name
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / name, target)
-    (out / "py/manifest.json").write_text(json.dumps(PYTHON))
+    (out / "py/manifest.json").write_text(json.dumps(PYTHON), encoding="utf-8")
     if args.launcher_zip:
         shutil.copy2(args.launcher_zip, out / "bundles/android.zip")
     else:
@@ -114,6 +149,8 @@ def main():
                     # backslashes, and the builder looks the payload up as
                     # "en/libniermenu.so".
                     bundle.writestr(_entry(path.relative_to(payload).as_posix()), path.read_bytes())
+    if not args.no_pyodide:
+        vendor_pyodide(out, args.pyodide_cache / PYODIDE_VERSION)
     # The version this site builds, shown in the page header.
     with zipfile.ZipFile(args.launcher_zip or args.companion_apk) as companion:
         version = companion.read("assets/lunar/bunker-version.txt").decode().strip()
@@ -121,7 +158,7 @@ def main():
     sys.path.insert(0, str(ROOT / "android/tools"))
     import region  # noqa: E402  (after sys.path, which only this writer needs)
     known = {key: {"sha256": value["sha256"], "size": value["size"]} for key, value in region.REGIONS.items()}
-    (out / "regions.json").write_text(json.dumps(known))
+    (out / "regions.json").write_text(json.dumps(known), encoding="utf-8")
     # Where the page may fetch each bundle from, and what its bytes must hash to.
     # The release asset is a second source: GitHub's Pages and its download host
     # are reached differently, so one of them usually works when the other does not.
@@ -136,7 +173,7 @@ def main():
     if (out / "bundles/modmenu.zip").exists():
         mirrors["modmenu"] = source(out / "bundles/modmenu.zip", ["bundles/modmenu.zip"])
         mirrors["modmenuGithub"] = f"https://github.com/{REPO}/releases/download/v{version}/modmenu.zip"
-    (out / "mirrors.json").write_text(json.dumps(mirrors))
+    (out / "mirrors.json").write_text(json.dumps(mirrors), encoding="utf-8")
     for path in out.rglob("*"):
         if path.is_file() and path.stat().st_size > PAGES_LIMIT:
             raise SystemExit(f"{path.name} is over GitHub Pages' 100 MB limit")
@@ -154,7 +191,19 @@ def main():
         if path.is_file() and not relative.startswith("bundles/") and relative != "version.json":
             stamp.update(relative.encode())
             stamp.update(path.read_bytes())
-    (out / "version.json").write_text(json.dumps({"version": version, "build": stamp.hexdigest()[:12]}))
+    build = stamp.hexdigest()[:12]
+    # The scripts carry the build stamp in their url, so a page never runs the
+    # previous release's app.js next to this release's index.html: the service
+    # worker keys its cache by url, and a new stamp is a new url.
+    index = out / "index.html"
+    # Path.write_text defaults to the locale encoding; on Windows that is cp936,
+    # which cannot even hold the ▶ in the build button.
+    index.write_text(index.read_text(encoding="utf-8").replace('src="app.js"', f'src="app.js?b={build}"'),
+                     encoding="utf-8")
+    script = out / "app.js"
+    script.write_text(script.read_text(encoding="utf-8").replace('"worker.js"', f'"worker.js?b={build}"'),
+                      encoding="utf-8")
+    (out / "version.json").write_text(json.dumps({"version": version, "build": build}), encoding="utf-8")
     total = sum(p.stat().st_size for p in out.rglob("*") if p.is_file())
     print(f"Site ready: {out} ({total / 1048576:.0f} MB). Test with: python3 -m http.server -d {out}")
 

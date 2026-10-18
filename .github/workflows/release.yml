@@ -30,6 +30,11 @@ jobs:
         run: |
           (cd scripts && python3 -m unittest test_version test_release_assets test_menu_parity)
           (cd android/tools && python3 -m unittest test_build_info)
+      - name: Style checks
+        continue-on-error: true   # a hint, not a gate
+        run: |
+          python3 -m pip install --quiet ruff
+          ruff check web scripts android/tools
           python3 -c "import sys; sys.path.insert(0, 'scripts'); import release_assets; release_assets.changelog_section(open('CHANGELOG.md', encoding='utf-8').read(), open('VERSION').read().strip())"
 
   android:
@@ -66,6 +71,12 @@ jobs:
         run: |
           android/tools/build_native.sh
           cd android && ./gradlew --no-daemon assembleDebug
+      - name: Signing round-trip (apksigner)
+        # apk_sign.py writes the v2 block itself; this is the only check that the
+        # Android tools accept it, and it used to be skipped everywhere.
+        run: |
+          python3 -m pip install --quiet pycryptodome
+          cd android/tools && python3 test_apk_sign.py
       - uses: actions/upload-artifact@v4
         with:
           name: android-launcher
@@ -96,7 +107,7 @@ jobs:
       # The launcher bundle the web builder downloads, attached here so the page
       # can offer a GitHub download proxy (the asset itself sends no CORS header).
       - name: The site's launcher bundle
-        run: python3 web/build_site.py --companion-apk bundles/android/app-debug.apk --output site
+        run: python3 web/build_site.py --companion-apk bundles/android/app-debug.apk --output site --no-pyodide
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}

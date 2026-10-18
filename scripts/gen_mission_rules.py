@@ -159,7 +159,7 @@ class Names:
         for name, ids in table.items():
             parts = name.split()
             if len(parts) == len(words) and all(
-                    a == b or (a.endswith(".") and len(a) == 2 and b.startswith(a[0])) for a, b in zip(parts, words)):
+                    a == b or (a.endswith(".") and len(a) == 2 and b.startswith(a[0])) for a, b in zip(parts, words, strict=False)):
                 return ids
         return set()
 

@@ -48,7 +48,7 @@ def make(version, companion_apk, out_dir):
                 raise ValueError(f"{name} contains master data")
         assets[key] = {"name": name, "size": path.stat().st_size, "sha256": _sha256(path)}
     update = {"version": version, "gamePatch": build_info.GAME_PATCH, "assets": assets}
-    (out / "update.json").write_text(json.dumps(update, indent=1) + "\n")
+    (out / "update.json").write_text(json.dumps(update, indent=1) + "\n", encoding="utf-8")
     return update
 
 
@@ -85,7 +85,8 @@ def main():
     args = p.parse_args()
     make(args.version, args.companion_apk, args.out)
     notes = args.out / "notes.md"
-    notes.write_text(changelog_section((ROOT / "CHANGELOG.md").read_text(), args.version) + "\n")
+    notes.write_text(changelog_section((ROOT / "CHANGELOG.md").read_text(encoding="utf-8"), args.version) + "\n",
+                     encoding="utf-8")
     print(notes)
 
 

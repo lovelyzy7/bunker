@@ -114,7 +114,7 @@ def parse(data):
         elif kind in (NS_START, NS_END, ELEM_START, ELEM_END, CDATA):
             line = struct.unpack_from("<I", data, off + 8)[0]
             body = off + header_size
-            s = lambda i: None if i == NO_INDEX else strings[i]
+            s = lambda i, strings=strings: None if i == NO_INDEX else strings[i]
             if kind == NS_START:
                 prefix, uri = struct.unpack_from("<II", data, body)
                 namespaces.append((s(prefix), s(uri), line))
@@ -166,7 +166,7 @@ def _encode_pool(strings, utf8):
 def serialize(doc):
     """Encode a Document. Attributes are sorted by resource ID, as Android expects."""
     # Attribute names with resource IDs come first, matching the resource map.
-    res_names, others = [], []
+    res_names = []
     for el in doc.root.iter():
         el.attrs.sort(key=lambda a: (a.resid == 0, a.resid))
         for a in el.attrs:

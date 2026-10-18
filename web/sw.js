@@ -8,7 +8,9 @@
 
 const VERSION = new URL(self.location.href).searchParams.get("v") || "dev";
 const CACHE = `bunker-${VERSION}`;
-const SHELL = ["./", "index.html", "app.js", "worker.js", "regions.json", "mirrors.json"];
+// app.js and worker.js carry the build stamp in their url, so they are cached
+// on first use rather than here.
+const SHELL = ["./", "index.html", "regions.json", "mirrors.json"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
@@ -26,7 +28,7 @@ self.addEventListener("activate", (event) => {
   })());
 });
 
-const KEEP = /\/(bundles|py)\//;   // the bundles and the Python sources: fetched once
+const KEEP = /\/(bundles|py|pyodide)\//;   // the bundles, the sources and Python: fetched once
 const CDN = /(^|\.)jsdelivr\.net$/;  // Pyodide's wasm and wheels
 
 /** Cache first, fill from the network on the first visit. */

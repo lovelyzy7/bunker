@@ -86,6 +86,10 @@ jobs:
         run: |
           android/tools/build_native.sh
           cd android && ./gradlew --no-daemon assembleDebug
+      - name: Signing round-trip (apksigner)
+        run: |
+          python3 -m pip install --quiet pycryptodome
+          cd android/tools && python3 test_apk_sign.py
   site:
     name: Assemble the site
     if: github.event_name == 'workflow_dispatch'

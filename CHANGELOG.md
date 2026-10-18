@@ -4,6 +4,40 @@ What changed in Bunker, newest first. Each day lists its changes by area.
 Commit ids are in brackets. Each release's heading sits above the dated
 sections it contains; its notes run down to the previous release.
 
+## 1.2.7 (2026-10-18)
+
+A build can be stopped, the log can be copied and filtered, the launcher comes
+from whichever of site and proxy is faster, and Python ships with the site
+instead of a CDN.
+
+- **Stop a build**: a STOP button appears while one runs. It ends the build at
+  once by terminating the worker — Python's long calls cannot be interrupted
+  from JavaScript — and the next build reloads the runtime from the cache.
+  Measured: cancel after 3 s, then a full build in 29 s.
+- **The log does more than scroll**: COPY LOG copies it, ONLY ERRORS hides the
+  rest, the result card gains a SOURCE row (this site / the local file / the
+  GitHub proxy), and the three switches (skip check, Mod Menu, port offset)
+  survive a reload.
+- **One page can no longer mix releases**: the build stamp is part of the script
+  urls (`app.js?b=…`, `worker.js?b=…`), so a fresh index.html never runs the
+  previous release's app.js — the state seen on a phone right after a deploy.
+- **The faster of site and proxy wins**: with a proxy chosen, the site, that
+  proxy and the other known proxy are timed with 64 KB before the download, the
+  quickest fetches it, and the others cover a failure. Two public proxies answer
+  with a CORS header (`gh-proxy.com`, `gh-proxy.org`); the seven others tried do
+  not, so a page cannot use them.
+- **Python ships with the site**: `build_site.py` copies Pyodide into
+  `site/pyodide/` (13 MB), the worker loads it from there first, and the jsDelivr
+  endpoints remain as fallbacks ordered by a 64 KB transfer rather than a HEAD
+  ping.
+- **Checks that were skipped now run**: the apksigner round-trip
+  (`test_apk_sign.py`) runs in the Android job of both workflows, `ruff` reports
+  style problems in the release check (non-blocking), and the browser build
+  driver moved to `tests/browser/` with real arguments instead of Windows paths.
+- **Encoding**: `build_site.py` writes UTF-8 explicitly — on Windows the default
+  cp936 could not even hold the ▶ in the build button, and the stamping step
+  failed on it.
+
 ## 1.2.6 (2026-10-18)
 
 Mainland China starts on the GitHub proxy, the Mod Menu bundle can be fetched

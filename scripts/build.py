@@ -39,7 +39,7 @@ def record_checksum(output):
     sums = output.parent / "SHA256SUMS"
     lines = [line for line in (sums.read_text().splitlines() if sums.exists() else []) if not line.endswith("  " + output.name)]
     lines.append(f"{hashlib.sha256(output.read_bytes()).hexdigest()}  {output.name}")
-    sums.write_text("\n".join(sorted(lines, key=lambda line: line.split("  ", 1)[-1])) + "\n")
+    sums.write_text("\n".join(sorted(lines, key=lambda line: line.split("  ", 1)[-1])) + "\n", encoding="utf-8")
 
 
 def android_sdk(parser, env):
@@ -110,9 +110,9 @@ def main():
     if env.get("JAVA_HOME"):
         env["PATH"] = str(Path(env["JAVA_HOME"]) / "bin") + os.pathsep + env["PATH"]
     tools = ["git", "go", "make", "protoc", "python3.11", "apktool", "java", "keytool"]
-    for command in tools:
-        if not shutil.which(command, path=env["PATH"]):
-            parser.error(f"Missing {command}. See docs/BUILD.md.")
+    for tool in tools:
+        if not shutil.which(tool, path=env["PATH"]):
+            parser.error(f"Missing {tool}. See docs/BUILD.md.")
     sdk = android_sdk(parser, env)
     prepare()
     work = ROOT / ".build"
