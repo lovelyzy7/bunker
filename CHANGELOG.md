@@ -4,6 +4,43 @@ What changed in Bunker, newest first. Each day lists its changes by area.
 Commit ids are in brackets. Each release's heading sits above the dated
 sections it contains; its notes run down to the previous release.
 
+## 1.2.2 (2026-10-18)
+
+A build can no longer hang on a stalled download, the six step chips are two
+even rows on a phone with a gap above the bar, and the last step reads the
+300 MB APK once instead of twice.
+
+- **A build could stop at a percentage and never move**: the launcher download
+  had a 30 s abort, but aborting a fetch does not settle a pending `read()` when
+  the connection has already stalled — the build then waited forever at 31%.
+  The read is now raced against a timer (20 s without data), the same source is
+  retried once, and then the next source is tried; a test that serves 1 MB and
+  then goes quiet shows the retry and the fallback finishing the build.
+- **A dead worker left the button disabled for good**: the page now reports a
+  failure when nothing comes back for 90 seconds, when the worker itself throws,
+  or when the browser froze the tab (back/forward cache) mid-build, and starts a
+  fresh worker for the next try.
+- **The step chips and the progress bar touched, and wrapped 4+2**: below 520px
+  they are a 3×2 grid of equal widths with the bar 9px below the last row, so
+  nothing overlaps and the labels line up.
+- **The last step read the whole APK twice**: signing streamed the file to build
+  the v2 digest and the page hashed it again for the SHA-256. `apk_sign` now
+  returns the file digest from the same pass, so the card shows it at once and
+  300 MB is not read a second time.
+- **A Python file from an older build could be used**: the worker wrote `py/*`
+  from the service worker's cache, which is keyed by the release but not by the
+  build, so a rebuilt site could run the previous `apk_sign.py`
+  (`AttributeError: module 'apk_sign' has no attribute 'sign_and_digest'`). Every
+  same-origin download now carries the site's build stamp.
+- **The build log was English on a Chinese page**: the lines the build prints are
+  translated (正在下载启动器, 正在改写主数据, 正在打包 APK, 正在签名…), including
+  why a download failed (20 秒没有收到数据（已收 1 MB）).
+- **Windows consoles mangled or refused the output**: `webbuild.py` and
+  `scripts/build.py` switch stdout to UTF-8, so 日服 (JP) and ✓ print instead of
+  raising `UnicodeEncodeError` or showing mojibake.
+- The bundle cache no longer stores a partial body, and the reader no longer
+  waits for the disk write before the download starts.
+
 ## 1.2.1 (2026-10-18)
 
 The web builder is quicker to start, survives a slow or blocked CDN, and says

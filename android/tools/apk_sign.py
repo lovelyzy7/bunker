@@ -45,15 +45,24 @@ def _end_of_central_directory(f):
     return eocd, directory, size
 
 
-def _digest(f, entries_end, central, eocd):
-    """The v2 content digest: SHA-256 over 1 MB chunks of the entries, central directory and end record."""
+def _digest(f, entries_end, central, eocd, whole=None):
+    """The v2 content digest: SHA-256 over 1 MB chunks of the entries, central directory and end record.
+
+    whole, when given, is a running SHA-256 that receives the entries as they
+    are read (the central directory and end record are fed by the caller, which
+    writes the final ones); that saves a second pass over a 300 MB APK, the
+    slowest step on a phone.
+    """
     chunks = []
 
     def add(data):
         chunks.append(hashlib.sha256(b"\xa5" + struct.pack("<I", len(data)) + data).digest())
     f.seek(0)
     for position in range(0, entries_end, CHUNK):
-        add(f.read(min(CHUNK, entries_end - position)))
+        data = f.read(min(CHUNK, entries_end - position))
+        if whole is not None:
+            whole.update(data)
+        add(data)
     for section in (central, eocd):
         for position in range(0, len(section), CHUNK):
             add(section[position:position + CHUNK])
@@ -61,6 +70,16 @@ def _digest(f, entries_end, central, eocd):
 
 
 def sign(apk, key_pem=KEYS / "bunker-key.pem", cert_der=KEYS / "bunker-cert.der"):
+    """Sign the APK in place; returns the certificate's SHA-256."""
+    return sign_and_digest(apk, key_pem, cert_der)[0]
+
+
+def sign_and_digest(apk, key_pem=KEYS / "bunker-key.pem", cert_der=KEYS / "bunker-cert.der"):
+    """Sign the APK in place; returns (certificate SHA-256, signed file's SHA-256).
+
+    The file digest comes from the bytes read while signing, so the caller does
+    not need a second pass over the finished APK.
+    """
     key = RSA.import_key(Path(key_pem).read_bytes())
     cert = Path(cert_der).read_bytes()
     with open(apk, "r+b") as f:
@@ -68,7 +87,8 @@ def sign(apk, key_pem=KEYS / "bunker-key.pem", cert_der=KEYS / "bunker-cert.der"
         f.seek(directory)
         central = f.read(eocd_at - directory)
         eocd = f.read()
-        digest = _digest(f, directory, central, eocd)
+        whole = hashlib.sha256()
+        digest = _digest(f, directory, central, eocd, whole)
         signed_data = (_prefixed(_prefixed(struct.pack("<I", RSA_PKCS1_SHA256) + _prefixed(digest)))
                        + _prefixed(_prefixed(cert)) + _prefixed(b""))
         signature = pkcs1_15.new(key).sign(SHA256.new(signed_data))
@@ -85,7 +105,10 @@ def sign(apk, key_pem=KEYS / "bunker-key.pem", cert_der=KEYS / "bunker-cert.der"
         f.seek(directory)
         f.write(block + central + bytes(moved))
         f.truncate()
-    return hashlib.sha256(cert).hexdigest()
+        whole.update(block)
+        whole.update(central)
+        whole.update(bytes(moved))
+    return hashlib.sha256(cert).hexdigest(), whole.hexdigest()
 
 
 def main():

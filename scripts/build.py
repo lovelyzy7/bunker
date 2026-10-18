@@ -79,6 +79,15 @@ def build_android(args, env, python, master, sdk, release, menu_root=None):
     print(f"\nReady: {output}\nKeep your signing key: {args.keystore.resolve()}")
 
 
+def _utf8_console():
+    """Print 日服, ✓ and … on Windows too: a cp936 console raises or mangles them."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--apk", type=Path, required=True, help="Original ARM64 game 3.7.1 APK (日服 or 全球服)")
@@ -130,6 +139,7 @@ def main():
         print("Ports 8003/8080/3000 are in use; testing on 28003/28080/23000.")
         env["LUNAR_PORT_OFFSET"] = "20000"
     run("go", "test", "./...", cwd=ROOT / "server", env=env)
+    _utf8_console()
     build_android(args, env, python, patched_master, sdk, release)
 
 

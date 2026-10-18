@@ -10,6 +10,7 @@ const PYODIDE_VERSION = "v0.28.3";
 const PYODIDE_HOSTS = ["cdn.jsdelivr.net", "fastly.jsdelivr.net", "gcore.jsdelivr.net"];
 
 let pyodideBasesList = null;
+let BUILD = null;      // the site's build stamp: its files change whenever the site is rebuilt
 let sources = null;    // mirrors.json: {bundle: {urls, sha256}, modmenu: {...}}
 let ready = null;      // promise of the loaded Pyodide instance
 const post = (type, value) => self.postMessage({ type, value });
@@ -58,20 +59,40 @@ async function sha256(bytes) {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-async function fetchBytes(url, label) {
+const STALLED = { stalled: true };
+
+/**
+ * The promise, or STALLED after ms. Aborting a fetch does not always settle a
+ * pending read() — on a stalled connection the build then waited forever — so
+ * the wait is raced against a timer instead of relying on the abort.
+ */
+function within(promise, ms) {
+  let timer;
+  const wait = new Promise((resolve) => { timer = setTimeout(() => resolve(STALLED), ms); });
+  return Promise.race([promise.finally(() => clearTimeout(timer)), wait]);
+}
+
+async function fetchBytes(url, label, stallMs = 20000) {
   const controller = new AbortController();
-  let timer = setTimeout(() => controller.abort(), 30000);  // no headers, or no progress, for 30 s
   try {
-    const response = await fetch(url, { signal: controller.signal });
-    if (!response.ok) throw new Error(`Cannot download ${label} (${response.status})`);
+    const response = await within(fetch(url, { signal: controller.signal }), stallMs);
+    if (response === STALLED) {
+      controller.abort();
+      throw new Error(`no response for ${stallMs / 1000} s`);
+    }
+    if (!response.ok) throw new Error(`Cannot download ${label} (HTTP ${response.status})`);
     const total = Number(response.headers.get("Content-Length")) || 0;
     const reader = response.body.getReader();
     const parts = [];
     let received = 0, shown = 0;
     for (;;) {
-      const { done, value } = await reader.read();
-      clearTimeout(timer);
-      timer = setTimeout(() => controller.abort(), 30000);
+      const next = await within(reader.read(), stallMs);
+      if (next === STALLED) {
+        controller.abort();
+        reader.cancel().catch(() => {});
+        throw new Error(`no data for ${stallMs / 1000} s after ${Math.round(received / 1048576)} MB`);
+      }
+      const { done, value } = next;
       if (done) break;
       parts.push(value);
       received += value.length;
@@ -85,8 +106,29 @@ async function fetchBytes(url, label) {
     for (const part of parts) { bytes.set(part, offset); offset += part.length; }
     return bytes;
   } finally {
-    clearTimeout(timer);
+    controller.abort();   // release a body that was left half-read
   }
+}
+
+/** The stamp from version.json; every same-origin download carries it, so a
+ *  cached file from an older build of the site can never be used. */
+async function buildStamp() {
+  if (BUILD === null) {
+    try {
+      const version = await (await fetch("version.json")).json();
+      BUILD = String(version.build || version.version || "");
+    } catch (error) {
+      BUILD = "";
+    }
+  }
+  return BUILD;
+}
+
+/** A same-origin url with the build stamp; a mirror's own url is left alone. */
+async function versioned(url) {
+  if (url.includes("://")) return url;
+  const stamp = await buildStamp();
+  return url + (url.includes("?") ? "&" : "?") + "b=" + encodeURIComponent(stamp);
 }
 
 async function loadSources() {
@@ -105,25 +147,42 @@ async function bundleBytes(kind, label) {
   const urls = known.urls && known.urls.length ? known.urls : [`bundles/${kind}.zip`];
   let lastError = null;
   for (const url of await byPing(urls)) {
-    try {
-      const started = performance.now();
-      const bytes = await fetchBytes(url, label);
-      const seconds = (performance.now() - started) / 1000;
-      post("log", `${label} (${Math.round(bytes.length / 1048576)} MB) in ${seconds.toFixed(1)} s`
-        + (seconds < 0.25 ? " (cached)" : ""));
-      if (known.sha256 && (await sha256(bytes)) !== known.sha256) {
-        post("log", `${label} from ${url} does not match the site's checksum`);
-        lastError = new Error(`${label.replace(/^./, (c) => c.toUpperCase())} does not match the site's checksum`);
-        continue;   // a mirror that returns other bytes is not used
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const fetchUrl = await versioned(url);
+        const started = performance.now();
+        const bytes = await fetchBytes(fetchUrl, label);
+        const seconds = (performance.now() - started) / 1000;
+        post("log", `${label} (${Math.round(bytes.length / 1048576)} MB) in ${seconds.toFixed(1)} s`
+          + (seconds < 0.25 ? " (cached)" : ""));
+        if (known.sha256 && (await sha256(bytes)) !== known.sha256) {
+          post("log", `${label} from ${url} does not match the site's checksum; the saved copy was dropped`);
+          await forget(fetchUrl);
+          lastError = new Error(`${label.replace(/^./, (c) => c.toUpperCase())} does not match the site's checksum`);
+          break;   // a wrong copy will not fix itself: try the next source
+        }
+        if (url !== urls[0]) post("log", `${label} came from ${url}`);
+        return bytes;
+      } catch (error) {
+        lastError = error;
+        post("log", `Cannot download ${label} from ${url}: ${error.message || error}`);
+        if (attempt === 1) post("log", `Trying ${url} again…`);
       }
-      if (url !== urls[0]) post("log", `${label} came from ${url}`);
-      return bytes;
-    } catch (error) {
-      lastError = error;
-      post("log", `Cannot download ${label} from ${url}: ${error.message || error}`);
     }
   }
   throw lastError || new Error(`Cannot download ${label}`);
+}
+
+/** Drop a saved bundle that did not match its digest, so the next try downloads it. */
+async function forget(url) {
+  try {
+    for (const name of await caches.keys()) {
+      const cache = await caches.open(name);
+      if (await cache.match(url)) await cache.delete(url);
+    }
+  } catch (error) {
+    // No CacheStorage: nothing was saved.
+  }
 }
 
 /** A Blob for the finished APK, built piece by piece so the page never sees a second copy. */
@@ -180,9 +239,11 @@ async function setup() {
       await pyodide.loadPackage(["pycryptodome", "msgpack", "lz4"]);
       pyodide.setStdout({ batched: (line) => post("log", line) });
       pyodide.setStderr({ batched: (line) => post("log", line) });
-      const manifest = await (await fetch("py/manifest.json")).json();
+      const stamp = await buildStamp();
+      const manifest = await (await fetch(`py/manifest.json?b=${encodeURIComponent(stamp)}`)).json();
       for (const file of manifest) {
-        writeFile(pyodide, "/repo/" + file, new Uint8Array(await (await fetch("py/" + file)).arrayBuffer()));
+        const bytes = await (await fetch(`py/${file}?b=${encodeURIComponent(stamp)}`)).arrayBuffer();
+        writeFile(pyodide, "/repo/" + file, new Uint8Array(bytes));
       }
       pyodide.runPython("import sys; sys.path.insert(0, '/repo/web'); import webbuild");
       post("runtime", true);
@@ -213,10 +274,14 @@ function warmLauncher() {
     try {
       const known = (await loadSources()).bundle || {};
       const url = (known.urls && known.urls[0]) || "bundles/android.zip";
-      const response = await fetch(url);
-      if (!response.ok || !response.body) return;
+      const response = await within(fetch(await versioned(url)), 20000);
+      if (response === STALLED || !response.ok || !response.body) return;
       const reader = response.body.getReader();
-      while (!(await reader.read()).done) {}   // drained, not buffered: the service worker keeps it
+      for (;;) {   // drained, not buffered: the service worker keeps it
+        const next = await within(reader.read(), 20000);
+        if (next === STALLED) { reader.cancel().catch(() => {}); return; }
+        if (next.done) return;
+      }
     } catch (error) {
       // The build reports the failure properly; a warm-up that fails is silent.
     }
@@ -249,18 +314,8 @@ async function build(data) {
     const info = built && built.toJs ? built.toJs({ dict_converter: Object.fromEntries }) : {};
     if (built && built.destroy) built.destroy();
     const blob = readBlob(FS, output, FS.stat(output).size);
-    // The file is handed over first: the checksum is for the record, and the
-    // page can offer the download while it is still being computed.
+    // info.sha256 comes from the signing pass; the finished APK is not hashed again.
     post("done", { name: "bunker.apk", blob, info });
-    log("Computing the checksum…");
-    let checksum = "";
-    try {
-      checksum = pyodide.runPython(
-        `import hashlib\nhashlib.file_digest(open(${JSON.stringify(output)}, "rb"), "sha256").hexdigest()`);
-    } catch (error) {
-      checksum = "";
-    }
-    post("sha256", checksum);
     FS.unlink(output);
     for (const name of FS.readdir("/bundles")) if (name !== "." && name !== "..") FS.unlink("/bundles/" + name);
   } catch (error) {

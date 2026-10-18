@@ -6,6 +6,31 @@
 
 # Validation
 
+## A stalled download, the chip grid and one-pass signing — 2026-10-18
+
+- **A source that goes quiet no longer hangs the build**: a test server that
+  sends 1 MB and then stops shows `no data for 20 s after 1 MB`, one retry, then
+  the second source finishing the build; before this the same case sat at 31%
+  indefinitely. A 90-second silence, a worker exception, or a frozen tab now
+  shows 构建卡住了 and re-enables the button.
+- **The chips on the phone**: measured at 392 CSS px, six chips in a 3×2 grid
+  (106px each, 6px gaps), the bar 9px below, no overlap; screenshots
+  `.build/phone-chips4.png` (all done) and `.build/chips-390.png` (done / skipped
+  / on). A skipped check is struck through.
+- **Signing is one pass**: `apk_sign.sign_and_digest` returns the file's SHA-256
+  from the signing read; the same build is byte-identical to the recorded
+  `51b4cd22…282676`, so the digest is right and the second 296 MB read is gone.
+  On the phone the card appeared at 58.6 s with signing 55.5→58.6 s.
+- **The build stamp is on every same-origin download**: `py/*?b=<stamp>`; without
+  it a rebuilt dev site ran the previous `apk_sign.py` and failed with
+  `AttributeError: module 'apk_sign' has no attribute 'sign_and_digest'`.
+- **The log is Chinese on a Chinese page**: `正在下载启动器…… 42%`,
+  `lib/arm64-v8a/libil2cpp.so（120 MB）……`, `正在用公开的 Bunker 密钥签名……`,
+  `APK 已签名，可以安装。`, `完成。` — seen on the phone.
+- **Encoding**: every tracked text file is UTF-8 without a BOM and without
+  mojibake (319 files scanned); `webbuild.py` and `scripts/build.py` set UTF-8 on
+  their console streams.
+
 ## The web builder's phone layout, checksum hint and caching — 2026-10-18
 
 - **01 Your files on the device**: at 392 CSS px each file is three rows (label,

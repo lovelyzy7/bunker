@@ -363,8 +363,16 @@ def _assemble(apk, master, companion_apk, output, work, log, port_offset, menu):
         with open(temporary, "wb") as out:
             writer = ApkWriter(out)
             log("Writing the APK…")
-            for info in game.infolist():
+            entries = game.infolist()
+            step = max(1, len(entries) // 10)   # ten lines, not one per hundred files
+            for index, info in enumerate(entries, 1):
                 name = info.filename
+                # The browser shows these lines as progress: without them a phone
+                # build looks frozen while one big entry is copied.
+                if info.file_size >= 8 << 20:
+                    log(f"  {name} ({info.file_size >> 20} MB)…")
+                elif index % step == 0 and index < len(entries):
+                    log(f"  {index * 100 // len(entries)}%…")
                 # The publisher's signature no longer applies; you sign the result.
                 if name.startswith("META-INF/") and re.search(r"\.(SF|RSA|DSA|EC)$|MANIFEST\.MF$", name) or name == "stamp-cert-sha256":
                     continue

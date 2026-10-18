@@ -98,11 +98,25 @@ def build_android(apk, master, companion, output, log=print, port_offset=0, modm
     built = assemble_apk.assemble(Path(apk), Path(master), Path(companion), Path(output),
                                   log=log, port_offset=int(port_offset), menu=menu)
     log("Signing with the public Bunker key…")
-    apk_sign.sign(Path(output))
+    # The digest comes out of the signing pass, so the finished APK is not read
+    # a second time just to hash it.
+    certificate, sha256 = apk_sign.sign_and_digest(Path(output))
     log("Signed APK ready to install.")
+    built = built if isinstance(built, dict) else {}
+    built["sha256"] = sha256
+    built["certificate"] = certificate
     return built
 
 
+
+
+def _utf8_console():
+    """Print 日服, ✓ and … on Windows too: a cp936 console raises or mangles them."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
 
 
 def main():
@@ -118,6 +132,7 @@ def main():
                         help="Add the Mod Menu; optionally name the payload folder or zip")
     parser.add_argument("--skip-checks", action="store_true", help="Build even if the input SHA-256 differs")
     args = parser.parse_args()
+    _utf8_console()
     build_android(args.apk, args.master, args.companion_apk, args.output, port_offset=args.port_offset,
                   modmenu=args.mod_menu, verify_inputs=not args.skip_checks)
 

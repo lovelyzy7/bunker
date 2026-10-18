@@ -131,9 +131,62 @@ function setStage(stage, percent) {
   if (percent !== undefined) $("meter").style.width = percent + "%";
 }
 
+/** The build's own log lines, in Chinese when the page is Chinese. */
+const LOG_PATTERNS = [
+  [/^Downloading the launcher… (\d+)%$/, "正在下载启动器…… $1%"],
+  [/^Loading Python…$/, "正在加载 Python……"],
+  [/^Python runtime from (.+)$/, "Python 运行时来自 $1"],
+  [/^Checking the game APK and master data…$/, "正在校验游戏 APK 与主数据……"],
+  [/^Patching the game library and metadata…$/, "正在改写游戏库与元数据……"],
+  [/^Updating the manifest…$/, "正在更新清单……"],
+  [/^Patching master data…$/, "正在改写主数据……"],
+  [/^Adding the Mod Menu \((.+)\)…$/, "正在加入 MOD 菜单（$1）……"],
+  [/^Writing the APK…$/, "正在打包 APK……"],
+  [/^Signing with the public Bunker key…$/, "正在用公开的 Bunker 密钥签名……"],
+  [/^Signed APK ready to install\.$/, "APK 已签名，可以安装。"],
+  [/^\s*(\d+)%…$/, "  $1%……"],
+  [/^  (.+) \((\d+) MB\)…$/, "  $1（$2 MB）……"],
+  [/^the launcher \((\d+) MB\) in ([\d.]+) s \(cached\)$/, "启动器（$1 MB）来自本地缓存"],
+  [/^the launcher \((\d+) MB\) in ([\d.]+) s$/, "启动器（$1 MB）用时 $2 秒"],
+  [/^the launcher came from (.+)$/, "启动器来自镜像：$1"],
+  [/^The Mod Menu \((\d+) MB\) in ([\d.]+) s \(cached\)$/, "MOD 菜单（$1 MB）来自本地缓存"],
+  [/^The Mod Menu \((\d+) MB\) in ([\d.]+) s$/, "MOD 菜单（$1 MB）用时 $2 秒"],
+  [/^Cannot download the launcher from (.+): (.+)$/, "无法从 $1 下载启动器：$2"],
+  [/^Cannot download the Mod Menu from (.+): (.+)$/, "无法从 $1 下载 MOD 菜单：$2"],
+  [/^Trying (.+) again…$/, "正在重试 $1……"],
+  [/^the (.+) from (.+) does not match the site's checksum$/, "$2 的校验值不一致"],
+];
+
+// The reason at the end of a download failure, translated after the line itself.
+const LOG_REASONS = [
+  [/no data for ([\d.]+) s after (\d+) MB/, "$1 秒没有收到数据（已收 $2 MB）"],
+  [/no data for ([\d.]+) s/, "$1 秒没有收到数据"],
+  [/no response for ([\d.]+) s/, "$1 秒没有响应"],
+  [/Cannot download (.+) \(HTTP (\d+)\)/, "下载失败（HTTP $2：$1）"],
+];
+
+// Words that appear inside those lines, after the line itself has been translated.
+const LOG_WORDS = [["the launcher", "启动器"], ["the Mod Menu", "MOD 菜单"]];
+
+function logLine(line) {
+  if (currentLang() !== "zh") return line;
+  const fill = (out, m) => out.replace(/\$(\d)/g, (_, n) => m[Number(n)] ?? "");
+  let text = line;
+  for (const [re, out] of LOG_PATTERNS) {
+    const m = text.match(re);
+    if (m) { text = fill(out, m); break; }
+  }
+  for (const [re, out] of LOG_REASONS) {
+    const m = text.match(re);
+    if (m) { text = text.replace(re, fill(out, m)); break; }
+  }
+  for (const [en, zh] of LOG_WORDS) text = text.split(en).join(zh);
+  return text;
+}
+
 function log(line) {
   const box = $("log");
-  box.textContent += line + "\n";
+  box.textContent += logLine(line) + "\n";
   box.scrollTop = box.scrollHeight;
   if (!building) return;   // the warm-up logs too, and it is not a build yet
   for (const [re, stage, percent] of STAGES) {
@@ -169,6 +222,9 @@ const FAILURES = [
   [/does not match the site's checksum/,
     ["站点文件校验失败", "下载到的启动器与站点公布的校验值不一致，已停止构建。请刷新页面重试；若反复出现，说明这个下载来源的内容可能被替换了，请不要继续。"],
     ["A site file did not match its checksum", "The launcher that was downloaded does not match the checksum this site publishes, so the build stopped. Reload and retry; if it keeps happening, that source may be serving altered bytes, so do not continue."]],
+  [/stopped responding|suspended the page|The build worker stopped/,
+    ["构建卡住了", "浏览器在一分半钟内没有收到任何进度，已停止这次构建。请重试；若反复出现，可能是网络卡住或手机内存不足（关掉其他标签页，或改用桌面浏览器）。"],
+    ["The build got stuck", "Nothing came back for 90 seconds, so this build was stopped. Try again; if it keeps happening the network may be stalled or the phone may be out of memory (close other tabs, or use a desktop browser)."]],
   [/Cannot download/,
     ["站点文件下载失败", "刷新页面重试；如果一直失败，可能是网络拦截了 cdn.jsdelivr.net。"],
     ["A site file could not be downloaded", "Reload the page. If it keeps failing, your network may block cdn.jsdelivr.net."]],
@@ -204,7 +260,7 @@ function fillResult(value) {
   $("built-region").textContent = regionName(info);
   $("built-menu").textContent = info.modMenu ? tr("included") : tr("not included");
   $("built-size").textContent = `${(value.blob.size / 1048576).toFixed(0)} MB`;
-  $("built-sha").textContent = value.sha256 || "…";   // filled in by the sha256 message
+  $("built-sha").textContent = info.sha256 || "—";
 }
 
 let runtimeReady = false;
@@ -247,11 +303,13 @@ $("build").addEventListener("click", () => {
                        verify: !$("skip-check").checked });
 });
 
+let lastSignal = Date.now();
+
 function listen() {
 worker.onmessage = ({ data }) => {
+  lastSignal = Date.now();
   if (data.type === "log") log(data.value);
   if (data.type === "runtime") runtimeReady = true;
-  if (data.type === "sha256") $("built-sha").textContent = data.value || "—";
   if (data.type === "error") {
     log(tr("Build failed: ") + data.value);
     fail(data.value);
@@ -276,9 +334,36 @@ worker.onmessage = ({ data }) => {
     log(tr("Done."));
   }
 };
+worker.onerror = (event) => {
+  lastSignal = Date.now();
+  building = false;
+  $("build").disabled = false;
+  fail(String(event.message || "The build worker stopped."));
+  restartWorker();
+};
 }
 
 listen();
+
+// A worker that dies (the phone ended it for memory, or the page was frozen)
+// sends nothing at all, and the page used to sit on a disabled button forever.
+setInterval(() => {
+  if (!building || Date.now() - lastSignal < 90000) return;
+  building = false;
+  $("build").disabled = false;
+  fail("The build stopped responding for 90 seconds.");
+  restartWorker();
+}, 5000);
+
+// The browser can freeze a tab (back/forward cache) with a build in progress;
+// the worker is gone when it comes back, so say so instead of waiting.
+window.addEventListener("pageshow", (event) => {
+  if (!event.persisted || !building) return;
+  building = false;
+  $("build").disabled = false;
+  fail("The browser suspended the page while it was building.");
+  restartWorker();
+});
 
 /** A worker whose Python died cannot be reused: start a clean one. */
 function restartWorker() {
@@ -351,8 +436,8 @@ const ZH = {
     "需要几分钟，并占用约 2 GB 内存。建议使用桌面浏览器。",
   "Takes a few minutes and needs about 2 GB of free memory. A desktop browser works best; a phone may run out of memory for a 300 MB APK.":
     "需要几分钟，并占用约 2 GB 内存。建议使用桌面浏览器；手机上构建 300 MB 的 APK 容易内存不足。",
-  "Takes a minute or two and needs about 2 GB of free memory. A modern phone manages it (a 12 GB phone built it in 44 s); an older one can run out of memory for a 300 MB APK.":
-    "需要一两分钟，并占用约 2 GB 内存。较新的手机可以完成（12 GB 的机器实测 44 秒）；较旧的手机在构建 300 MB 的 APK 时可能内存不足。",
+  "Takes about a minute and needs about 2 GB of free memory. A modern phone manages it (a 12 GB phone took 30 s to 1 minute); an older one can run out of memory for a 300 MB APK.":
+    "大约需要一分钟，并占用约 2 GB 内存。较新的手机可以完成（12 GB 的机器实测 30 秒到 1 分钟）；较旧的手机在构建 300 MB 的 APK 时可能内存不足。",
   "ADVANCED :: SKIP THE FILE CHECK": "进阶选项 :: 跳过文件校验",
   "The build checks that your APK is the original 3.7.1 release and that the master data is the untouched 20240404193219.bin.e, because the patch offsets were read from those files. A split APK exported from an installed app has the same library and metadata, so it can still build, but a different game version will not.":
     "构建前会校验你的 APK 是原版 3.7.1、主数据是未被改动的 20240404193219.bin.e，因为补丁偏移量就是从这些文件里读出来的。从已安装应用导出的拆分包，其游戏库与元数据相同，仍可构建；但其他游戏版本不行。",

@@ -94,7 +94,8 @@
   .steps li.on { border-color: var(--ink); color: var(--ink); font-weight: 700; }
   .steps li.done { background: var(--ok); border-color: var(--ok); color: var(--on-ok); }
   .steps li.skipped { text-decoration: line-through; opacity: .55; }
-  .meter { height: 6px; background: var(--chip); }
+  #progress { margin-top: 16px; }
+  .meter { height: 6px; margin-top: 9px; background: var(--chip); }
   .meter span { display: block; height: 100%; width: 0; background: var(--ink); transition: width .4s ease; }
   /* Failure: what went wrong, what to do, and the raw text underneath. */
   /* display:flex would beat the hidden attribute's display:none, so say it again. */
@@ -161,6 +162,10 @@
     .file .pick { grid-area: pick; min-width: 92px; justify-content: center; }
     .file .region { grid-area: region; flex: none; margin-left: 0; }
     .file:last-child { padding-bottom: 0; }
+    /* Six chips on a phone: two even rows instead of a ragged wrap that the
+       bar then sat against with no gap. */
+    .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+    .steps li { text-align: center; padding: 6px 4px; font-size: 10px; letter-spacing: .04em; }
   }
 </style>
 </head>
@@ -207,7 +212,7 @@
     <section>
       <h2 class="head"><span>[</span><span>02 Build</span><span class="rule"></span><span>]</span></h2>
       <div class="frame">
-        <p>Takes a minute or two and needs about 2 GB of free memory. A modern phone manages it (a 12 GB phone built it in 44 s); an older one can run out of memory for a 300 MB APK.</p>
+        <p>Takes about a minute and needs about 2 GB of free memory. A modern phone manages it (a 12 GB phone took 30 s to 1 minute); an older one can run out of memory for a 300 MB APK.</p>
         <details>
           <summary>ADVANCED :: MOD MENU</summary>
           <p style="margin:8px 0">The optional memory menu (damage and defense multipliers, no skill cooldown,

@@ -35,7 +35,15 @@ async function fromCache(request) {
   const hit = await cache.match(request);
   if (hit) return hit;
   const response = await fetch(request);
-  if (response.ok && response.status === 200) cache.put(request, response.clone());
+  // The reader must not wait for the disk write; and a partial body (the tab
+  // was closed, the network died) must not be kept as if it were whole.
+  const keep = response.ok && response.status === 200
+    && (response.type === "basic" || response.type === "cors")
+    && !request.headers.has("range");
+  if (keep) {
+    const copy = response.clone();
+    caches.open(CACHE).then((store) => store.put(request, copy)).catch(() => {});
+  }
   return response;
 }
 
