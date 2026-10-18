@@ -240,6 +240,19 @@ routes every editor write through the same Go engine compiled into the APK
 panel still calls `tools/grant/grant`; `tools/grant/README.md` explains how to
 drop in a prebuilt binary so the panel needs no Go toolchain.
 
+The optional Mod Menu lives in two repositories: `lovelyzy7/bunker-modmenu` (the
+device build, without the server hot-switch) and the upstream
+`lovelyzy7/NieR-Re-In-Carnation-Mod_Menu`. `scripts/check_menu_parity.py`
+compares them — every file of both menu modules, plus the menu's feature catalog
+— and fails when one side changes without the other; the four files allowed to
+differ are listed with their reasons in `scripts/menu_parity.allow`, and the
+reviewed pair is pinned in `menu.lock.json`:
+
+```sh
+scripts/check_menu_parity.py --bunker ../bunker-modmenu --original ../NieR-Re-In-Carnation-Mod_Menu
+scripts/check_menu_parity.py --update      # record the pair after reviewing a sync
+```
+
 For optional editor integration checks, use a disposable copy of a save with
 player 1 and the prepared resources. The test makes its own working copies:
 

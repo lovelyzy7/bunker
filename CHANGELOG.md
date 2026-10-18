@@ -4,10 +4,10 @@ What changed in Bunker, newest first. Each day lists its changes by area.
 Commit ids are in brackets. Each release's heading sits above the dated
 sections it contains; its notes run down to the previous release.
 
-## Unreleased
+## 1.2.0 (2026-10-18)
 
-The panel takes less room and shows which release it belongs to; a 日服 build's
-Archive now speaks Japanese.
+The browser builds 日服 by itself, on a phone too; the panel and the Archive are
+easier to scan; the two Mod Menu repositories are checked against each other.
 
 - **The top of every page was too tall**: the bar and nav together took 87px of a
   phone screen before any content (`main` started at 131px). They are now 65px on
@@ -59,6 +59,16 @@ Archive now speaks Japanese.
   `lang="en"` while displaying Chinese, so the phone offered a translation and
   mangled the text (「几分钟」 became 「三十」). The page now sets `lang` from the
   language on screen.
+- **The two Mod Menu repositories are checked against each other**:
+  `scripts/check_menu_parity.py` compares every file of both menu modules and
+  the menu's feature catalog (the same entries, labels and ranges, minus the
+  device build's removed server hot-switch), pinning the pair in
+  `menu.lock.json`. `scripts/menu_parity.allow` lists the four files that may
+  differ, each with its reason. The first run found uncommitted work in both
+  checkouts — the font-size setting did not cover every control, a refresh
+  could leave the settings page open, and one `setScaledTextSize` call sat
+  outside its `if` — which is now committed in both repositories
+  (`bunker-modmenu` 19bde45, original 722ad23).
 - **Status page tiles**: the ten Pod Programs links were one run-on paragraph
   (nothing styled their `tool-grid` class). They are now tiles — name over
   description with a chevron, four across on a desktop and one per row on a

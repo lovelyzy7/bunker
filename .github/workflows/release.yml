@@ -28,9 +28,9 @@ jobs:
           python-version: "3.11"
       - name: Unit tests
         run: |
-          (cd scripts && python3 -m unittest test_version test_release_assets)
+          (cd scripts && python3 -m unittest test_version test_release_assets test_menu_parity)
           (cd android/tools && python3 -m unittest test_build_info)
-          python3 -c "import sys; sys.path.insert(0, 'scripts'); import release_assets; release_assets.changelog_section(open('CHANGELOG.md').read(), open('VERSION').read().strip())"
+          python3 -c "import sys; sys.path.insert(0, 'scripts'); import release_assets; release_assets.changelog_section(open('CHANGELOG.md', encoding='utf-8').read(), open('VERSION').read().strip())"
 
   android:
     needs: check

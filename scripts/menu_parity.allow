@@ -1,0 +1,17 @@
+# Mod Menu parity: files that may differ between the two repositories.
+#
+# Paths are relative to a client folder (en-client or jp-client) and are checked
+# by scripts/check_menu_parity.py. Every entry needs a reason, and the reason
+# must stay true: the script fails if an entry stops differing, and the feature
+# catalog is compared separately so a label or slider range cannot drift inside
+# an allowed file.
+#
+# The one deliberate difference: the device build has no server hot-switch. The
+# original keeps it (collapsed by default, so existing saves do not change); the
+# bunker repository removed it, because a phone runs its own Lunar Tear and has
+# no second server to switch to.
+
+modmenu/app/src/main/java/com/android/support/Menu.java   # 热切换 UI（原版折叠、设备版移除）
+modmenu/app/src/main/jni/Main.cpp                         # 热切换的 srv* 实现与功能条目 7–16
+modmenu/app/src/main/jni/Menu/Menu.hpp                    # srvInit/srvNote 声明
+modmenu/app/src/main/jni/Menu/Setup.cpp                   # 启动时的 srvInit 与标题里的服务器名
