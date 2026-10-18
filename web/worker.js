@@ -158,25 +158,42 @@ async function checkLauncher(bytes, label) {
   }
 }
 
-/** A launcher from a proxy: two tries, with the same stall guard as everything else. */
-async function launcherFrom(url) {
+/** A bundle from a proxy: two tries, then the same digest check as everything else. */
+async function proxyBytes(url, label, expected) {
   let lastError = null;
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
       const started = performance.now();
-      const bytes = await fetchBytes(url, "the launcher");
+      const bytes = await fetchBytes(url, label);
       const seconds = (performance.now() - started) / 1000;
-      post("log", `the launcher (${Math.round(bytes.length / 1048576)} MB) in ${seconds.toFixed(1)} s`);
-      await checkLauncher(bytes, "The launcher from the proxy");
-      post("log", `the launcher came from ${url}`);
+      post("log", `${label} (${Math.round(bytes.length / 1048576)} MB) in ${seconds.toFixed(1)} s`);
+      if (expected && (await sha256(bytes)) !== expected) {
+        lastError = new Error(`${label.replace(/^./, (c) => c.toUpperCase())} does not match the site's checksum`);
+        post("log", lastError.message);
+        break;   // a wrong copy will not fix itself
+      }
       return bytes;
     } catch (error) {
       lastError = error;
-      post("log", `Cannot download the launcher from ${url}: ${error.message || error}`);
+      post("log", `Cannot download ${label} from ${url}: ${error.message || error}`);
       if (attempt === 1) post("log", `Trying ${url} again…`);
     }
   }
   throw lastError;
+}
+
+async function launcherFrom(url) {
+  const known = ((await loadSources()).bundle || {}).sha256;
+  const bytes = await proxyBytes(url, "the launcher", known);
+  post("log", `the launcher came from ${url}`);
+  return bytes;
+}
+
+async function modmenuFrom(url) {
+  const known = ((await loadSources()).modmenu || {}).sha256;
+  const bytes = await proxyBytes(url, "the Mod Menu", known);
+  post("log", `the Mod Menu came from ${url}`);
+  return bytes;
 }
 
 /** One of the site's bundles, from the quickest source that returns the right bytes. */
@@ -369,13 +386,28 @@ async function build(data) {
       await checkLauncher(bytes, "The local launcher bundle");
       writeFile(pyodide, "/bundles/android.zip", bytes);
     } else if (launcherUrl) {
-      writeFile(pyodide, "/bundles/android.zip", await launcherFrom(launcherUrl));
+      try {
+        writeFile(pyodide, "/bundles/android.zip", await launcherFrom(launcherUrl));
+      } catch (error) {
+        // The proxy is a convenience; the site itself may still answer.
+        post("log", "The proxy did not work; trying this site…");
+        writeFile(pyodide, "/bundles/android.zip", await bundleBytes("bundle", "the launcher"));
+      }
     } else {
       writeFile(pyodide, "/bundles/android.zip", await bundleBytes("bundle", "the launcher"));
     }
     let payload = null;
     if (modMenu) {
-      writeFile(pyodide, "/bundles/modmenu.zip", await bundleBytes("modmenu", "the Mod Menu"));
+      let bytes = null;
+      if (data.modmenuUrl) {
+        try {
+          bytes = await modmenuFrom(data.modmenuUrl);
+        } catch (error) {
+          post("log", "The proxy did not work; trying this site…");
+        }
+      }
+      if (!bytes) bytes = await bundleBytes("modmenu", "the Mod Menu");
+      writeFile(pyodide, "/bundles/modmenu.zip", bytes);
       payload = "/bundles/modmenu.zip";
     }
     const output = "/output/bunker.apk";

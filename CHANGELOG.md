@@ -4,6 +4,30 @@ What changed in Bunker, newest first. Each day lists its changes by area.
 Commit ids are in brackets. Each release's heading sits above the dated
 sections it contains; its notes run down to the previous release.
 
+## 1.2.6 (2026-10-18)
+
+Mainland China starts on the GitHub proxy, the Mod Menu bundle can be fetched
+and downloaded the same way, and the 00 block no longer draws a rule through its
+own controls.
+
+- **A rule crossed the file picker**: the separator under each choice was drawn
+  on the choice, so the row belonging to it (the picker, the proxy field) sat
+  against the line. Each choice is now a group whose rule comes after its
+  controls.
+- **The downloads are buttons**: “Download the launcher bundle (25 MB)” and
+  “Download the Mod Menu bundle (0.8 MB)” are boxed, follow the chosen source
+  (through the proxy when one is set), and stay readable when their row is grey.
+- **Mainland China gets the proxy on the first visit**: the page reads the time
+  zone — Asia/Shanghai and the other mainland zones preselect option 2 with
+  https://gh-proxy.com/ filled in, everywhere else option 0. The choice is
+  remembered from then on.
+- **The Mod Menu can come through the proxy as well**: the release now carries
+  `modmenu.zip`, `mirrors.json` names its url, and a proxy build fetches it with
+  the same digest check; if the proxy fails, both bundles fall back to this site.
+- **The watchdog waits three minutes**, not 90 seconds: a phone (or a busy
+  machine) can spend a minute in one patch step, and a false “stuck” is worse
+  than a late one.
+
 ## 1.2.5 (2026-10-18)
 
 The site serves exactly the launcher bundle the release carries, so the new

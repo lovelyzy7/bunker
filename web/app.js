@@ -102,14 +102,40 @@ function sourceMode() {
   return picked ? picked.value : "site";
 }
 
-/** A proxy base (https://ghproxy.net/), a full url, or a template with {url}. */
-function launcherUrl() {
-  const text = ($("proxy-url").value || "").trim();
+/** A proxy base (https://gh-proxy.com/), a full url, or a template with {url}. */
+function resolveVia(text, target) {
   if (!text) return null;
-  const release = (MIRRORS && MIRRORS.github) || "";
-  if (text.includes("{url}")) return release ? text.replace("{url}", release) : null;
-  if (text.endsWith("/") || /^https?:\/\/[^/]+$/i.test(text)) return release ? text + release : null;
+  if (text.includes("{url}")) return target ? text.replace("{url}", target) : null;
+  if (text.endsWith("/") || /^https?:\/\/[^/]+$/i.test(text)) return target ? text + target : null;
   return /^https?:\/\/\S+$/i.test(text) ? text : null;
+}
+
+function proxyText() {
+  return ($("proxy-url").value || "").trim();
+}
+
+function launcherUrl() {
+  return resolveVia(proxyText(), (MIRRORS && MIRRORS.github) || "");
+}
+
+/** The Mod Menu only makes sense as a prefix/template; a launcher url says nothing about it. */
+function modmenuUrl() {
+  const target = (MIRRORS && MIRRORS.modmenuGithub) || "";
+  const text = proxyText();
+  if (!target || !text) return null;
+  if (text.includes("{url}")) return text.replace("{url}", target);
+  if (text.endsWith("/") || /^https?:\/\/[^/]+$/i.test(text)) return text + target;
+  return null;
+}
+
+/** Mainland China on the first visit: the GitHub proxy is the default there. */
+function mainlandChina() {
+  try {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+    return ["Asia/Shanghai", "Asia/Chongqing", "Asia/Harbin", "Asia/Urumqi", "Asia/Kashgar", "PRC"].includes(zone);
+  } catch (error) {
+    return false;
+  }
 }
 
 function updateBuildEnabled() {
@@ -140,6 +166,12 @@ function syncSource() {
   else if (!$("proxy-url").value.trim()) hint.textContent = tr("Paste a proxy address, such as https://gh-proxy.com/");
   else if (!url) { hint.textContent = tr("That is not an http(s) address."); hint.classList.add("bad"); }
   else hint.textContent = `${tr("The launcher will come from")} ${url}`;
+
+  // The two download links follow the same choice: through the proxy when one
+  // is given, straight from the site otherwise.
+  const viaProxy = mode === "proxy";
+  $("download-launcher").href = (viaProxy && launcherUrl()) || "bundles/android.zip";
+  $("download-modmenu").href = (viaProxy && modmenuUrl()) || "bundles/modmenu.zip";
 
   try {
     localStorage.setItem(SOURCE_KEY, mode);
@@ -232,6 +264,8 @@ const LOG_PATTERNS = [
   [/^the launcher \((\d+) MB\) in ([\d.]+) s \(cached\)$/, "启动器（$1 MB）来自本地缓存"],
   [/^the launcher \((\d+) MB\) in ([\d.]+) s$/, "启动器（$1 MB）用时 $2 秒"],
   [/^the launcher came from (.+)$/, "启动器来自 $1"],
+  [/^the Mod Menu came from (.+)$/, "MOD 菜单来自 $1"],
+  [/^The proxy did not work; trying this site…$/, "代理不可用，改为从本站下载……"],
   [/^the Mod Menu \((\d+) MB\) in ([\d.]+) s \(cached\)$/, "MOD 菜单（$1 MB）来自本地缓存"],
   [/^the Mod Menu \((\d+) MB\) in ([\d.]+) s$/, "MOD 菜单（$1 MB）用时 $2 秒"],
   [/^Cannot download the launcher from (.+): (.+)$/, "无法从 $1 下载启动器：$2"],
@@ -306,8 +340,8 @@ const FAILURES = [
     ["站点文件校验失败", "下载到的启动器与站点公布的校验值不一致，已停止构建。请刷新页面重试；若反复出现，说明这个下载来源的内容可能被替换了，请不要继续。"],
     ["A site file did not match its checksum", "The launcher that was downloaded does not match the checksum this site publishes, so the build stopped. Reload and retry; if it keeps happening, that source may be serving altered bytes, so do not continue."]],
   [/stopped responding|suspended the page|The build worker stopped/,
-    ["构建卡住了", "浏览器在一分半钟内没有收到任何进度，已停止这次构建。请重试；若反复出现，可能是网络卡住或手机内存不足（关掉其他标签页，或改用桌面浏览器）。"],
-    ["The build got stuck", "Nothing came back for 90 seconds, so this build was stopped. Try again; if it keeps happening the network may be stalled or the phone may be out of memory (close other tabs, or use a desktop browser)."]],
+    ["构建卡住了", "浏览器在三分钟内没有收到任何进度，已停止这次构建。请重试；若反复出现，可能是网络卡住或手机内存不足（关掉其他标签页，或改用桌面浏览器）。"],
+    ["The build got stuck", "Nothing came back for three minutes, so this build was stopped. Try again; if it keeps happening the network may be stalled or the phone may be out of memory (close other tabs, or use a desktop browser)."]],
   [/Cannot download/,
     ["站点文件下载失败", "刷新页面重试；如果一直失败，可能是网络拦截了 cdn.jsdelivr.net。"],
     ["A site file could not be downloaded", "Reload the page. If it keeps failing, your network may block cdn.jsdelivr.net."]],
@@ -391,6 +425,7 @@ $("build").addEventListener("click", () => {
   const mode = sourceMode();
   const launcher = mode === "local" ? $("local-launcher").files[0] : null;
   const launcherURL = mode === "proxy" ? launcherUrl() : null;
+  const modmenuURL = mode === "proxy" ? modmenuUrl() : null;
   const portOffset = Number($("port-offset").value || 0);
   if (!Number.isInteger(portOffset) || portOffset < 0 || portOffset > 57455) { log(tr("The port offset must be a whole number from 0 to 57455.")); return; }
   building = true;
@@ -405,7 +440,8 @@ $("build").addEventListener("click", () => {
   setStage(0, 2);
   if (url) { URL.revokeObjectURL(url); url = null; }
   worker.postMessage({ game, master, portOffset, modMenu: !!document.getElementById("mod-menu").checked,
-                       verify: !$("skip-check").checked, launcher, launcherUrl: launcherURL });
+                       verify: !$("skip-check").checked, launcher, launcherUrl: launcherURL,
+                       modmenuUrl: modmenuURL });
 });
 
 let lastSignal = Date.now();
@@ -453,10 +489,12 @@ listen();
 // The chosen source survives a reload; a local file cannot, so that falls back.
 (function restoreSource() {
   try {
-    const proxy = localStorage.getItem(PROXY_KEY) || "";
+    const saved = localStorage.getItem(SOURCE_KEY);
+    let proxy = localStorage.getItem(PROXY_KEY) || "";
+    if (!saved && !proxy && mainlandChina()) proxy = "https://gh-proxy.com/";
     if (proxy) $("proxy-url").value = proxy;
-    const saved = localStorage.getItem(SOURCE_KEY) || "site";
-    const mode = saved === "local" ? "site" : saved;
+    const wanted = saved || (mainlandChina() ? "proxy" : "site");
+    const mode = wanted === "local" ? "site" : wanted;
     const radio = document.querySelector(`input[name="launcher-source"][value="${mode}"]`);
     if (radio) radio.checked = true;
     syncSource();
@@ -468,10 +506,12 @@ listen();
 // A worker that dies (the phone ended it for memory, or the page was frozen)
 // sends nothing at all, and the page used to sit on a disabled button forever.
 setInterval(() => {
-  if (!building || Date.now() - lastSignal < 90000) return;
+  // 180 s: a slow phone can spend a minute in one patch step, and a false
+  // "stuck" is worse than a late one.
+  if (!building || Date.now() - lastSignal < 180000) return;
   building = false;
   updateBuildEnabled();
-  fail("The build stopped responding for 90 seconds.");
+  fail("The build stopped responding for 3 minutes.");
   restartWorker();
 }, 5000);
 
@@ -536,14 +576,15 @@ const ZH = {
   "For Android, from your own files. Everything runs in this browser; your files are never uploaded. There is no iPhone or iPad build.":
     "为 Android 构建，使用你自己的文件。全部在浏览器内完成，文件不会被上传。没有 iPhone 或 iPad 版本。",
   "00 Prepare the runtime": "00 准备运行时",
-  "The launcher is the 25 MB app around your game APK. Choose where it comes from.": "启动器是包裹游戏 APK 的 25 MB 应用。选择它的来源。",
+  "The launcher is the 25 MB app around your game APK. Choose where it comes from. In mainland China the GitHub proxy is picked on the first visit; anywhere else the site is used directly.": "启动器是包裹游戏 APK 的 25 MB 应用。选择它的来源。中国大陆首次打开默认走 GitHub 代理，其他地区直接连本站。",
   "0 · Download from this site": "0 · 直接从本站下载",
-  "The default. It comes from this page once and stays on the device, so later builds do not download it again.": "默认。只从本站下载一次，之后留在设备上，后续构建不再下载。",
+  "It comes from this page once and stays on the device, so later builds do not download it again.": "只从本站下载一次，之后留在设备上，后续构建不再下载。",
   "1 · A local launcher bundle": "1 · 使用本地启动器包",
   "Pick the 26 MB android.zip you already have. Nothing is downloaded.": "选择你已有的 26 MB android.zip，不会下载任何东西。",
   "2 · Through a GitHub download proxy": "2 · 通过 GitHub 下载代理",
   "For a network where GitHub is slow or blocked. Give a proxy that takes a full GitHub URL, such as https://gh-proxy.com/; the download is still checked against this site's SHA-256.": "适用于 GitHub 慢或被阻断的网络。填写能接收完整 GitHub 地址的代理，例如 https://gh-proxy.com/；下载后仍会按本站公布的 SHA-256 核对。",
-  "Download the bundle": "下载启动器包",
+  "Download the launcher bundle (25 MB) ↓": "下载启动器包（25 MB）↓",
+  "Download the Mod Menu bundle (0.8 MB) ↓": "下载 MOD 菜单包（0.8 MB）↓",
   "NO FILE": "未选择",
   "Paste a proxy address, such as https://gh-proxy.com/": "填写代理地址，例如 https://gh-proxy.com/",
   "That is not an http(s) address.": "这不是 http(s) 地址。",

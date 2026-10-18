@@ -135,6 +135,7 @@ def main():
     }
     if (out / "bundles/modmenu.zip").exists():
         mirrors["modmenu"] = source(out / "bundles/modmenu.zip", ["bundles/modmenu.zip"])
+        mirrors["modmenuGithub"] = f"https://github.com/{REPO}/releases/download/v{version}/modmenu.zip"
     (out / "mirrors.json").write_text(json.dumps(mirrors))
     for path in out.rglob("*"):
         if path.is_file() and path.stat().st_size > PAGES_LIMIT:

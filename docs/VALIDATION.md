@@ -6,6 +6,25 @@
 
 # Validation
 
+## The 00 groups, the proxy default and the Mod Menu bundle — 2026-10-18
+
+- **No rule through the controls**: each choice is a `.group` whose border comes
+  after its control row; at 390px the picker, the chip and the download button sit
+  inside group 1 and the rule falls below them (screenshot
+  `.build/source-00c.png`), with no line touching a button.
+- **The default follows the time zone**: a fresh profile with
+  `Emulation.setTimezoneOverride(Asia/Shanghai)` opens on option 2 with
+  `https://gh-proxy.com/` filled in; with `Europe/Berlin` it opens on option 0
+  with an empty field. Both download links followed the choice
+  (`…/bundles/android.zip` vs `https://gh-proxy.com/https://github.com/…/android.zip`).
+- **The Mod Menu through a proxy**: a proxy build logged
+  下载 MOD 菜单…… 100% → MOD 菜单（1 MB）用时 0.0 秒 → MOD 菜单来自
+  http://…/rel/modmenu.zip and produced the same APK as a direct build
+  (`fce79190…a56de`). Pointed at a dead proxy, both bundles fell back to the site
+  (代理不可用，改为从本站下载……) and the build still finished.
+- **The watchdog waits longer**: a loaded machine took 175 s for one build without
+  tripping it (the limit is 180 s of silence).
+
 ## The proxy digest, matched to the release asset — 2026-10-18
 
 - **One launcher, one digest**: `build_site.py --launcher-zip` copies the
