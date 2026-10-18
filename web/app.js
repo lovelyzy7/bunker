@@ -137,7 +137,7 @@ function syncSource() {
   hint.classList.remove("bad");
   const url = mode === "proxy" ? launcherUrl() : null;
   if (mode !== "proxy") hint.textContent = "";
-  else if (!$("proxy-url").value.trim()) hint.textContent = tr("Paste a proxy address, such as https://ghproxy.net/");
+  else if (!$("proxy-url").value.trim()) hint.textContent = tr("Paste a proxy address, such as https://gh-proxy.com/");
   else if (!url) { hint.textContent = tr("That is not an http(s) address."); hint.classList.add("bad"); }
   else hint.textContent = `${tr("The launcher will come from")} ${url}`;
 
@@ -542,10 +542,10 @@ const ZH = {
   "1 · A local launcher bundle": "1 · 使用本地启动器包",
   "Pick the 26 MB android.zip you already have. Nothing is downloaded.": "选择你已有的 26 MB android.zip，不会下载任何东西。",
   "2 · Through a GitHub download proxy": "2 · 通过 GitHub 下载代理",
-  "For a network where GitHub is slow or blocked. Give a proxy that takes a full GitHub URL, such as https://ghproxy.net/.": "适用于 GitHub 慢或被阻断的网络。填写能接收完整 GitHub 地址的代理，例如 https://ghproxy.net/。",
+  "For a network where GitHub is slow or blocked. Give a proxy that takes a full GitHub URL, such as https://gh-proxy.com/; the download is still checked against this site's SHA-256.": "适用于 GitHub 慢或被阻断的网络。填写能接收完整 GitHub 地址的代理，例如 https://gh-proxy.com/；下载后仍会按本站公布的 SHA-256 核对。",
   "Download the bundle": "下载启动器包",
   "NO FILE": "未选择",
-  "Paste a proxy address, such as https://ghproxy.net/": "填写代理地址，例如 https://ghproxy.net/",
+  "Paste a proxy address, such as https://gh-proxy.com/": "填写代理地址，例如 https://gh-proxy.com/",
   "That is not an http(s) address.": "这不是 http(s) 地址。",
   "The launcher will come from": "启动器将从这里下载：",
   "Loading the Python runtime in the background…": "正在后台准备 Python 运行时……",

@@ -51,6 +51,9 @@ jobs:
   android:
     name: Android launcher
     needs: resolve
+    # A publish serves the release's own launcher bundle, so the APK is only
+    # rebuilt here to prove a push still builds.
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -83,19 +86,10 @@ jobs:
         run: |
           android/tools/build_native.sh
           cd android && ./gradlew --no-daemon assembleDebug
-      - uses: actions/upload-artifact@v4
-        # Only a publish needs the launcher; a push just proves it still builds,
-        # and an artifact on every push only adds clutter and retention.
-        if: github.event_name == 'workflow_dispatch'
-        with:
-          name: android-launcher
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 7
-
   site:
     name: Assemble the site
     if: github.event_name == 'workflow_dispatch'
-    needs: [resolve, android]
+    needs: [resolve]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -105,10 +99,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - uses: actions/download-artifact@v4
-        with:
-          name: android-launcher
-          path: bundles/android
+      # Serve the very bytes the release attached: the page publishes that
+      # digest, and a download proxy is checked against it, so it has to be the
+      # same file rather than a second APK build that differs byte for byte.
+      - name: The release's launcher bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: ${{ needs.resolve.outputs.ref }}
+        run: gh release download "$REF" --pattern android.zip --dir launcher --repo "$GITHUB_REPOSITORY"
       - name: Build the site
         # A second source for the 25 MB launcher bundle, if the repository has
         # one (Settings > Variables > BUNDLE_MIRROR). It must send a CORS header.
@@ -117,7 +115,7 @@ jobs:
         run: |
           extra=()
           if [ -n "$MIRROR" ]; then extra+=(--mirror "$MIRROR"); fi
-          python3 web/build_site.py --companion-apk bundles/android/app-debug.apk --output site "${extra[@]}"
+          python3 web/build_site.py --launcher-zip launcher/android.zip --output site "${extra[@]}"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site

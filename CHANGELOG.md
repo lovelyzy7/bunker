@@ -4,6 +4,22 @@ What changed in Bunker, newest first. Each day lists its changes by area.
 Commit ids are in brackets. Each release's heading sits above the dated
 sections it contains; its notes run down to the previous release.
 
+## 1.2.5 (2026-10-18)
+
+The site serves exactly the launcher bundle the release carries, so the new
+GitHub-proxy source can be checked against the same digest.
+
+- **A proxy download was refused**: the release's `android.zip` and the site's
+  bundle were built from two separate APK builds, so they differed byte for byte
+  and the page stopped with "does not match the site's checksum". The site now
+  downloads the release's `android.zip` and serves it unchanged, so a proxy
+  build and a normal build produce the same APK (`64360096…`, measured).
+- **Publishing is a minute, not ten**: the Pages job no longer compiles an APK
+  (the release already did); it fetches the release asset and assembles the
+  site. A push still builds the APK to prove it compiles.
+- **The bundles are reproducible**: the zips `build_site.py` writes carry a
+  fixed timestamp, so the same inputs give the same bytes.
+
 ## 1.2.4 (2026-10-18)
 
 A new 00 section decides where the 25 MB launcher comes from — this site, a file

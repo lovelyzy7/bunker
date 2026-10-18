@@ -6,6 +6,19 @@
 
 # Validation
 
+## The proxy digest, matched to the release asset — 2026-10-18
+
+- **One launcher, one digest**: `build_site.py --launcher-zip` copies the
+  release's `android.zip` (`2ea3156f…`) into the site, so `mirrors.json` publishes
+  the asset's own SHA-256. A build through `https://gh-proxy.com/` and a build
+  from the site produced the same APK (`64360096…`), and the local-file mode the
+  same again.
+- **The published site is a minute**: with `--launcher-zip` the Pages job skips
+  the ten-minute APK build; a push still runs it as a check.
+- **Deterministic zips**: `android_bundle` and the Mod Menu payload are written
+  with a fixed timestamp (`STAMP`), so rebuilding from the same APK gives the
+  same `android.zip`.
+
 ## Launcher sources, the phone bar and the repository name — 2026-10-18
 
 - **Three launcher sources, measured in one page**: with the default selected,

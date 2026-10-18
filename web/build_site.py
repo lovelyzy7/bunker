@@ -35,6 +35,9 @@ PYTHON = [
     "web/signing/bunker-cert.der",
 ]
 PAGES_LIMIT = 100 * 1024 * 1024  # GitHub Pages refuses larger files.
+# A fixed timestamp inside the zips: the same inputs must give the same bytes,
+# or the launcher the release carries would never match the site's digest.
+STAMP = (1980, 1, 1, 0, 0, 0)
 # The same launcher bundle is attached to the release, so the page can offer a
 # GitHub download proxy for networks where this site is slow. A direct fetch of
 # the asset is not possible (GitHub sends no CORS header), which is why the page
@@ -50,13 +53,20 @@ def is_master(name):
     return name.endswith(".bin.e")
 
 
+def _entry(name, compress=zipfile.ZIP_DEFLATED):
+    info = zipfile.ZipInfo(name, STAMP)
+    info.compress_type = compress
+    info.external_attr = 0o644 << 16
+    return info
+
+
 def android_bundle(companion_apk, target):
     with zipfile.ZipFile(companion_apk) as source, zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as out:
         for name in source.namelist():
             wanted = name == "AndroidManifest.xml" or re.fullmatch(r"classes\d*\.dex", name) \
                 or name.startswith(("lib/arm64-v8a/", "assets/chaquopy/", "assets/lunar/"))
             if wanted and not is_master(name):
-                out.writestr(name, source.read(name))
+                out.writestr(_entry(name), source.read(name))
 
 
 def folder_bundle(folder, target, prefix=""):
@@ -69,11 +79,16 @@ def folder_bundle(folder, target, prefix=""):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--companion-apk", type=Path, required=True, help="android/app build output")
+    p.add_argument("--companion-apk", type=Path, help="android/app build output")
+    p.add_argument("--launcher-zip", type=Path,
+                   help="the released android.zip: the site then serves exactly those bytes, "
+                        "so a download proxy can be checked against the same digest")
     p.add_argument("--output", type=Path, default=ROOT / ".build/site")
     p.add_argument("--mirror", action="append", default=[], metavar="URL",
                    help="a second source for bundles/android.zip (must send a CORS header); repeatable")
     args = p.parse_args()
+    if bool(args.companion_apk) == bool(args.launcher_zip):
+        raise SystemExit("Give exactly one of --companion-apk and --launcher-zip")
     out = args.output.resolve()
     shutil.rmtree(out, ignore_errors=True)
     (out / "bundles").mkdir(parents=True)
@@ -85,7 +100,10 @@ def main():
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / name, target)
     (out / "py/manifest.json").write_text(json.dumps(PYTHON))
-    android_bundle(args.companion_apk, out / "bundles/android.zip")
+    if args.launcher_zip:
+        shutil.copy2(args.launcher_zip, out / "bundles/android.zip")
+    else:
+        android_bundle(args.companion_apk, out / "bundles/android.zip")
     # The optional Mod Menu payload (prebuilt, per release), if present.
     payload = ROOT / "web/modmenu"
     if payload.is_dir():
@@ -95,9 +113,9 @@ def main():
                     # POSIX names inside the zip: Windows relative_to() inserts
                     # backslashes, and the builder looks the payload up as
                     # "en/libniermenu.so".
-                    bundle.write(path, path.relative_to(payload).as_posix())
+                    bundle.writestr(_entry(path.relative_to(payload).as_posix()), path.read_bytes())
     # The version this site builds, shown in the page header.
-    with zipfile.ZipFile(args.companion_apk) as companion:
+    with zipfile.ZipFile(args.launcher_zip or args.companion_apk) as companion:
         version = companion.read("assets/lunar/bunker-version.txt").decode().strip()
     # Names the picked APK on the page, from the same digests the build checks.
     sys.path.insert(0, str(ROOT / "android/tools"))
