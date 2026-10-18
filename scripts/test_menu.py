@@ -141,6 +141,23 @@ class PayloadTest(unittest.TestCase):
             self.assertGreaterEqual(len(menu["dex"]), 2, release)  # shim + the menu's own
             self.assertTrue(menu["lib"].startswith(b"\x7fELF"), release)
 
+    def test_payload_built_as_a_zip_reads_after_it_is_closed(self):
+        # The site ships bundles/modmenu.zip; menu_payload used to keep a bound
+        # ZipFile.read and call it after close(), which the browser build hit as
+        # "Attempt to use ZIP archive that was already closed".
+        sys.path.insert(0, str(ROOT / "web"))
+        import webbuild
+        with tempfile.TemporaryDirectory() as work:
+            bundle = Path(work) / "modmenu.zip"
+            with zipfile.ZipFile(bundle, "w") as out:
+                for path in sorted((ROOT / "web/modmenu").rglob("*")):
+                    if path.is_file():
+                        out.write(path, path.relative_to(ROOT / "web/modmenu").as_posix())
+            for release in ("jp", "en"):
+                from_zip = webbuild.menu_payload(bundle, release)
+                self.assertIsNotNone(from_zip, release)
+                self.assertEqual(from_zip, webbuild.menu_payload(ROOT / "web/modmenu", release), release)
+
     def test_a_missing_payload_is_reported_not_fatal(self):
         sys.path.insert(0, str(ROOT / "web"))
         import webbuild

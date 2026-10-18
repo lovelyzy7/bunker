@@ -59,19 +59,28 @@ def menu_payload(resources, release):
         # never matched the "en/…" keys below — the menu was silently dropped
         # from every Windows build.
         names = {p.relative_to(bundle).as_posix() for p in bundle.rglob("*") if p.is_file()}
+        close = lambda: None
     elif bundle.is_file():
-        with zipfile.ZipFile(bundle) as payload:
-            names = set(payload.namelist())
-            read = payload.read
+        payload = zipfile.ZipFile(bundle)
+        names = set(payload.namelist())
+        # Not `read = payload.read` for later use: that bound method outlives the
+        # with block, and calling it after close() raises "Attempt to use ZIP
+        # archive that was already closed". The site ships this as a zip, so the
+        # Mod Menu never built in the browser.
+        read = payload.read
+        close = payload.close
     else:
         return None
-    if "shim.dex" not in names or f"{release}/libniermenu.so" not in names:
-        return None
-    menu_dex = sorted(n for n in names if n.startswith(release + "/menu") and n.endswith(".dex"))
-    if not menu_dex:
-        return None
-    return {"dex": [read("shim.dex")] + [read(n) for n in menu_dex],
-            "lib": read(f"{release}/libniermenu.so")}
+    try:
+        if "shim.dex" not in names or f"{release}/libniermenu.so" not in names:
+            return None
+        menu_dex = sorted(n for n in names if n.startswith(release + "/menu") and n.endswith(".dex"))
+        if not menu_dex:
+            return None
+        return {"dex": [read("shim.dex")] + [read(n) for n in menu_dex],
+                "lib": read(f"{release}/libniermenu.so")}
+    finally:
+        close()
 
 
 def build_android(apk, master, companion, output, log=print, port_offset=0, modmenu=None, verify_inputs=True):
