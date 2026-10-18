@@ -6,6 +6,27 @@
 
 # Validation
 
+## Launcher sources, the phone bar and the repository name — 2026-10-18
+
+- **Three launcher sources, measured in one page**: with the default selected,
+  both the local picker and the proxy field are disabled; choosing *local*
+  enables only the picker, and the chip reads `android.zip · 25 MB`; choosing
+  *proxy* disables the picker and shows the resolved url in the hint. Each mode
+  built the same APK — `51b4cd22…282676` — in 11 s, once from the local file
+  (`Using the local launcher bundle (25 MB)`) and once through a CORS proxy
+  (`the launcher came from http://…/bundles/android.zip`).
+- **The phone bar**: at 390px the header is 98px in two rows — title 52px
+  (17px `BUNKER`, 10px version) with the language button 44×44 at the right, and
+  four 98px cells of 44px with 1px separators (screenshot `.build/nav-390.png`).
+  At 768px it stays on one line (`.build/nav-768.png`). No wrapping, nothing
+  below 44px.
+- **Progress past 100%** came from a compressed body: jsDelivr's wasm is
+  `Content-Length: 2667808` with `Content-Encoding: br` while the reader sees
+  ~8.25 MB, i.e. 309%. Compressed responses now log megabytes
+  (`正在下载 Python 运行时…… 12 MB`).
+- **The release's `android.zip`** is uploaded by `release.yml` and is the target
+  a proxy fetches; `mirrors.json` carries its url as `github`.
+
 ## The Mod Menu step, the finished chips and the signing progress — 2026-10-18
 
 - **Seven chips on a phone**: 3 + 3 + one full-width 签名与校验 (measured at 390px:

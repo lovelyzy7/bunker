@@ -29,6 +29,13 @@ fetch("regions.json").then((r) => r.ok ? r.json() : null).then((v) => {
   update();
 }).catch(() => {});
 
+// Where the launcher may come from (mirrors.json, written by build_site.py).
+let MIRRORS = null;
+fetch("mirrors.json").then((r) => r.ok ? r.json() : null).then((v) => {
+  MIRRORS = v && typeof v === "object" ? v : null;
+  syncSource();
+}).catch(() => {});
+
 // A phone has to read the whole APK to hash it, so this runs once per file.
 const checksums = new Map();  // name/size/mtime -> {state, region}
 
@@ -86,13 +93,68 @@ async function describeGame() {
   if (ticket === releasing && picked && fileKey(picked) === key) showRelease(result);
 }
 
+// ---- 00 the launcher source -------------------------------------------------
+const SOURCE_KEY = "bunker_source";
+const PROXY_KEY = "bunker_proxy";
+
+function sourceMode() {
+  const picked = document.querySelector('input[name="launcher-source"]:checked');
+  return picked ? picked.value : "site";
+}
+
+/** A proxy base (https://ghproxy.net/), a full url, or a template with {url}. */
+function launcherUrl() {
+  const text = ($("proxy-url").value || "").trim();
+  if (!text) return null;
+  const release = (MIRRORS && MIRRORS.github) || "";
+  if (text.includes("{url}")) return release ? text.replace("{url}", release) : null;
+  if (text.endsWith("/") || /^https?:\/\/[^/]+$/i.test(text)) return release ? text + release : null;
+  return /^https?:\/\/\S+$/i.test(text) ? text : null;
+}
+
+function updateBuildEnabled() {
+  const mode = sourceMode();
+  const ready = !!($("game").files[0] && $("master").files[0])
+    && (mode !== "local" || !!$("local-launcher").files[0])
+    && (mode !== "proxy" || !!launcherUrl());
+  $("build").disabled = building || !ready;
+}
+
+/** Three exclusive sources: the two below them are greyed out until picked. */
+function syncSource() {
+  const mode = sourceMode();
+  const local = $("local-launcher").files[0] || null;
+  $("local-line").classList.toggle("off", mode !== "local");
+  $("local-launcher").disabled = mode !== "local";
+  $("proxy-line").classList.toggle("off", mode !== "proxy");
+  $("proxy-url").disabled = mode !== "proxy";
+
+  const chip = $("local-launcher-name");
+  chip.textContent = local ? `${local.name} · ${Math.max(1, Math.round(local.size / 1048576))} MB` : tr("NO FILE");
+  chip.classList.toggle("ok", !!local);
+
+  const hint = $("proxy-hint");
+  hint.classList.remove("bad");
+  const url = mode === "proxy" ? launcherUrl() : null;
+  if (mode !== "proxy") hint.textContent = "";
+  else if (!$("proxy-url").value.trim()) hint.textContent = tr("Paste a proxy address, such as https://ghproxy.net/");
+  else if (!url) { hint.textContent = tr("That is not an http(s) address."); hint.classList.add("bad"); }
+  else hint.textContent = `${tr("The launcher will come from")} ${url}`;
+
+  try {
+    localStorage.setItem(SOURCE_KEY, mode);
+    localStorage.setItem(PROXY_KEY, $("proxy-url").value || "");
+  } catch (error) { /* private mode */ }
+  updateBuildEnabled();
+}
+
 function update() {
   $("game-help").textContent = tr("The original 3.7.1 ARM64 game APK (JP or global).");
   $("game").accept = ".apk";
   // Without an accept, Chrome on Android opens the photo picker and a .bin.e
   // cannot be chosen at all; a non-media type gets the file browser instead.
   $("master").accept = "application/octet-stream";
-  $("build").disabled = !($("game").files[0] && $("master").files[0]);
+  updateBuildEnabled();
   for (const id of ["game", "master"]) {
     const file = $(id).files[0], chip = $(id + "-name");
     chip.textContent = file ? `${file.name} · ${Math.max(1, Math.round(file.size / 1048576))} MB` : tr("NOT CHOSEN");
@@ -104,6 +166,7 @@ function update() {
     }
   }
   describeGame();
+  syncSource();
   if ($("game").files[0] || $("master").files[0]) warmUp();
 }
 
@@ -140,6 +203,7 @@ const LOG_PATTERNS = [
   [/^Downloading the Python runtime… (\d+)%$/, "正在下载 Python 运行时…… $1%"],
   [/^Downloading the Python standard library… (\d+)%$/, "正在下载 Python 标准库…… $1%"],
   [/^Downloading the Mod Menu… (\d+)%$/, "正在下载 MOD 菜单…… $1%"],
+  [/^Downloading (.+)… (\d+) MB$/, "正在下载 $1…… $2 MB"],
   [/^Loading Python…$/, "正在加载 Python……"],
   [/^Python runtime from (.+)$/, "Python 运行时来自 $1"],
   [/^Checking the game APK and master data…$/, "正在校验游戏 APK 与主数据……"],
@@ -167,7 +231,7 @@ const LOG_PATTERNS = [
   [/^  (.+) \((\d+) MB\)…$/, "  $1（$2 MB）……"],
   [/^the launcher \((\d+) MB\) in ([\d.]+) s \(cached\)$/, "启动器（$1 MB）来自本地缓存"],
   [/^the launcher \((\d+) MB\) in ([\d.]+) s$/, "启动器（$1 MB）用时 $2 秒"],
-  [/^the launcher came from (.+)$/, "启动器来自镜像：$1"],
+  [/^the launcher came from (.+)$/, "启动器来自 $1"],
   [/^the Mod Menu \((\d+) MB\) in ([\d.]+) s \(cached\)$/, "MOD 菜单（$1 MB）来自本地缓存"],
   [/^the Mod Menu \((\d+) MB\) in ([\d.]+) s$/, "MOD 菜单（$1 MB）用时 $2 秒"],
   [/^Cannot download the launcher from (.+): (.+)$/, "无法从 $1 下载启动器：$2"],
@@ -286,18 +350,37 @@ let runtimeReady = false;
 let warmTimer = null, warmed = false;
 
 /** Start Pyodide and the 25 MB launcher while the reader is still choosing files. */
+function warmTarget() {
+  const mode = sourceMode();
+  if (mode === "local") return "local";
+  if (mode === "proxy") return launcherUrl() || "proxy";
+  return "site";
+}
+
 function warmUp() {
-  if (warmed) return;
+  const target = warmTarget();
+  if (warmed === target) return;
   clearTimeout(warmTimer);
   warmTimer = setTimeout(() => {
-    warmed = true;
-    log(tr("Loading the runtime and the launcher in the background…"));
-    worker.postMessage({ type: "preload" });
+    warmed = target;
+    const local = target === "local";
+    log(tr(local ? "Loading the Python runtime in the background…"
+                 : "Loading the runtime and the launcher in the background…"));
+    worker.postMessage({
+      type: "preload",
+      skipLauncher: local,
+      launcherUrl: target === "site" || local ? null : target,
+    });
   }, 600);
 }
 
 $("game").addEventListener("change", update);
 $("master").addEventListener("change", update);
+$("local-launcher").addEventListener("change", () => { syncSource(); warmUp(); });
+$("proxy-url").addEventListener("input", () => { syncSource(); warmUp(); });
+for (const radio of document.querySelectorAll('input[name="launcher-source"]')) {
+  radio.addEventListener("change", () => { syncSource(); warmUp(); });
+}
 
 $("build").addEventListener("click", () => {
   if (building) return;
@@ -305,6 +388,9 @@ $("build").addEventListener("click", () => {
   if (!game || !master) { log(tr("Choose the game file and the master data first.")); return; }
   if (!game.name.toLowerCase().endsWith(".apk")) { log(tr("Choose the game .apk file.")); return; }
   if (game.name === master.name) { log(tr("Choose two different files.")); return; }
+  const mode = sourceMode();
+  const launcher = mode === "local" ? $("local-launcher").files[0] : null;
+  const launcherURL = mode === "proxy" ? launcherUrl() : null;
   const portOffset = Number($("port-offset").value || 0);
   if (!Number.isInteger(portOffset) || portOffset < 0 || portOffset > 57455) { log(tr("The port offset must be a whole number from 0 to 57455.")); return; }
   building = true;
@@ -319,7 +405,7 @@ $("build").addEventListener("click", () => {
   setStage(0, 2);
   if (url) { URL.revokeObjectURL(url); url = null; }
   worker.postMessage({ game, master, portOffset, modMenu: !!document.getElementById("mod-menu").checked,
-                       verify: !$("skip-check").checked });
+                       verify: !$("skip-check").checked, launcher, launcherUrl: launcherURL });
 });
 
 let lastSignal = Date.now();
@@ -333,7 +419,7 @@ worker.onmessage = ({ data }) => {
     log(tr("Build failed: ") + data.value);
     fail(data.value);
     building = false;
-    $("build").disabled = false;
+    updateBuildEnabled();
     // A Pyodide that failed once stays failed, so the next build gets a new
     // worker instead of "Pyodide already fatally failed".
     restartWorker();
@@ -348,7 +434,7 @@ worker.onmessage = ({ data }) => {
 
     $("result").style.display = "block";
     building = false;
-    $("build").disabled = false;
+    updateBuildEnabled();
     setStage(7, 100);   // one past the last chip: every step is done, none is "on"
     log(tr("Done."));
   }
@@ -356,7 +442,7 @@ worker.onmessage = ({ data }) => {
 worker.onerror = (event) => {
   lastSignal = Date.now();
   building = false;
-  $("build").disabled = false;
+  updateBuildEnabled();
   fail(String(event.message || "The build worker stopped."));
   restartWorker();
 };
@@ -364,12 +450,27 @@ worker.onerror = (event) => {
 
 listen();
 
+// The chosen source survives a reload; a local file cannot, so that falls back.
+(function restoreSource() {
+  try {
+    const proxy = localStorage.getItem(PROXY_KEY) || "";
+    if (proxy) $("proxy-url").value = proxy;
+    const saved = localStorage.getItem(SOURCE_KEY) || "site";
+    const mode = saved === "local" ? "site" : saved;
+    const radio = document.querySelector(`input[name="launcher-source"][value="${mode}"]`);
+    if (radio) radio.checked = true;
+    syncSource();
+  } catch (error) {
+    // Private mode: keep the defaults.
+  }
+})();
+
 // A worker that dies (the phone ended it for memory, or the page was frozen)
 // sends nothing at all, and the page used to sit on a disabled button forever.
 setInterval(() => {
   if (!building || Date.now() - lastSignal < 90000) return;
   building = false;
-  $("build").disabled = false;
+  updateBuildEnabled();
   fail("The build stopped responding for 90 seconds.");
   restartWorker();
 }, 5000);
@@ -379,7 +480,7 @@ setInterval(() => {
 window.addEventListener("pageshow", (event) => {
   if (!event.persisted || !building) return;
   building = false;
-  $("build").disabled = false;
+  updateBuildEnabled();
   fail("The browser suspended the page while it was building.");
   restartWorker();
 });
@@ -434,6 +535,20 @@ const ZH = {
   "Build the offline game": "构建离线游戏",
   "For Android, from your own files. Everything runs in this browser; your files are never uploaded. There is no iPhone or iPad build.":
     "为 Android 构建，使用你自己的文件。全部在浏览器内完成，文件不会被上传。没有 iPhone 或 iPad 版本。",
+  "00 Prepare the runtime": "00 准备运行时",
+  "The launcher is the 25 MB app around your game APK. Choose where it comes from.": "启动器是包裹游戏 APK 的 25 MB 应用。选择它的来源。",
+  "0 · Download from this site": "0 · 直接从本站下载",
+  "The default. It comes from this page once and stays on the device, so later builds do not download it again.": "默认。只从本站下载一次，之后留在设备上，后续构建不再下载。",
+  "1 · A local launcher bundle": "1 · 使用本地启动器包",
+  "Pick the 26 MB android.zip you already have. Nothing is downloaded.": "选择你已有的 26 MB android.zip，不会下载任何东西。",
+  "2 · Through a GitHub download proxy": "2 · 通过 GitHub 下载代理",
+  "For a network where GitHub is slow or blocked. Give a proxy that takes a full GitHub URL, such as https://ghproxy.net/.": "适用于 GitHub 慢或被阻断的网络。填写能接收完整 GitHub 地址的代理，例如 https://ghproxy.net/。",
+  "Download the bundle": "下载启动器包",
+  "NO FILE": "未选择",
+  "Paste a proxy address, such as https://ghproxy.net/": "填写代理地址，例如 https://ghproxy.net/",
+  "That is not an http(s) address.": "这不是 http(s) 地址。",
+  "The launcher will come from": "启动器将从这里下载：",
+  "Loading the Python runtime in the background…": "正在后台准备 Python 运行时……",
   "01 Your files": "01 你的文件",
   "02 Build": "02 构建",
   "03 Install": "03 安装",
@@ -585,7 +700,7 @@ function setLang(lang) {
 
 // app.js 在 body 末尾加载，此时上面的 DOM 已就绪，直接执行即可（不依赖事件）。
 (function () {
-  const nav = document.querySelector(".top nav");
+  const nav = document.querySelector(".top .tools") || document.querySelector(".top nav");
   if (nav && !document.getElementById("lang")) {
     const toggle = document.createElement("a");
     toggle.id = "lang";

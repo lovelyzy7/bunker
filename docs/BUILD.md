@@ -143,7 +143,7 @@ own server directly; everything else still uses the phone's proxy.
 
 ## Build in the browser (no tools to install)
 
-The [web builder](https://lovelyzy7.github.io/bunker-jp-en/) runs the same
+The [web builder](https://lovelyzy7.github.io/bunker/) runs the same
 assembly as this page, in the browser, for 日服 and 全球服 alike. Choose your
 own game APK and `20240404193219.bin.e`; nothing is uploaded.
 

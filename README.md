@@ -73,7 +73,7 @@ Light or dark follows the phone, or choose one in ⋮ → Display. Screenshots a
 
 ## Build in your browser
 
-**[Open the web builder](https://lovelyzy7.github.io/bunker-jp-en/)**: choose your own 3.7.1 game APK and
+**[Open the web builder](https://lovelyzy7.github.io/bunker/)**: choose your own 3.7.1 game APK and
 master data, and download the offline Android app. Everything runs in your browser; your files are
 never uploaded. No tools to install. It builds 日服 and 全球服 APKs alike: see [Regions](#regions).
 

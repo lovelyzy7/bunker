@@ -81,6 +81,10 @@ async function fetchBytes(url, label, stallMs = 20000) {
       throw new Error(`no response for ${stallMs / 1000} s`);
     }
     if (!response.ok) throw new Error(`Cannot download ${label} (HTTP ${response.status})`);
+    // A compressed body (jsDelivr sends the wasm as Brotli) makes Content-Length
+    // the compressed size while fetch hands over decompressed bytes: a
+    // percentage then passes 100%. Report bytes instead when that is the case.
+    const encoded = !!response.headers.get("content-encoding");
     const total = Number(response.headers.get("Content-Length")) || 0;
     const reader = response.body.getReader();
     const parts = [];
@@ -96,9 +100,14 @@ async function fetchBytes(url, label, stallMs = 20000) {
       if (done) break;
       parts.push(value);
       received += value.length;
-      if (total && received - shown > total / 20) {
+      if (encoded) {
+        if (received - shown > 4 << 20) {
+          shown = received;
+          post("log", `Downloading ${label}… ${Math.round(received / 1048576)} MB`);
+        }
+      } else if (total && received - shown > total / 20) {
         shown = received;
-        post("log", `Downloading ${label}… ${Math.round((received / total) * 100)}%`);
+        post("log", `Downloading ${label}… ${Math.min(100, Math.round((received / total) * 100))}%`);
       }
     }
     const bytes = new Uint8Array(received);
@@ -139,6 +148,35 @@ async function loadSources() {
     sources = {};   // no mirrors: the same-origin bundle is still tried below
   }
   return sources;
+}
+
+/** Refuse a launcher whose bytes are not the ones this site publishes. */
+async function checkLauncher(bytes, label) {
+  const known = ((await loadSources()).bundle || {}).sha256;
+  if (known && (await sha256(bytes)) !== known) {
+    throw new Error(`${label} does not match the site's checksum`);
+  }
+}
+
+/** A launcher from a proxy: two tries, with the same stall guard as everything else. */
+async function launcherFrom(url) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const started = performance.now();
+      const bytes = await fetchBytes(url, "the launcher");
+      const seconds = (performance.now() - started) / 1000;
+      post("log", `the launcher (${Math.round(bytes.length / 1048576)} MB) in ${seconds.toFixed(1)} s`);
+      await checkLauncher(bytes, "The launcher from the proxy");
+      post("log", `the launcher came from ${url}`);
+      return bytes;
+    } catch (error) {
+      lastError = error;
+      post("log", `Cannot download the launcher from ${url}: ${error.message || error}`);
+      if (attempt === 1) post("log", `Trying ${url} again…`);
+    }
+  }
+  throw lastError;
 }
 
 /** One of the site's bundles, from the quickest source that returns the right bytes. */
@@ -285,15 +323,18 @@ function runtime() {
 }
 
 let warming = null;
+let warmedUrl = null;
 
 /** Pull the launcher into the service worker's cache while the reader is still choosing files. */
-function warmLauncher() {
-  if (warming) return warming;
+function warmLauncher(url) {
+  const target = url || null;
+  if (warming && warmedUrl === target) return warming;
+  warmedUrl = target;
   warming = (async () => {
     try {
       const known = (await loadSources()).bundle || {};
-      const url = (known.urls && known.urls[0]) || "bundles/android.zip";
-      const response = await within(fetch(await versioned(url)), 20000);
+      const wanted = target || (known.urls && known.urls[0]) || "bundles/android.zip";
+      const response = await within(fetch(await versioned(wanted)), 20000);
       if (response === STALLED || !response.ok || !response.body) return;
       const reader = response.body.getReader();
       for (;;) {   // drained, not buffered: the service worker keeps it
@@ -309,7 +350,8 @@ function warmLauncher() {
 }
 
 async function build(data) {
-  const { game, master, portOffset = 0, modMenu = false, verify = true } = data;
+  const { game, master, portOffset = 0, modMenu = false, verify = true,
+          launcher = null, launcherUrl = null } = data;
   try {
     const pyodide = await runtime();
     const FS = pyodide.FS;
@@ -320,7 +362,17 @@ async function build(data) {
     const gamePath = "/input/" + game.name, masterPath = "/input/" + master.name;
     const log = (line) => post("log", line);
     const builder = pyodide.globals.get("webbuild");
-    writeFile(pyodide, "/bundles/android.zip", await bundleBytes("bundle", "the launcher"));
+    if (launcher) {
+      // A file the reader picked: no network at all.
+      const bytes = new Uint8Array(await launcher.arrayBuffer());
+      post("log", `Using the local launcher bundle (${Math.round(bytes.length / 1048576)} MB)`);
+      await checkLauncher(bytes, "The local launcher bundle");
+      writeFile(pyodide, "/bundles/android.zip", bytes);
+    } else if (launcherUrl) {
+      writeFile(pyodide, "/bundles/android.zip", await launcherFrom(launcherUrl));
+    } else {
+      writeFile(pyodide, "/bundles/android.zip", await bundleBytes("bundle", "the launcher"));
+    }
     let payload = null;
     if (modMenu) {
       writeFile(pyodide, "/bundles/modmenu.zip", await bundleBytes("modmenu", "the Mod Menu"));
@@ -346,7 +398,7 @@ self.onmessage = ({ data }) => {
   if (data.type === "preload") {
     // Start the slow parts now; failures stay quiet and the build reports them.
     runtime().catch(() => {});
-    warmLauncher();
+    if (!data.skipLauncher) warmLauncher(data.launcherUrl);
     return;
   }
   build(data);

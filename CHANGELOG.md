@@ -4,6 +4,38 @@ What changed in Bunker, newest first. Each day lists its changes by area.
 Commit ids are in brackets. Each release's heading sits above the dated
 sections it contains; its notes run down to the previous release.
 
+## 1.2.4 (2026-10-18)
+
+A new 00 section decides where the 25 MB launcher comes from — this site, a file
+you already have, or a GitHub proxy — and the phone's top bar became a proper bar.
+
+- **Choosing the launcher source**: 00 准备运行时 offers three exclusive options.
+  *This site* is the default and works as before (downloaded once, then kept on
+  the device). *A local launcher bundle* takes an `android.zip` from the device
+  and downloads nothing at all. *A GitHub download proxy* takes a base such as
+  `https://ghproxy.net/`, a full url, or a template containing `{url}`, and
+  fetches the release's `android.zip` through it. Choosing one greys out the
+  other, and the build button stays disabled until the chosen source is usable
+  (a file picked, a valid url). Whatever arrives is hashed against
+  `mirrors.json` first, so a proxy cannot put different bytes into the APK.
+- **The release carries the launcher**: `android.zip`, the same bundle the site
+  serves, is attached to every release — that is what a proxy fetches. A page
+  cannot download a release asset directly (GitHub sends no CORS header).
+- **Progress past 100%**: jsDelivr serves the Python wasm with
+  `Content-Encoding: br`, so `Content-Length` is the compressed size while the
+  reader counts decompressed bytes, and the runtime download showed 309%. A
+  compressed response now reports megabytes instead of a percentage.
+- **The phone's top bar**: the five links wrapped 4+1 and the language button
+  dropped onto a row of its own under BUILD, next to a three-line title. It is
+  now two rows — identity (17px name, 10px version, language button) and four
+  equal action cells with separators, 44px tall — while the desktop bar keeps
+  its single line.
+- **The repository is `bunker` now**: the site moved to
+  https://lovelyzy7.github.io/bunker/ and every link in the page, the app's
+  About dialog, its update check and the documentation follows. GitHub does not
+  redirect Pages, so the old address stops working; the installed app updates
+  through the API, which does redirect.
+
 ## 1.2.3 (2026-10-18)
 
 Every step the build takes is on screen now, the Mod Menu included, and the

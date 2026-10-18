@@ -43,7 +43,9 @@
   .top nav { display: flex; flex-wrap: wrap; gap: 4px; font: 12px var(--mono); letter-spacing: .14em; }
   .top nav a { text-decoration: none; padding: 0 12px; min-height: 40px; display: inline-flex; align-items: center; white-space: nowrap; }
   .top nav a.on { background: var(--command); color: var(--on-command); }
-  .top nav a.boxed { border: 1px solid var(--ink); }
+  .top .boxed { border: 1px solid var(--ink); }
+  .top .tools { display: flex; align-items: center; margin-left: auto; }
+  .top .tools a { display: inline-flex; align-items: center; justify-content: center; padding: 0 12px; min-height: 40px; text-decoration: none; font: 12px var(--mono); letter-spacing: .14em; }
   .top nav a:hover:not(.on) { text-decoration: underline; }
 
   /* One column */
@@ -66,6 +68,22 @@
   .tabs b { letter-spacing: .2em; display: block; }
   .tabs small { font: 11px var(--mono); opacity: .8; }
 
+  /* 00 Load the runtime: three exclusive sources for the 25 MB launcher. */
+  .opts { display: flex; flex-direction: column; }
+  .opt { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .opt:last-of-type { border-bottom: 0; }
+  .opt input[type=radio] { margin: 3px 0 0; width: 18px; height: 18px; accent-color: var(--ink); flex: none; }
+  .opt .what { display: flex; flex-direction: column; gap: 2px; }
+  .opt b { font-size: 14px; }
+  .opt small { font-size: 12px; color: var(--mid); }
+  .optline { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 0 0 14px 30px; }
+  .optline.off { opacity: .45; }
+  .optline.off .pick, .optline.off #proxy-url { pointer-events: none; }
+  #proxy-url { font: 12px var(--mono); background: transparent; color: var(--ink); border: 2px solid var(--ink); padding: 9px 10px; flex: 1 1 200px; min-width: 0; }
+  #proxy-url:disabled { opacity: .6; }
+  .optline .hint { font: 11px var(--mono); color: var(--mid); overflow-wrap: anywhere; width: 100%; }
+  .optline .hint.bad { color: var(--alert); }
+  .optline a.plain { font: 12px var(--mono); letter-spacing: .06em; color: var(--ink); }
   .file { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
   .file:last-child { border-bottom: 0; padding-bottom: 0; }
   .file .label { font: 11px var(--mono); letter-spacing: .12em; color: var(--mid); width: 110px; }
@@ -123,9 +141,22 @@
   @media (prefers-color-scheme: dark) { .sign-dark { display: inline; } .sign-light { display: none; } }
 
   @media (max-width: 720px) {
-    .top { padding: 12px 14px; }
-    .top nav { gap: 2px; font-size: 11px; letter-spacing: .08em; }
-    .top nav a { padding: 0 8px; }
+    /* Two rows on a phone: identity and language on top, then four equal
+       action cells. The old bar wrapped its five links 4+1 with the language
+       button dropped under BUILD, and the three-line title made it worse. */
+    .top { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title tools" "nav nav"; gap: 0; padding: 0; }
+    .top .title { grid-area: title; padding: 7px 14px 6px; gap: 0; }
+    .top .mark { font-size: 10px; letter-spacing: .12em; }
+    .top .mark:first-child { display: none; }
+    .top .name { font-size: 17px; letter-spacing: .18em; }
+    .top .tools { grid-area: tools; margin-left: 0; padding: 0 14px; }
+    .top nav {
+      grid-area: nav; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0; font-size: 12px; letter-spacing: .02em; border-top: 1px solid var(--ink);
+    }
+    .top nav a { justify-content: center; padding: 0 4px; min-height: 44px; border-right: 1px solid var(--line); }
+    .top nav a:last-child { border-right: 0; }
+    .top .tools a { min-width: 44px; min-height: 44px; padding: 0 8px; }
     main { padding: 28px 14px 8px; }
     .frame { padding: 14px; }
   }
@@ -180,10 +211,11 @@
   </div>
   <nav aria-label="Page">
     <a href="#terminal" class="on">BUILD</a>
-    <a href="https://github.com/lovelyzy7/bunker-jp-en#build-it-yourself-step-by-step" target="_blank" rel="noopener">GUIDE</a>
-    <a href="https://github.com/lovelyzy7/bunker-jp-en#troubleshooting" target="_blank" rel="noopener">TROUBLESHOOTING</a>
-    <a href="https://github.com/lovelyzy7/bunker-jp-en" class="boxed" target="_blank" rel="noopener">SOURCE ↗</a>
+    <a href="https://github.com/lovelyzy7/bunker#build-it-yourself-step-by-step" target="_blank" rel="noopener">GUIDE</a>
+    <a href="https://github.com/lovelyzy7/bunker#troubleshooting" target="_blank" rel="noopener">TROUBLESHOOTING</a>
+    <a href="https://github.com/lovelyzy7/bunker" class="boxed" target="_blank" rel="noopener">SOURCE ↗</a>
   </nav>
+  <div class="tools"></div>
 </header>
 
 <main id="terminal">
@@ -191,6 +223,39 @@
     <h1>Build the offline game</h1>
     <p>For Android, from your own files. Everything runs in this browser; your files are never uploaded. There is no iPhone or iPad build.</p>
   </section>
+
+    <section>
+      <h2 class="head"><span>[</span><span>00 Prepare the runtime</span><span class="rule"></span><span>]</span></h2>
+      <div class="frame">
+        <p style="margin:0 0 4px">The launcher is the 25 MB app around your game APK. Choose where it comes from.</p>
+        <div class="opts">
+          <label class="opt">
+            <input type="radio" name="launcher-source" value="site" checked>
+            <span class="what"><b>0 &middot; Download from this site</b>
+              <small>The default. It comes from this page once and stays on the device, so later builds do not download it again.</small></span>
+          </label>
+          <label class="opt">
+            <input type="radio" name="launcher-source" value="local">
+            <span class="what"><b>1 &middot; A local launcher bundle</b>
+              <small>Pick the 26 MB android.zip you already have. Nothing is downloaded.</small></span>
+          </label>
+          <div class="optline off" id="local-line">
+            <label class="pick" id="launcher-pick">CHOOSE<input type="file" id="local-launcher" accept=".zip,application/zip"></label>
+            <span class="chip" id="local-launcher-name">NO FILE</span>
+            <a class="plain" href="bundles/android.zip" download="android.zip">Download the bundle</a>
+          </div>
+          <label class="opt">
+            <input type="radio" name="launcher-source" value="proxy">
+            <span class="what"><b>2 &middot; Through a GitHub download proxy</b>
+              <small>For a network where GitHub is slow or blocked. Give a proxy that takes a full GitHub URL, such as https://ghproxy.net/.</small></span>
+          </label>
+          <div class="optline off" id="proxy-line">
+            <input type="url" id="proxy-url" placeholder="https://ghproxy.net/" inputmode="url" autocomplete="off" spellcheck="false">
+            <span class="hint" id="proxy-hint"></span>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <section>
       <h2 class="head"><span>[</span><span>01 Your files</span><span class="rule"></span><span>]</span></h2>
@@ -222,7 +287,7 @@
             that starts the menu and then the game.</p>
           <p style="margin:8px 0">Experimental: the first launch asks to allow drawing over other apps, and a menu
             that fails to start leaves the game untouched.</p>
-          <p style="margin:8px 0"><a href="https://github.com/lovelyzy7/bunker-jp-en#the-mod-menu" target="_blank" rel="noopener">The Mod Menu section</a></p>
+          <p style="margin:8px 0"><a href="https://github.com/lovelyzy7/bunker#the-mod-menu" target="_blank" rel="noopener">The Mod Menu section</a></p>
           <label style="display:flex;gap:10px;align-items:center">
             <input type="checkbox" id="mod-menu">
             <span>Include the Mod Menu (experimental)</span>
@@ -289,7 +354,7 @@
 
     <p class="note">Then copy the resource dump's <code>.7z</code> to the device and choose it in the Bunker;
       the app unpacks only the files the game uses. An extracted folder works too, as described in the
-      <a href="https://github.com/lovelyzy7/bunker-jp-en#5-get-the-game-files-onto-the-device-about-21-gb" target="_blank" rel="noopener">guide</a>.
+      <a href="https://github.com/lovelyzy7/bunker#5-get-the-game-files-onto-the-device-about-21-gb" target="_blank" rel="noopener">guide</a>.
       The Android build made here leaves out the in-game Facebook account link; offline play, Pod Programs and save backups work.</p>
 </main>
 
@@ -301,7 +366,7 @@
     <li><a href="https://github.com/NMeliksah/lunar-base" target="_blank" rel="noopener">Lunar Base</a> <span>the save editors in Pod Programs, by NMeliksah</span></li>
     <li><a href="https://github.com/NavHobbyDev/lunar-tear-masterdata-patcher" target="_blank" rel="noopener">Master-data patcher</a> <span>the content patcher, by NavHobbyDev</span></li>
   </ul>
-  <span>Source: <a href="https://github.com/lovelyzy7/bunker-jp-en" target="_blank" rel="noopener">github.com/lovelyzy7/bunker-jp-en</a>.</span>
+  <span>Source: <a href="https://github.com/lovelyzy7/bunker" target="_blank" rel="noopener">github.com/lovelyzy7/bunker</a>.</span>
 </footer>
 <script src="app.js"></script>
 </body>

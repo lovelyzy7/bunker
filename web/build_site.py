@@ -35,11 +35,15 @@ PYTHON = [
     "web/signing/bunker-cert.der",
 ]
 PAGES_LIMIT = 100 * 1024 * 1024  # GitHub Pages refuses larger files.
-# A second copy of bundles/android.zip may be given with --mirror (the Pages
-# workflow passes the BUNDLE_MIRROR repository variable). It has to be readable
-# by the browser, so it needs a CORS header: GitHub's own release downloads do
-# not send one, which is why a release asset cannot serve as the mirror. The
-# page checks the bytes against the digest below before it uses them.
+# The same launcher bundle is attached to the release, so the page can offer a
+# GitHub download proxy for networks where this site is slow. A direct fetch of
+# the asset is not possible (GitHub sends no CORS header), which is why the page
+# goes through a proxy the reader supplies; the bytes are checked against the
+# digest below. --mirror adds another source (the Pages workflow passes the
+# BUNDLE_MIRROR repository variable); it must send a CORS header too.
+REPO = "lovelyzy7/bunker"
+
+# A second copy of bundles/android.zip may be given with --mirror.
 
 
 def is_master(name):
@@ -107,7 +111,10 @@ def main():
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
         return {"sha256": digest, "urls": urls}
 
-    mirrors = {"bundle": source(out / "bundles/android.zip", ["bundles/android.zip", *args.mirror])}
+    mirrors = {
+        "bundle": source(out / "bundles/android.zip", ["bundles/android.zip", *args.mirror]),
+        "github": f"https://github.com/{REPO}/releases/download/v{version}/android.zip",
+    }
     if (out / "bundles/modmenu.zip").exists():
         mirrors["modmenu"] = source(out / "bundles/modmenu.zip", ["bundles/modmenu.zip"])
     (out / "mirrors.json").write_text(json.dumps(mirrors))
