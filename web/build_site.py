@@ -13,6 +13,7 @@ import json
 from pathlib import Path
 import re
 import shutil
+import sys
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -87,6 +88,11 @@ def main():
     with zipfile.ZipFile(args.companion_apk) as companion:
         version = companion.read("assets/lunar/bunker-version.txt").decode().strip()
     (out / "version.json").write_text(json.dumps({"version": version}))
+    # Names the picked APK on the page, from the same digests the build checks.
+    sys.path.insert(0, str(ROOT / "android/tools"))
+    import region  # noqa: E402  (after sys.path, which only this writer needs)
+    known = {key: {"sha256": value["sha256"], "size": value["size"]} for key, value in region.REGIONS.items()}
+    (out / "regions.json").write_text(json.dumps(known))
     for path in out.rglob("*"):
         if path.is_file() and path.stat().st_size > PAGES_LIMIT:
             raise SystemExit(f"{path.name} is over GitHub Pages' 100 MB limit")

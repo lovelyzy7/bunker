@@ -9,15 +9,87 @@ fetch("version.json").then((r) => r.ok ? r.json() : null).then((v) => {
   if (v && v.version) $("bunker-version").textContent = tr("BUILDS BUNKER " + v.version);
 }).catch(() => {});
 
+// The releases this page builds, keyed by SHA-256 (regions.json, same table as
+// android/tools/region.py). Only used to name the picked file; the build still
+// checks it in Python.
+let RELEASES = null;
+fetch("regions.json").then((r) => r.ok ? r.json() : null).then((v) => {
+  RELEASES = v && typeof v === "object" ? v : null;
+  update();
+}).catch(() => {});
+
+// A phone has to read the whole APK to hash it, so this runs once per file.
+const checksums = new Map();  // name/size/mtime -> {state, region}
+
+function fileKey(file) {
+  return `${file.name}/${file.size}/${file.lastModified}`;
+}
+
+async function releaseOf(file) {
+  if (!RELEASES) return {state: "unavailable"};
+  const match = Object.entries(RELEASES).find(([, known]) => known.size === file.size);
+  if (!match) return {state: "bad"};  // Right size is a cheap first filter.
+  if (!crypto.subtle || !crypto.subtle.digest) return {state: "unavailable"};
+  try {
+    const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+    const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    return {state: hex === match[1].sha256 ? "ok" : "bad", region: match[0]};
+  } catch (error) {
+    return {state: "unavailable"};  // Out of memory, or a file we cannot read.
+  }
+}
+
+// The one line under the game description: which release this APK is.
+function showRelease(result) {
+  const box = $("game-region");
+  box.className = "region";
+  if (result.state === "ok") {
+    box.hidden = false;
+    box.classList.add("ok");
+    box.textContent = `\u2713 ${tr(result.region === "jp" ? "Japan" : "Global")} \u00b7 ${result.region.toUpperCase()}`;
+  } else if (result.state === "bad") {
+    box.hidden = false;
+    box.classList.add("bad");
+    box.textContent = `\u2717 ${tr("Not the original 3.7.1 release")}`;
+  } else if (result.state === "checking") {
+    box.hidden = false;
+    box.textContent = tr("Checking the checksum\u2026");
+  } else {
+    box.hidden = true;
+    box.textContent = "";
+  }
+}
+
+let releasing = 0;  // Picks can overlap; only the last one may paint.
+
+async function describeGame() {
+  const file = $("game").files[0];
+  if (!file) { showRelease({state: "none"}); return; }
+  const key = fileKey(file), known = checksums.get(key);
+  if (known) { showRelease(known); return; }
+  const ticket = ++releasing;
+  showRelease({state: "checking"});
+  const result = await releaseOf(file);
+  if (result.state === "ok" || result.state === "bad") checksums.set(key, result);
+  const picked = $("game").files[0];
+  if (ticket === releasing && picked && fileKey(picked) === key) showRelease(result);
+}
+
 function update() {
-  $("game-help").textContent = tr("The original 3.7.1 ARM64 game APK (日服 or 全球服).");
+  $("game-help").textContent = tr("The original 3.7.1 ARM64 game APK (JP or global).");
   $("game").accept = ".apk";
   $("build").disabled = !($("game").files[0] && $("master").files[0]);
   for (const id of ["game", "master"]) {
     const file = $(id).files[0], chip = $(id + "-name");
     chip.textContent = file ? `${file.name} · ${Math.max(1, Math.round(file.size / 1048576))} MB` : tr("NOT CHOSEN");
     chip.classList.toggle("ok", !!file);
+    // A second pick is a replacement, so say so once a file is there.
+    const label = $(id).closest(".pick");
+    if (label && label.firstChild && label.firstChild.nodeType === Node.TEXT_NODE) {
+      label.firstChild.nodeValue = file ? tr("CHANGE") : tr("CHOOSE");
+    }
   }
+  describeGame();
 }
 
 // ---- progress ---------------------------------------------------------------
@@ -55,7 +127,7 @@ function log(line) {
 const FAILURES = [
   [/SHA-256 does not match.*game|The game APK is not the original/,
     ["这不是原版 3.7.1 游戏包", "请使用官方 3.7.1 的日服或全球服 APK。若你确信文件正确（例如从已安装应用导出的拆分包），可在「进阶选项」里勾选「忽略文件校验」。"],
-    ["This is not the original 3.7.1 game", "Use the official 3.7.1 日服 or 全球服 APK. If you are sure the file is right (a split APK exported from an installed app, for example), tick \"Build even if the files do not match\" under advanced options."]],
+    ["This is not the original 3.7.1 game", "Use the official 3.7.1 JP or global APK. If you are sure the file is right (a split APK exported from an installed app, for example), tick \"Build even if the files do not match\" under advanced options."]],
   [/The master data is not the original/,
     ["主数据不是原版文件", "请使用 20240404193219.bin.e 原文件（约 7.4 MB），未被内容修补器改过的那个。"],
     ["The master data is not the original", "Use the untouched 20240404193219.bin.e (about 7.4 MB), not one a content patcher has rewritten."]],
@@ -64,10 +136,10 @@ const FAILURES = [
     ["This APK is not the game itself", "Choose the original arm64-v8a game APK, not a launcher, patch or save file."]],
   [/Not a game this build accepts/,
     ["不是本页支持的版本", "只支持 3.7.1 的日服或全球服。"],
-    ["Not a release this page builds", "Only the 3.7.1 日服 and 全球服 releases are supported."]],
+    ["Not a release this page builds", "Only the 3.7.1 JP and global releases are supported."]],
   [/Not the 日服 \(JP\) game APK/,
     ["日服 APK 不完整", "文件里缺少日服专用的网络配置，请换一个未修改的原版 APK。"],
-    ["The 日服 APK is incomplete", "Its 日服 network configuration is missing; use an untouched original APK."]],
+    ["The JP APK is incomplete", "Its JP network configuration is missing; use an untouched original APK."]],
   [/BadZipFile|not a ZIP|Bad magic number|File is not a zip/,
     ["文件已损坏或不完整", "重新下载或重新复制文件后再试。"],
     ["The file is damaged or incomplete", "Download or copy it again and retry."]],
@@ -98,7 +170,9 @@ function fail(raw) {
 }
 
 function regionName(info) {
-  return info.name || (info.region === "jp" ? "日服 (JP)" : "全球服 (EN)");
+  if (info.region === "jp") return `${tr("Japan")} (JP)`;
+  if (info.region === "en") return `${tr("Global")} (EN)`;
+  return info.name || "—";
 }
 
 function fillResult(value) {
@@ -208,8 +282,13 @@ const ZH = {
   "MASTER DATA": "主数据",
   "NOT CHOSEN": "未选择",
   "CHOOSE": "选择",
+  "CHANGE": "更换",
   "The original 3.7.1 ARM64 game APK.": "原版 3.7.1 ARM64 游戏 APK。",
-  "The original 3.7.1 ARM64 game APK (日服 or 全球服).": "原版 3.7.1 ARM64 游戏 APK（日服或全球服）。",
+  "The original 3.7.1 ARM64 game APK (JP or global).": "原版 3.7.1 ARM64 游戏 APK（日服或全球服）。",
+  "Japan": "日服",
+  "Global": "全球服",
+  "Checking the checksum…": "正在校验 SHA-256……",
+  "Not the original 3.7.1 release": "不是原版 3.7.1（SHA-256 不匹配）",
   "Choose the game .apk file.": "请选择游戏的 .apk 文件。",
   "Takes a few minutes and needs about 2 GB of free memory. A desktop browser works best.":
     "需要几分钟，并占用约 2 GB 内存。建议使用桌面浏览器。",

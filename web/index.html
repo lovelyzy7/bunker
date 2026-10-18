@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="google" content="notranslate">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%233a372f'/%3E%3Crect x='5' y='5' width='6' height='6' fill='%23d3ceb8'/%3E%3C/svg%3E">
 <title>Bunker · Lunar Tear builder (Android)</title>
@@ -70,7 +71,14 @@
   .file .label { font: 11px var(--mono); letter-spacing: .12em; color: var(--mid); width: 110px; }
   .file .what { flex: 1 1 220px; font-size: 14px; }
   .file .chip { font: 11px var(--mono); letter-spacing: .08em; padding: 3px 8px; background: var(--chip); max-width: 100%; overflow-wrap: anywhere; }
+  .file .chip:empty { display: none; }
   .file .chip.ok { background: var(--ok); color: var(--on-ok); }
+  /* Which release the picked APK is, from its SHA-256: one quiet line under
+     the description. order: 2 keeps it after the button so it wraps alone. */
+  .file .region { flex: 1 1 100%; order: 2; margin-left: 110px; font: 11px var(--mono); letter-spacing: .08em; color: var(--mid); }
+  .file .region.ok { color: var(--ok); }
+  .file .region.bad { color: var(--alert); }
+  .file .region[hidden] { display: none; }
   .pick { position: relative; font: 12px var(--mono); letter-spacing: .16em; border: 2px solid var(--ink); padding: 0 14px; min-height: 44px; display: inline-flex; align-items: center; cursor: pointer; }
   .pick input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
   .pick:focus-within { outline: 2px solid var(--ink); outline-offset: 3px; }
@@ -118,7 +126,40 @@
     .top nav a { padding: 0 8px; }
     main { padding: 28px 14px 8px; }
     .frame { padding: 14px; }
-    .file .label { width: 84px; }
+  }
+
+  /* 01 Your files on a phone: the label sits above its description and the file
+     chip shares a row with the button. Before this the label held a fixed
+     column, so the description wrapped around it and the chip fell to a third
+     line, left of nothing. */
+  @media (max-width: 520px) {
+    .file {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas: "label label" "what what" "region region" "chip pick";
+      align-items: center;
+      gap: 5px 10px;
+      padding-bottom: 16px;
+    }
+    .file .label { width: auto; grid-area: label; }
+    .file .what { grid-area: what; }
+    /* display:block, not flex: a flex box does not clip its own text with an
+       ellipsis, and a long file name then ends mid-letter. */
+    .file .chip {
+      grid-area: chip;
+      justify-self: start;
+      min-width: 0;
+      max-width: 100%;
+      height: 30px;
+      line-height: 30px;
+      padding: 0 8px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .file .pick { grid-area: pick; min-width: 92px; justify-content: center; }
+    .file .region { grid-area: region; flex: none; margin-left: 0; }
+    .file:last-child { padding-bottom: 0; }
   }
 </style>
 </head>
@@ -148,9 +189,10 @@
       <div class="frame">
         <div class="file">
           <span class="label">GAME</span>
-          <span class="what" id="game-help">The original 3.7.1 ARM64 game APK (日服 or 全球服).</span>
+          <span class="what" id="game-help">The original 3.7.1 ARM64 game APK (JP or global).</span>
           <span class="chip" id="game-name">NOT CHOSEN</span>
           <label class="pick">CHOOSE<input type="file" id="game" accept=".apk" aria-label="Game file"></label>
+          <span class="region" id="game-region" hidden></span>
         </div>
         <div class="file">
           <span class="label">MASTER DATA</span>
