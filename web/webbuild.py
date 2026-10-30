@@ -94,6 +94,15 @@ def menu_payload(resources, release):
         close()
 
 
+def detect_release(apk):
+    """The client release ("jp"/"en") of the game APK.
+
+    The worker fetches only that release's font payload before building, so a
+    build downloads one font zip instead of both clients' payloads.
+    """
+    return region.region_of_apk(Path(apk))[0]
+
+
 def build_android(apk, master, companion, output=None, log=print, port_offset=0, modmenu=None,
                   verify_inputs=True, hand_over=None):
     """Build, sign and verify one product: nier-jp.apk or nier-en.apk (§9.1).

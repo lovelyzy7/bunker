@@ -172,12 +172,31 @@ def main():
     for name in ("index.html", "app.js", "worker.js", "sw.js"):
         shutil.copy2(ROOT / "web" / name, out / name)
     shutil.copy2(ROOT / "web/signing/bunker-key.p12", out / "bunker-key.p12")
-    # 代码面 + 字体 payload 同一清单进 /repo（Pyodide 挂载位与调用面一致）。
-    for name in PYTHON + FONT_PAYLOADS:
+    # 代码面与字体 payload 分件：sources.zip 随「准备运行时」预载（单件小包），
+    # 字体按客户端打包 fonts-{jp,en}.zip，构建时只下载检出客户端的一件
+    # （解压面 = fix3_zh.font_payload_entries 同面：<client>-client/ 下布局）。
+    for name in PYTHON:
         target = out / "py" / name
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / name, target)
-    (out / "py/manifest.json").write_text(json.dumps(PYTHON + FONT_PAYLOADS), encoding="utf-8")
+    (out / "py/manifest.json").write_text(json.dumps(PYTHON), encoding="utf-8")
+
+    def write_zip(path, entries):
+        # 固定时间戳 + 排序条目 = 同输入同字节（发布面 digest 可复算）。
+        with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as bundle:
+            for name in sorted(entries):
+                info = zipfile.ZipInfo(name, date_time=STAMP)
+                info.compress_type = zipfile.ZIP_DEFLATED
+                info.external_attr = 0o644 << 16
+                bundle.writestr(info, entries[name])
+
+    write_zip(out / "py/sources.zip",
+              {name: (out / "py" / name).read_bytes() for name in PYTHON})
+    for client in ("jp", "en"):
+        prefix = f"upstream/lunar-scripts-zh/{client}-client/"
+        write_zip(out / "bundles" / f"fonts-{client}.zip",
+                  {name[len(prefix):]: (ROOT / name).read_bytes()
+                   for name in FONT_PAYLOADS if name.startswith(prefix)})
     if args.launcher_zip:
         shutil.copy2(args.launcher_zip, out / "bundles/android.zip")
     else:
@@ -216,28 +235,17 @@ def main():
     if (out / "bundles/modmenu.zip").exists():
         mirrors["modmenu"] = source(out / "bundles/modmenu.zip", ["bundles/modmenu.zip"])
         mirrors["modmenuGithub"] = f"https://github.com/{REPO}/releases/download/v{version}/modmenu.zip"
-    # Every prebuilt payload file (builder sources, fix3 tables, font payloads)
-    # may also come through a GitHub proxy: its raw home plus the digest the
-    # worker checks before trusting the copy. Prefix order matters: the longest
-    # match wins.
-    raw_homes = [
-        ("upstream/lunar-scripts-zh/", "https://raw.githubusercontent.com/lovelyzy7/lunar-scripts-zh/main/"),
-        ("", f"https://raw.githubusercontent.com/{REPO}/main/"),
-    ]
-    files = {}
-    manifest_path = out / "py" / "manifest.json"
-    if manifest_path.is_file():
-        for name in json.loads(manifest_path.read_text(encoding="utf-8")):
-            path = out / "py" / name
-            if not path.is_file():
-                continue
-            home = next((base + name[len(prefix):] for prefix, base in raw_homes
-                         if name.startswith(prefix)), None)
-            if home:
-                files[name] = {"sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-                               "github": home}
-    if files:
-        mirrors["files"] = files
+    # 单件预载面：sources.zip（脚本/表）与 fonts-{jp,en}.zip（按端字体）。
+    # 每件一个 sha256 + 一个 GitHub release 地址（代理模式单 URL 直取）。
+    mirrors["sources"] = source(out / "py/sources.zip", ["py/sources.zip"])
+    mirrors["sources"]["github"] = (f"https://github.com/{REPO}/releases/"
+                                    f"download/v{version}/sources.zip")
+    for client in ("jp", "en"):
+        key = f"fonts_{client}"
+        mirrors[key] = source(out / "bundles" / f"fonts-{client}.zip",
+                              [f"bundles/fonts-{client}.zip"])
+        mirrors[key]["github"] = (f"https://github.com/{REPO}/releases/"
+                                  f"download/v{version}/fonts-{client}.zip")
     (out / "mirrors.json").write_text(json.dumps(mirrors), encoding="utf-8")
     for path in out.rglob("*"):
         if path.is_file() and path.stat().st_size > PAGES_LIMIT:

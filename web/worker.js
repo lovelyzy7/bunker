@@ -200,14 +200,13 @@ function viaProxy(template, target) {
 }
 
 /**
- * One prebuilt payload file (a builder source, the fix3 tables, the font
- * payloads). In proxy mode every file with a declared GitHub home in
- * mirrors.json goes through the proxy first (two tries, digest-checked);
- * the site always covers for a dead, stale or wrong proxy, and digests the
- * copy either way.
+ * One prebuilt artifact (the sources zip, or a per-client font zip). In proxy
+ * mode the declared GitHub release asset goes through the proxy first (two
+ * tries, digest-checked); the site always covers for a dead, stale or wrong
+ * proxy, and digests the copy either way.
  */
-async function prebuiltBytes(path, label) {
-  const info = ((await loadSources()).files || {})[path] || {};
+async function prebuiltArtifact(key, sitePath, label) {
+  const info = (await loadSources())[key] || {};
   for (const template of proxyTemplates) {
     const url = viaProxy(template, info.github);
     if (!url) continue;
@@ -219,7 +218,7 @@ async function prebuiltBytes(path, label) {
       post("log", "The proxy did not work; trying this site…");
     }
   }
-  const fetchUrl = await versioned("py/" + path);
+  const fetchUrl = await versioned(sitePath);
   const bytes = new Uint8Array(await (await fetch(fetchUrl)).arrayBuffer());
   if (info.sha256 && (await sha256(bytes)) !== info.sha256) {
     throw new Error(`${label.replace(/^./, (c) => c.toUpperCase())} does not match the site's checksum`);
@@ -394,12 +393,11 @@ async function setup() {
       await pyodide.loadPackage(["pycryptodome", "msgpack", "lz4"]);
       pyodide.setStdout({ batched: (line) => post("log", line) });
       pyodide.setStderr({ batched: (line) => post("log", line) });
-      const stamp = await buildStamp();
-      const manifest = await (await fetch(`py/manifest.json?b=${encodeURIComponent(stamp)}`)).json();
-      post("log", `Loading the builder sources (${manifest.length} files)…`);
-      for (const file of manifest) {
-        writeFile(pyodide, "/repo/" + file, await prebuiltBytes(file, file));
-      }
+      post("log", "Downloading the builder sources…");
+      const sourcesZip = await prebuiltArtifact("sources", "py/sources.zip", "the builder sources");
+      writeFile(pyodide, "/tmp/sources.zip", sourcesZip);
+      pyodide.runPython("import zipfile; zipfile.ZipFile('/tmp/sources.zip').extractall('/repo')");
+      post("log", "Unpacked the builder sources.");
       pyodide.runPython("import sys; sys.path.insert(0, '/repo/web'); import webbuild");
       post("log", "Python ready.");
       post("runtime", true);
@@ -461,9 +459,16 @@ async function build(data) {
     const gamePath = "/input/" + game.name, masterPath = "/input/" + master.name;
     const log = (line) => post("log", line);
     const builder = pyodide.globals.get("webbuild");
+    // Only the detected client's font payload is downloaded: the service worker
+    // keeps it, so a later build of the same client is a local read.
+    const release = String(builder.detect_release(gamePath));
+    writeFile(pyodide, "/tmp/fonts.zip",
+      await prebuiltArtifact("fonts_" + release, `bundles/fonts-${release}.zip`,
+        `the ${release} font payload`));
+    pyodide.runPython(`import zipfile; zipfile.ZipFile('/tmp/fonts.zip').extractall('/repo/upstream/lunar-scripts-zh/${release}-client')`);
     writeFile(pyodide, "/bundles/android.zip", await launcherBytes(launcherUrl, data.proxies));
     // JS null becomes a truthy JsNull proxy in Pyodide 0.28.3 and defeats the
-    // Python None guards; undefined converts to None properly (L5 §7.2).
+    // Python None guards; undefined converts to None properly.
     let payload = undefined;
     if (modMenu) {
       let bytes = null;
