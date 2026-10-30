@@ -3,10 +3,13 @@
 
   apk_sign.py bunker.apk [--key KEY.pem --cert CERT.der]
 
-Needs only pycryptodome, so the web builder can run it in the browser. By
-default it uses the public Bunker build key in web/signing, which every web
-build shares so that one build can update another. v2 covers every Android
-version the game supports (7.0 and newer).
+Needs only pycryptodome, so the web builder can run it in the browser. The
+default key material in web/signing is the **mod-menu JP key**
+(nier-jp.keystore, alias nier, password lunar-jp, certificate SHA-256
+eec23be0cb205c401791be3d4b82e8851560f5c2aed3ec644166093d3d98a2fe), exported to
+PEM (PKCS#8) + DER. It was realigned from the original public Bunker key; see
+web/signing/README-KEY-ALIGNMENT.md for the export procedure and rollback.
+v2 covers every Android version the game supports (7.0 and newer).
 """
 import argparse
 import hashlib

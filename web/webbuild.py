@@ -16,8 +16,17 @@ sys.path.insert(0, str(REPO / "android/tools"))
 import apk_sign  # noqa: E402
 import assemble_apk  # noqa: E402
 import region  # noqa: E402
+import zh_client  # noqa: E402
 
 MASTER = region.MASTER
+
+# Signing material per client (§8.2 key auto-select): JP uses the aligned
+# public Bunker key (nieR-jp key, see web/signing/README-KEY-ALIGNMENT.md),
+# EN uses the收编 debug key exported from en-client/keys/nier-en.keystore.
+SIGNING = {
+    "jp": (REPO / "web/signing/bunker-key.pem", REPO / "web/signing/bunker-cert.der"),
+    "en": (REPO / "web/signing/nier-en-key.pem", REPO / "web/signing/nier-en-cert.der"),
+}
 
 
 def verify(apk, master, release):
@@ -35,7 +44,11 @@ def verify(apk, master, release):
 
 
 def addresses(port_offset=0):
-    """The game's loopback addresses (game, assets, accounts), moved by the port offset."""
+    """The game's server addresses (game, assets, accounts), moved by the port offset.
+
+    The endpoint is fixed at 127.0.0.1: the server runs on the device itself,
+    so there is no host parameter and no build can bake another IP in.
+    """
     port_offset = int(port_offset)
     if not 0 <= port_offset <= 65535 - 8080:
         raise ValueError(f"Port offset must be 0–{65535 - 8080}")
@@ -81,29 +94,90 @@ def menu_payload(resources, release):
         close()
 
 
-def build_android(apk, master, companion, output, log=print, port_offset=0, modmenu=None, verify_inputs=True):
+def build_android(apk, master, companion, output=None, log=print, port_offset=0, modmenu=None, verify_inputs=True):
+    # Pyodide delivers JS null as a truthy JsNull proxy (JS undefined → None), so
+    # "no output name" and "no menu payload" from the page must be normalized
+    # before the None checks below; Path(JsNull) raises TypeError.
+    if type(output).__name__ in ("JsNull", "JsUndefined"):
+        output = None
+    if type(modmenu).__name__ in ("JsNull", "JsUndefined"):
+        modmenu = None
     addresses(port_offset)  # Validate before the slow steps.
     release, package = region.region_of_apk(Path(apk))
     log(f"{region.REGIONS[release]['name']}: {package}")
     if verify_inputs:
         log("Checking the game APK and master data…")
         verify(apk, master, release)
+    # Client auto-dispatch + bunker/zh consistency gate (fail-fast). The
+    # profile selects the zh patch face (inside assemble), the signing key and
+    # the product name; --skip-checks only relaxes the triple assertion (split
+    # APK bundles), never the package-level agreement.
+    profile = zh_client.dispatch(apk, strict=verify_inputs)
+    log(f"Client dispatch: {profile['region']} → {region.REGIONS[release]['client']} "
+        f"(key {Path(profile['keystore']).name})")
     menu = menu_payload(modmenu, release)
     if modmenu and menu is None:
         log("The Mod Menu payload is missing; building without it.")
     elif menu:
         log(f"Mod Menu payload: {len(menu['dex'])} dex, 1 library.")
-    built = assemble_apk.assemble(Path(apk), Path(master), Path(companion), Path(output),
-                                  log=log, port_offset=int(port_offset), menu=menu)
-    log("Signing with the public Bunker key…")
+    # Product naming contract (§9.1): auto-named from the client detection,
+    # not from a caller-chosen file name.
+    if output is None:
+        output = Path(profile["product_name"])
+    output = Path(output)
+    built = assemble_apk.assemble(Path(apk), Path(master), Path(companion), output,
+                                  log=log, port_offset=int(port_offset), menu=menu,
+                                  strict_detection=verify_inputs, profile=profile)
+    log("Signing with the region key…")
+    key_pem, cert_der = SIGNING[profile["region"]]
     # The digest comes out of the signing pass, so the finished APK is not read
     # a second time just to hash it.
     certificate, sha256 = apk_sign.sign_and_digest(
-        Path(output), progress=lambda percent: log(f"  signing {percent}%…"))
-    log("Signed APK ready to install.")
+        output, key_pem, cert_der,
+        progress=lambda percent: log(f"  signing {percent}%…"))
+    # Signature gate (§8.2): the product's certificate must match the region key.
+    # client_detect_triple is enforced only in strict mode; with skip-check the
+    # triple is intentionally unverified (split-APK bundles, 默认勾选裁定), so it
+    # is recorded as "skipped" instead of failing the gate. False still fails.
+    cert_ok = certificate == profile["cert_sha256"]
+    triple = bool(profile["zh"].get("detected", {}).get("triple_ok"))
+    gates = {"client_detect_triple": triple if verify_inputs else "skipped",
+             "bunker_zh_consistency": True, "cert_matches_expected": cert_ok, "signed": True}
+    gates["ok"] = all(v for v in gates.values() if v != "skipped")
+    if not gates["ok"]:
+        raise ValueError(f"verification gate failed: {gates} (cert={certificate}, "
+                         f"expected={profile['cert_sha256']})")
+    patch_counts = {"mod_menu_dex": len(menu["dex"]) if menu else 0,
+                    "mod_menu": bool(menu),
+                    "fix3_strings": (built.get("fix3_strings") or {}).get("lines_patched"),
+                    "font_payload_entries": (built.get("font_payload") or {}).get("count")}
+    if "fix4_strings" in built:
+        # fix4 两态纯化（EN=fix4 态）；JP=fix3 终态不带 fix4 计数，sidecar 形状不变
+        patch_counts["fix4_strings"] = (built.get("fix4_strings") or {}).get("lines_patched")
+    sidecar = zh_client.write_manifest_sidecar(
+        output, profile, input_apk=Path(apk), cert_sha256=certificate,
+        patch_counts=patch_counts,
+        verify_gates=gates)
+    # L6 产物验证门（签名后，fail-fast）：与 lunar-scripts-zh 侧同 schema
+    # （nier-verify-gate/v1）——region 匹配 / 证书断言 / RVA 表按客户端选对 /
+    # 字体四条目完整性 / fix3（optional）/ 内嵌 master 文件名不变+文本表结构 /
+    # rva_table_version 槽位。断言定义 = upstream/lunar-scripts-zh/shared/。
+    import verify_gate_zh
+    l6 = verify_gate_zh.product_gate(Path(output), bin_e=None,
+                                     client=profile["region"],
+                                     product_class="bunker",
+                                     sidecar=Path(sidecar),
+                                     raise_on_fail=True)
+    gates["l6_unified_gate"] = True
+    log(f"Signed APK ready to install. Sidecar: {Path(sidecar).name}")
     built = built if isinstance(built, dict) else {}
     built["sha256"] = sha256
     built["certificate"] = certificate
+    built["product_name"] = output.name
+    built["product_path"] = str(output)
+    built["sidecar"] = str(sidecar)
+    built["verify_gates"] = gates
+    built["l6_gate"] = l6.to_dict()
     return built
 
 
@@ -125,7 +199,9 @@ def main():
     parser.add_argument("--apk", type=Path, required=True, help="Original ARM64 game 3.7.1 APK (日服 or 全球服)")
     parser.add_argument("--master", type=Path, required=True, help="Original 20240404193219.bin.e")
     parser.add_argument("--companion-apk", type=Path, required=True, help="Built launcher APK (android/app)")
-    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--output", type=Path, default=None,
+                        help="Output APK (default: the detected client's product name, "
+                             "nier-jp.apk / nier-en.apk; §9.1)")
     parser.add_argument("--port-offset", type=int, default=0)
     parser.add_argument("--mod-menu", nargs="?", const=str(REPO / "web/modmenu"), default=None,
                         help="Add the Mod Menu; optionally name the payload folder or zip")

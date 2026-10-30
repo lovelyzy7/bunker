@@ -1,0 +1,132 @@
+{
+  "_meta": {
+    "description": "NieR Reincarnation 3.7.1 JP libil2cpp.so display patch site table (bunker distribution)",
+    "client": "jp",
+    "package": "com.square_enix.android_googleplay.nierspjp",
+    "libil2cpp_size": 126216336,
+    "rva_convention": "ELF LOAD0 RX: p_offset=p_vaddr=0, so file offset == VA == patcher RVA (base+dli_fbase)",
+    "source": "zh-l10n/work/diag-rva-display/rva-display-jp.json (L2 逆向产出, crossval_ok=true)",
+    "generated": "2026-10-29",
+    "l3b_note": "rev D·L3b 落地: display_patch.c 按 libil2cpp.so 文件大小自动选表, 每站点补丁后字节断言"
+  },
+  "patches": [
+    {
+      "id": "fps_onlywhenstarting",
+      "kind": "site",
+      "rva": "0x2E5E8FC",
+      "original_bytes": ["0x321F0FE0"],
+      "patched_bytes_formula": "mov_w(0, fps) = 0x52800000 | (fps << 5) | 0",
+      "signature_check": "word at RVA == 0x321F0FE0 (or already patched)",
+      "semantics": "Generator.OnlyWhenStarting: Application.targetFrameRate = 30 -> mov w0,#fps"
+    },
+    {
+      "id": "fps_setuprenderer",
+      "kind": "site",
+      "rva": "0x2E5EE0C",
+      "original_bytes": ["0x321F0FE0"],
+      "patched_bytes_formula": "mov_w(0, fps) = 0x52800000 | (fps << 5) | 0",
+      "signature_check": "word at RVA == 0x321F0FE0 (or already patched)",
+      "semantics": "Generator.SetupRenderer: Application.targetFrameRate = 30 -> mov w0,#fps"
+    },
+    {
+      "id": "fps_config_ccor",
+      "kind": "site",
+      "rva": "0x2C6E934",
+      "original_bytes": ["0x321F0FE9"],
+      "patched_bytes_formula": "mov_w(9, fps) = 0x52800000 | (fps << 5) | 9",
+      "signature_check": "word at RVA == 0x321F0FE9 (or already patched)",
+      "semantics": "PerformanceSetting.Config..cctor: UnSavePowerTargetRenderFrameRate = 30 -> mov w9,#fps"
+    },
+    {
+      "id": "res_config_start_high",
+      "kind": "site",
+      "rva": "0x2C6E98C",
+      "original_bytes": ["0xD2C000AA"],
+      "patched_bytes_formula": "0xD2C0000A | (size << 5)",
+      "signature_check": "word at RVA == 0xD2C000AA (or already patched)",
+      "semantics": "PerformanceSetting.Config..cctor: RenderTargetSize HD(5) for start preset & High -> mov x10,#size"
+    },
+    {
+      "id": "res_config_highest",
+      "kind": "site",
+      "rva": "0x2C6E9C4",
+      "original_bytes": ["0xB25F056B"],
+      "patched_bytes_formula": "orr_x11_size(size): FullHD=0xB25F056B, WQHD=0xB260096B, DeviceMax=0xB25D016B",
+      "signature_check": "word at RVA == 0xB25F056B (or already patched)",
+      "semantics": "PerformanceSetting.Config..cctor: FullHD for Highest (orr x11,#size<<32 bitmask)"
+    },
+    {
+      "id": "res_rendermgr_delaystart",
+      "kind": "site",
+      "rva": "0x31C09A0",
+      "original_bytes": ["0x528000A1"],
+      "patched_bytes_formula": "mov_w(1, size) = 0x52800000 | (size << 5) | 1",
+      "signature_check": "word at RVA == 0x528000A1 (or already patched)",
+      "semantics": "RenderManager.DelayStart: HD at start -> mov w1,#size"
+    },
+    {
+      "id": "snap_arrive",
+      "kind": "site",
+      "rva": "0x2CCAFD0",
+      "original_bytes": ["0xBD401900"],
+      "patched_bytes": ["0x1E2E1000"],
+      "signature_check": "word at RVA == 0xBD401900 (or already 0x1E2E1000)",
+      "semantics": "DarkScrollRect.UpdateSnapPosition: kScrollBorder 0.01 -> fmov s0,#1.0"
+    }
+  ],
+  "hooks": [
+    {
+      "id": "hook_fixedprocess",
+      "kind": "hook",
+      "rva": "0x2D06248",
+      "original_bytes": ["0xD10283FF", "0x6D033BEF", "0x6D0433ED", "0x6D052BEB"],
+      "signature_check": "4 words at RVA == kFixedProcessPrologue (or word[0]==0x58000050 already hooked)",
+      "semantics": "ActorController.FixedProcess prologue (fps>30 hook)"
+    },
+    {
+      "id": "hook_battlestep",
+      "kind": "hook",
+      "rva": "0x29AFF7C",
+      "original_bytes": ["0x1E6E1000", "0x2A1F03E1", "0xAA1F03E2", "0xA8C24FF4"],
+      "signature_check": "4 words at RVA == kBattleStepCall (or word[0]==0x58000050 already hooked)",
+      "semantics": "BattleUpdate.OnStateUpdate tail before KernelBattle.Process (fps>30 hook)"
+    },
+    {
+      "id": "hook_changestate",
+      "kind": "hook",
+      "rva": "0x39AD0D8",
+      "original_bytes": ["0xA9BA6FFC", "0xA90167FA", "0xA9025FF8", "0xA90357F6"],
+      "signature_check": "4 words at RVA == kChangeState (or word[0]==0x58000050 already hooked)",
+      "semantics": "InternalFiniteStateMachine.ChangeState prologue (event-zone hook, any fps)"
+    },
+    {
+      "id": "hook_triggerenter",
+      "kind": "hook",
+      "rva": "0x35659E4",
+      "original_bytes": ["0xF81D0FF5", "0xA9014FF4", "0xA9027BFD", "0x910083FD"],
+      "signature_check": "4 words at RVA == kTriggerEnter (or word[0]==0x58000050 already hooked)",
+      "semantics": "ColliderBase.OnTriggerEnter prologue (event-zone hook, any fps)"
+    }
+  ],
+  "related": [
+    {
+      "id": "hook_showrewardedvideo",
+      "kind": "hook",
+      "rva": null,
+      "jp_candidates": ["0x3760A08", "0x3A53CF4", "0x3BA8E74", "0x444BEFC"],
+      "original_bytes": ["0xA9BE4FF4", "0xA9017BFD", "0x910043FD", "0xD00237F4"],
+      "semantics": "IronSource.showRewardedVideo prologue (warning-only)",
+      "note": "JP 4候选未决 → rva=null → display_patch.c 设 0 → warning-only skip 不阻塞"
+    }
+  ],
+  "support_functions": [
+    {"id": "time_unscaled_delta", "rva": "0x4CA9C30"},
+    {"id": "time_fixed_delta", "rva": "0x4CA9C98"},
+    {"id": "time_set_fixed_delta", "rva": "0x4CA9D00"},
+    {"id": "time_frame_count", "rva": "0x4CA9F70"},
+    {"id": "battle_process", "rva": "0x3762E14"},
+    {"id": "stay_on_stay", "rva": "0x29BBA48"},
+    {"id": "stay_begin", "rva": "0x29BB838"},
+    {"id": "empty_onstateupdate", "rva": "0x39A4044"}
+  ]
+}

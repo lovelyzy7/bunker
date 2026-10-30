@@ -44,7 +44,11 @@ final class DisplayPatch {
         String result;
         try {
             System.loadLibrary("bunkerdisplay");
-            result = apply(fps, size);
+            // The region declaration and the package name let the native side
+            // cross-check which client's RVA table belongs to this game
+            // (region-consistency detection, display_patch.c); a contradiction
+            // refuses the patch instead of mixing tables.
+            result = apply(fps, size, Region.declared(context), context.getPackageName());
         } catch (Throwable error) {
             result = String.valueOf(error);
         }
@@ -117,5 +121,5 @@ final class DisplayPatch {
         }
     }
 
-    private static native String apply(int fps, int size);
+    private static native String apply(int fps, int size, String region, String packageName);
 }

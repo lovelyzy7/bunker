@@ -118,6 +118,12 @@ function proxyText() {
   return ($("proxy-url").value || "").trim();
 }
 
+/** Proxy prefix/templates for every prebuilt file — in proxy mode only. */
+function proxyTemplates() {
+  if (sourceMode() !== "proxy") return [];
+  return [proxyText(), ...PROXIES].filter(Boolean);
+}
+
 function launcherUrl() {
   return resolveVia(proxyText(), (MIRRORS && MIRRORS.github) || "");
 }
@@ -145,23 +151,15 @@ function mainlandChina() {
 function updateBuildEnabled() {
   const mode = sourceMode();
   const ready = !!($("game").files[0] && $("master").files[0])
-    && (mode !== "local" || !!$("local-launcher").files[0])
     && (mode !== "proxy" || !!launcherUrl());
   $("build").disabled = building || !ready;
 }
 
-/** Three exclusive sources: the two below them are greyed out until picked. */
+/** Two exclusive sources: the proxy line is greyed out until picked. */
 function syncSource() {
   const mode = sourceMode();
-  const local = $("local-launcher").files[0] || null;
-  $("local-line").classList.toggle("off", mode !== "local");
-  $("local-launcher").disabled = mode !== "local";
   $("proxy-line").classList.toggle("off", mode !== "proxy");
   $("proxy-url").disabled = mode !== "proxy";
-
-  const chip = $("local-launcher-name");
-  chip.textContent = local ? `${local.name} · ${Math.max(1, Math.round(local.size / 1048576))} MB` : tr("NO FILE");
-  chip.classList.toggle("ok", !!local);
 
   const hint = $("proxy-hint");
   hint.classList.remove("bad");
@@ -170,12 +168,6 @@ function syncSource() {
   else if (!$("proxy-url").value.trim()) hint.textContent = tr("Paste a proxy address, such as https://gh-proxy.com/");
   else if (!url) { hint.textContent = tr("That is not an http(s) address."); hint.classList.add("bad"); }
   else hint.textContent = `${tr("The launcher will come from")} ${url}`;
-
-  // The two download links follow the same choice: through the proxy when one
-  // is given, straight from the site otherwise.
-  const viaProxy = mode === "proxy";
-  $("download-launcher").href = (viaProxy && launcherUrl()) || "bundles/android.zip";
-  $("download-modmenu").href = (viaProxy && modmenuUrl()) || "bundles/modmenu.zip";
 
   try {
     localStorage.setItem(SOURCE_KEY, mode);
@@ -238,9 +230,11 @@ function checks() {
 function restoreChecks() {
   try {
     const saved = JSON.parse(localStorage.getItem(CHECKS_KEY) || "null");
-    if (!saved) return;
-    $("skip-check").checked = !!saved.skip;
-    $("mod-menu").checked = !!saved.menu;
+    if (!saved) return;   // No save yet: the page's checked defaults stay.
+    // skip / menu default to true: a save that predates the key (or omits it)
+    // leaves the box checked instead of silently clearing it.
+    $("skip-check").checked = saved.skip ?? true;
+    $("mod-menu").checked = saved.menu ?? true;
     $("port-offset").value = saved.offset || "0";
     $("only-errors").checked = !!saved.errors;
   } catch (error) { /* private mode */ }
@@ -460,7 +454,7 @@ function fail(raw) {
   $("failure").scrollIntoView({ block: "center", behavior: "smooth" });
 }
 
-const SOURCE_LABEL = { site: "this site", local: "the local file", proxy: "the GitHub proxy" };
+const SOURCE_LABEL = { site: "this site", proxy: "the GitHub proxy" };
 
 function regionName(info) {
   if (info.region === "jp") return `${tr("Japan")} (JP)`;
@@ -484,7 +478,6 @@ let warmTimer = null, warmed = false;
 /** Start Pyodide and the 25 MB launcher while the reader is still choosing files. */
 function warmTarget() {
   const mode = sourceMode();
-  if (mode === "local") return "local";
   if (mode === "proxy") return launcherUrl() || "proxy";
   return "site";
 }
@@ -495,20 +488,17 @@ function warmUp() {
   clearTimeout(warmTimer);
   warmTimer = setTimeout(() => {
     warmed = target;
-    const local = target === "local";
-    log(tr(local ? "Loading the Python runtime in the background…"
-                 : "Loading the runtime and the launcher in the background…"));
+    log(tr("Loading the runtime and the launcher in the background…"));
     worker.postMessage({
       type: "preload",
-      skipLauncher: local,
-      launcherUrl: target === "site" || local ? null : target,
+      launcherUrl: target === "site" ? null : target,
+      proxyTemplates: proxyTemplates(),
     });
   }, 600);
 }
 
 $("game").addEventListener("change", update);
 $("master").addEventListener("change", update);
-$("local-launcher").addEventListener("change", () => { syncSource(); warmUp(); });
 $("proxy-url").addEventListener("input", () => { syncSource(); warmUp(); });
 for (const radio of document.querySelectorAll('input[name="launcher-source"]')) {
   radio.addEventListener("change", () => { syncSource(); warmUp(); });
@@ -521,7 +511,6 @@ $("build").addEventListener("click", () => {
   if (!game.name.toLowerCase().endsWith(".apk")) { log(tr("Choose the game .apk file.")); return; }
   if (game.name === master.name) { log(tr("Choose two different files.")); return; }
   const mode = sourceMode();
-  const launcher = mode === "local" ? $("local-launcher").files[0] : null;
   const launcherURL = mode === "proxy" ? launcherUrl() : null;
   const modmenuURL = mode === "proxy" ? modmenuUrl() : null;
   const portOffset = Number($("port-offset").value || 0);
@@ -540,8 +529,8 @@ $("build").addEventListener("click", () => {
   setStage(0, 2);
   if (url) { URL.revokeObjectURL(url); url = null; }
   worker.postMessage({ game, master, portOffset, modMenu: !!document.getElementById("mod-menu").checked,
-                       verify: !$("skip-check").checked, launcher, launcherUrl: launcherURL,
-                       modmenuUrl: modmenuURL, proxies: PROXIES });
+                       verify: !$("skip-check").checked, launcherUrl: launcherURL,
+                       modmenuUrl: modmenuURL, proxies: PROXIES, proxyTemplates: proxyTemplates() });
 });
 
 let lastSignal = Date.now();
@@ -589,15 +578,14 @@ worker.onerror = (event) => {
 
 listen();
 
-// The chosen source survives a reload; a local file cannot, so that falls back.
+// The chosen source survives a reload.
 (function restoreSource() {
   try {
     const saved = localStorage.getItem(SOURCE_KEY);
     let proxy = localStorage.getItem(PROXY_KEY) || "";
     if (!saved && !proxy && mainlandChina()) proxy = PROXIES[0];
     if (proxy) $("proxy-url").value = proxy;
-    const wanted = saved || (mainlandChina() ? "proxy" : "site");
-    const mode = wanted === "local" ? "site" : wanted;
+    const mode = saved || (mainlandChina() ? "proxy" : "site");
     const list = $("proxy-list");
     if (list) list.innerHTML = PROXIES.map((url) => `<option value="${url}">`).join("");
     const radio = document.querySelector(`input[name="launcher-source"][value="${mode}"]`);
@@ -651,12 +639,10 @@ const ZH = {
   "Experimental: the first launch asks to allow drawing over other apps, and a menu that fails to start leaves the game untouched.": "实验性：首次启动会请求「显示在其他应用上层」权限；菜单启动失败也不会影响游戏本身。",
   "The optional memory menu (damage and defense multipliers, no skill cooldown, God mode, forced hit, BigHunt cap lift) is built on the command line: it rewrites the game's launcher activity and installs a native library, which this browser cannot do.": "可选的内存菜单（伤害与防御倍率、技能无 CD、God 免伤、强制命中、讨伐战上限解除）需要在命令行构建：它会改写游戏的启动 Activity 并放入原生库，浏览器内做不到。",
   "Build it with": "构建命令：",
-  "The Mod Menu section": "「Mod 菜单」一节",
   ", password and alias": "，密码与别名",
   "ADVANCED :: MOD MENU": "进阶选项 :: MOD 菜单",
   "The optional memory menu (damage and defense multipliers, no skill cooldown, God mode, forced hit, BigHunt cap lift) is built on the command line: it rewrites the game's launcher activity and installs a native library, which this browser cannot do. Build with scripts/build.py --mod-menu instead. See the Mod Menu section.": "可选的内存菜单（伤害与防御倍率、技能无 CD、God 免伤、强制命中、讨伐战上限解除）需要在命令行构建：它会改写游戏的启动 Activity 并放入原生库，浏览器内做不到。请改用 scripts/build.py --mod-menu 构建，详见「Mod 菜单」一节。",
   "Include the Mod Menu (experimental)": "包含 Mod 菜单（实验性）",
-  "the Mod Menu section": "「Mod 菜单」一节",
   "ADVANCED": "进阶选项",
   "Bunker · Lunar Tear builder": "Bunker · Lunar Tear 构建器",
   "The original master data,": "原版主数据，",
@@ -688,17 +674,11 @@ const ZH = {
   "The launcher is the 25 MB app around your game APK. Choose where it comes from. In mainland China the GitHub proxy is picked on the first visit; anywhere else the site is used directly.": "启动器是包裹游戏 APK 的 25 MB 应用。选择它的来源。中国大陆首次打开默认走 GitHub 代理，其他地区直接连本站。",
   "0 · Download from this site": "0 · 直接从本站下载",
   "It comes from this page once and stays on the device, so later builds do not download it again.": "只从本站下载一次，之后留在设备上，后续构建不再下载。",
-  "1 · A local launcher bundle": "1 · 使用本地启动器包",
-  "Pick the 26 MB android.zip you already have. Nothing is downloaded.": "选择你已有的 26 MB android.zip，不会下载任何东西。",
-  "2 · Through a GitHub download proxy": "2 · 通过 GitHub 下载代理",
+  "1 · Through a GitHub download proxy": "1 · 通过 GitHub 下载代理",
   "For a network where GitHub is slow or blocked. Give a proxy that takes a full GitHub URL, such as https://gh-proxy.com/; the download is still checked against this site's SHA-256.": "适用于 GitHub 慢或被阻断的网络。填写能接收完整 GitHub 地址的代理，例如 https://gh-proxy.com/；下载后仍会按本站公布的 SHA-256 核对。",
-  "Download the launcher bundle (25 MB) ↓": "下载启动器包（25 MB）↓",
-  "Download the Mod Menu bundle (0.8 MB) ↓": "下载 MOD 菜单包（0.8 MB）↓",
-  "NO FILE": "未选择",
   "Paste a proxy address, such as https://gh-proxy.com/": "填写代理地址，例如 https://gh-proxy.com/",
   "That is not an http(s) address.": "这不是 http(s) 地址。",
   "The launcher will come from": "启动器将从这里下载：",
-  "Loading the Python runtime in the background…": "正在后台准备 Python 运行时……",
   "01 Your files": "01 你的文件",
   "02 Build": "02 构建",
   "03 Install": "03 安装",
@@ -720,8 +700,6 @@ const ZH = {
     "需要几分钟，并占用约 2 GB 内存。建议使用桌面浏览器。",
   "Takes a few minutes and needs about 2 GB of free memory. A desktop browser works best; a phone may run out of memory for a 300 MB APK.":
     "需要几分钟，并占用约 2 GB 内存。建议使用桌面浏览器；手机上构建 300 MB 的 APK 容易内存不足。",
-  "Takes about a minute and needs about 2 GB of free memory. A modern phone manages it (a 12 GB phone took 30 s to 1 minute); an older one can run out of memory for a 300 MB APK.":
-    "大约需要一分钟，并占用约 2 GB 内存。较新的手机可以完成（12 GB 的机器实测 30 秒到 1 分钟）；较旧的手机在构建 300 MB 的 APK 时可能内存不足。",
   "ADVANCED :: SKIP THE FILE CHECK": "进阶选项 :: 跳过文件校验",
   "The build checks that your APK is the original 3.7.1 release and that the master data is the untouched 20240404193219.bin.e, because the patch offsets were read from those files. A split APK exported from an installed app has the same library and metadata, so it can still build, but a different game version will not.":
     "构建前会校验你的 APK 是原版 3.7.1、主数据是未被改动的 20240404193219.bin.e，因为补丁偏移量就是从这些文件里读出来的。从已安装应用导出的拆分包，其游戏库与元数据相同，仍可构建；但其他游戏版本不行。",
@@ -762,7 +740,6 @@ const ZH = {
   "Build cancelled.": "已取消构建。",
   "SOURCE": "来源",
   "this site": "本站",
-  "the local file": "本地启动器包",
   "the GitHub proxy": "GitHub 代理",
   "Loading the runtime and the launcher in the background…": "正在后台准备运行时与启动器……",
   "Skipping the file check.": "已跳过文件校验。",

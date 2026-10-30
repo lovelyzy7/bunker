@@ -85,7 +85,8 @@ Limitations:
   installed copy can be allowed through under advanced options).
 - **The Android APK is signed with a public key**, so it installs as it is, and every web build
   updates over the previous one. The key ([`web/signing/bunker-key.p12`](web/signing/bunker-key.p12),
-  password and alias `bunker`) is public: anyone can sign a build that installs over yours. To
+  password `lunar-jp`, alias `nier`; aligned to the mod-menu JP key on 2026-10-25, see
+  [`web/signing/README-KEY-ALIGNMENT.md`](web/signing/README-KEY-ALIGNMENT.md)) is public: anyone can sign a build that installs over yours. To
   avoid that, re-sign with your own key, and keep using that key for updates. An app signed with
   a different key has to be uninstalled first, which deletes its data.
 - **About 2 GB of free memory.** A 12 GB phone builds a 日服 APK in about half a minute to a minute

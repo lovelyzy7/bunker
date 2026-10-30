@@ -35,14 +35,22 @@
 //   keeps a small speed, and IsScrolling stays true, so the Summon buttons
 //   ignore taps. It now counts as there within 1 unit (invisible). Any setting.
 //
-// The RVAs come from the 3.7.1 ARM64 game's IL2CPP metadata. Every site is
-// checked first; on any unknown instruction nothing is changed.
+// 【rev D·L3b】RVA tables are now per-client (EN / JP). Every site is checked
+// before any write, and every write is verified by reading the patched bytes
+// back.
+// 【rev D·L4】The client is now detected by region consistency: the declared
+// region (manifest meta-data org.veritr1x.bunker.REGION) and the package name
+// are cross-checked against the loaded libil2cpp.so file size, all three
+// through the same JP/EN fact table as lunar-scripts-zh/shared/detect_client.py
+// (REGIONS). Any contradiction or unknown value rejects the patch (fail-fast,
+// never mixes tables, no default branch).
 #include <android/log.h>
 #include <dlfcn.h>
 #include <jni.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <time.h>
 #include <sys/mman.h>
 #include <unistd.h>
@@ -53,6 +61,191 @@
 enum { FullHD = 6, WQHD = 7, DeviceMax = 8 };
 
 typedef struct { uint32_t rva, original, patched; } Site;
+
+// ---------------------------------------------------------------------------
+// 【rev D·L3b】Per-client RVA table
+// ---------------------------------------------------------------------------
+// All patch-site and hook RVAs for each supported client.  The original words
+// (signature checks) are identical across clients; only the addresses differ.
+typedef struct {
+    // sites() – frame rate and resolution word patches
+    uint32_t fps_onlywhenstarting;
+    uint32_t fps_setuprenderer;
+    uint32_t fps_config_ccor;
+    uint32_t res_config_start_high;
+    uint32_t res_config_highest;
+    uint32_t res_rendermgr_delaystart;
+    // kSnapArrive – snapping-lists tolerance patch
+    uint32_t snap_arrive;
+    // hook sites – 4-instruction trampolines
+    uint32_t hook_fixedprocess;
+    uint32_t hook_battlestep;
+    uint32_t hook_changestate;
+    uint32_t hook_triggerenter;
+    // roulette (warning-only, may be 0 when unresolved)
+    uint32_t hook_showrewardedvideo;
+    // support functions called by hook code
+    uint32_t time_unscaled_delta;
+    uint32_t time_fixed_delta;
+    uint32_t time_set_fixed_delta;
+    uint32_t time_frame_count;
+    uint32_t battle_process;
+    uint32_t stay_on_stay;
+    uint32_t stay_begin;
+    uint32_t empty_onstateupdate;
+} ClientRvas;
+
+// EN 3.7.1 (com.square_enix.android_googleplay.nierspww, libil2cpp.so 127 359 872 B)
+static const ClientRvas kEnRvas = {
+    .fps_onlywhenstarting    = 0x2E5BE0C,
+    .fps_setuprenderer       = 0x2E5C31C,
+    .fps_config_ccor         = 0x2C7AC80,
+    .res_config_start_high   = 0x2C7ACD8,
+    .res_config_highest      = 0x2C7AD10,
+    .res_rendermgr_delaystart= 0x2EC1D04,
+    .snap_arrive             = 0x30DF5A0,
+    .hook_fixedprocess       = 0x2D5F7A0,
+    .hook_battlestep         = 0x2A6530C,
+    .hook_changestate        = 0x3A0ECF8,
+    .hook_triggerenter       = 0x363082C,
+    .hook_showrewardedvideo  = 0x3291FB4,
+    .time_unscaled_delta     = 0x4D7ED90,
+    .time_fixed_delta        = 0x4D7EDC4,
+    .time_set_fixed_delta    = 0x4D7EDF8,
+    .time_frame_count        = 0x4D7EF50,
+    .battle_process          = 0x37DC3D0,
+    .stay_on_stay            = 0x2984420,
+    .stay_begin              = 0x2984210,
+    .empty_onstateupdate     = 0x3A05C64,
+};
+
+// JP 3.7.1 (com.square_enix.android_googleplay.nierspjp, libil2cpp.so 126 216 336 B)
+static const ClientRvas kJpRvas = {
+    .fps_onlywhenstarting    = 0x2E5E8FC,
+    .fps_setuprenderer       = 0x2E5EE0C,
+    .fps_config_ccor         = 0x2C6E934,
+    .res_config_start_high   = 0x2C6E98C,
+    .res_config_highest      = 0x2C6E9C4,
+    .res_rendermgr_delaystart= 0x31C09A0,
+    .snap_arrive             = 0x2CCAFD0,
+    .hook_fixedprocess       = 0x2D06248,
+    .hook_battlestep         = 0x29AFF7C,
+    .hook_changestate        = 0x39AD0D8,
+    .hook_triggerenter       = 0x35659E4,
+    // JP showRewardedVideo: 4 candidates, unresolved → 0 → warning-only skip
+    .hook_showrewardedvideo  = 0,
+    .time_unscaled_delta     = 0x4CA9C30,
+    .time_fixed_delta        = 0x4CA9C98,
+    .time_set_fixed_delta    = 0x4CA9D00,
+    .time_frame_count        = 0x4CA9F70,
+    .battle_process          = 0x3762E14,
+    .stay_on_stay            = 0x29BBA48,
+    .stay_begin              = 0x29BB838,
+    .empty_onstateupdate     = 0x39A4044,
+};
+
+// 【rev D·L4】Region fact table, aligned with lunar-scripts-zh/shared/
+// detect_client.py REGIONS and android/tools/region.py REGIONS (same region
+// keys, game package names and libil2cpp.so sizes — one JP/EN fact table).
+// Drift between the three copies is refused by l3b-test/test_display_rva.py
+// and android/tools/test_display.py.
+#define EN_LIB_SIZE 127359872LL   // com.square_enix.android_googleplay.nierspww (en)
+#define JP_LIB_SIZE 126216336LL   // com.square_enix.android_googleplay.nierspjp (jp)
+
+typedef struct {
+    const char *region;    // "en" / "jp" — region.py / detect_client.py key
+    const char *package;   // the client APK's manifest package
+    long long lib_size;    // libil2cpp.so file size (runtime evidence)
+    const ClientRvas *rvas;
+} ClientFact;
+
+static const ClientFact kClients[] = {
+    {"en", "com.square_enix.android_googleplay.nierspww", EN_LIB_SIZE, &kEnRvas},
+    {"jp", "com.square_enix.android_googleplay.nierspjp", JP_LIB_SIZE, &kJpRvas},
+};
+
+static const ClientFact *fact_for_region(const char *region) {
+    if (!region || !*region) return NULL;
+    for (size_t i = 0; i < sizeof kClients / sizeof kClients[0]; i++)
+        if (!strcmp(kClients[i].region, region)) return &kClients[i];
+    return NULL;
+}
+
+static const ClientFact *fact_for_package(const char *package) {
+    if (!package || !*package) return NULL;
+    for (size_t i = 0; i < sizeof kClients / sizeof kClients[0]; i++)
+        if (!strcmp(kClients[i].package, package)) return &kClients[i];
+    return NULL;
+}
+
+static const ClientFact *fact_for_size(long long size) {
+    for (size_t i = 0; i < sizeof kClients / sizeof kClients[0]; i++)
+        if (kClients[i].lib_size == size) return &kClients[i];
+    return NULL;
+}
+
+/**
+ * 【rev D·L4】Region-consistency detection: which client's table this binary
+ * may be patched with. Three declaration sources are cross-checked against
+ * the loaded libil2cpp.so's file size:
+ *
+ *   declared_region  — manifest meta-data org.veritr1x.bunker.REGION
+ *                      (written at packaging: package_game.py / assemble_apk.py),
+ *                      or "" when the build predates it;
+ *   declared_package — the process package name (the client APK's package
+ *                      from region.py's triple), or "" when unavailable;
+ *   lib size         — stat() of the library actually loaded.
+ *
+ * Every present source must map to a known client and agree with the size.
+ * A contradiction or an unknown value fails fast (NULL): the patch is never
+ * applied with a table that has not been proven to belong to this binary.
+ * An absent declaration is simply absent (size alone decides, as before);
+ * 口径同 detect_client.py: 未知/矛盾一律拒，无默认分支、不猜测.
+ */
+static const ClientFact *detect_client(const char *lib_path,
+                                       const char *declared_region,
+                                       const char *declared_package) {
+    struct stat st;
+    if (!lib_path || stat(lib_path, &st) != 0) return NULL;
+    const ClientFact *by_size = fact_for_size(st.st_size);
+    if (!by_size) {
+        __android_log_print(ANDROID_LOG_WARN, "Bunker",
+                            "Display patch: libil2cpp.so size %lld is not a known client; refusing to patch",
+                            (long long)st.st_size);
+        return NULL;
+    }
+    const ClientFact *by_region = fact_for_region(declared_region);
+    if (declared_region && *declared_region && !by_region) {
+        __android_log_print(ANDROID_LOG_WARN, "Bunker",
+                            "Display patch: declared region '%s' is not a known client; refusing to patch",
+                            declared_region);
+        return NULL;
+    }
+    const ClientFact *by_package = fact_for_package(declared_package);
+    if (declared_package && *declared_package && !by_package) {
+        __android_log_print(ANDROID_LOG_WARN, "Bunker",
+                            "Display patch: package '%s' is not a known client; refusing to patch",
+                            declared_package);
+        return NULL;
+    }
+    if (by_region && by_region != by_size) {
+        __android_log_print(ANDROID_LOG_WARN, "Bunker",
+                            "Display patch: declared region '%s' contradicts libil2cpp.so (%s table); refusing to patch",
+                            declared_region, by_size->region);
+        return NULL;
+    }
+    if (by_package && by_package != by_size) {
+        __android_log_print(ANDROID_LOG_WARN, "Bunker",
+                            "Display patch: package '%s' contradicts libil2cpp.so (%s table); refusing to patch",
+                            declared_package, by_size->region);
+        return NULL;
+    }
+    return by_size;
+}
+
+// ---------------------------------------------------------------------------
+// End of per-client RVA table
+// ---------------------------------------------------------------------------
 
 static uint32_t mov_w(int reg, int value) { return 0x52800000u | (uint32_t)value << 5 | (uint32_t)reg; }
 
@@ -65,17 +258,17 @@ static uint32_t orr_x11_size(int size) {
     }
 }
 
-static int sites(int fps, int size, Site *out) {
+static int sites(const ClientRvas *rvas, int fps, int size, Site *out) {
     int n = 0;
     if (fps) {
-        out[n++] = (Site){0x2E5BE0C, 0x321f0fe0u, mov_w(0, fps)};  // Generator.OnlyWhenStarting: targetFrameRate = 30
-        out[n++] = (Site){0x2E5C31C, 0x321f0fe0u, mov_w(0, fps)};  // Generator.SetupRenderer: targetFrameRate = 30
-        out[n++] = (Site){0x2C7AC80, 0x321f0fe9u, mov_w(9, fps)};  // Config..cctor: UnSavePowerTargetRenderFrameRate = 30
+        out[n++] = (Site){rvas->fps_onlywhenstarting, 0x321f0fe0u, mov_w(0, fps)};  // Generator.OnlyWhenStarting: targetFrameRate = 30
+        out[n++] = (Site){rvas->fps_setuprenderer, 0x321f0fe0u, mov_w(0, fps)};    // Generator.SetupRenderer: targetFrameRate = 30
+        out[n++] = (Site){rvas->fps_config_ccor, 0x321f0fe9u, mov_w(9, fps)};      // Config..cctor: UnSavePowerTargetRenderFrameRate = 30
     }
     if (size) {
-        out[n++] = (Site){0x2C7ACD8, 0xd2c000aau, 0xd2c0000au | (uint32_t)size << 5};  // Config..cctor: HD for the start preset and High
-        out[n++] = (Site){0x2C7AD10, 0xb25f056bu, orr_x11_size(size)};                 // Config..cctor: FullHD for Highest
-        out[n++] = (Site){0x2EC1D04, 0x528000a1u, mov_w(1, size)};                      // RenderManager.DelayStart: HD at start
+        out[n++] = (Site){rvas->res_config_start_high, 0xd2c000aau, 0xd2c0000au | (uint32_t)size << 5};  // Config..cctor: HD for the start preset and High
+        out[n++] = (Site){rvas->res_config_highest, 0xb25f056bu, orr_x11_size(size)};                    // Config..cctor: FullHD for Highest
+        out[n++] = (Site){rvas->res_rendermgr_delaystart, 0x528000a1u, mov_w(1, size)};                  // RenderManager.DelayStart: HD at start
     }
     return n;
 }
@@ -90,8 +283,15 @@ static int write_word(uint32_t *address, uint32_t value) {
     return 0;
 }
 
+// 【rev D·L3b】Write a word and assert the patched bytes read back correctly.
+static int write_word_assert(uint32_t *address, uint32_t value) {
+    if (write_word(address, value)) return -1;
+    if (*address != value) return -2;  // byte assertion failed
+    return 0;
+}
+
 // UpdateSnapPosition: "ldr s0, [x8, #0x18]" (kScrollBorder, 0.01) becomes "fmov s0, #1.0".
-static const Site kSnapArrive = {0x30DF5A0, 0xbd401900u, 0x1e2e1000u};
+static const Site kSnapArriveOriginal = {0, 0xBD401900u, 0x1E2E1000u};  // RVA filled from ClientRvas
 
 // Unity's Time accessors, from the same metadata.
 static float (*time_unscaled_delta)(void *method);
@@ -234,11 +434,12 @@ static void stay_update(void *self, void *method) {
 }
 
 /** Points the class's OnStateUpdate slot (after OnStateBegin) at stay_update. */
-static void route_stay_update(void *klass, uint8_t *base) {
+// 【rev D·L3b】empty_onstateupdate RVA comes from ClientRvas.
+static void route_stay_update(void *klass, uint8_t *base, uint32_t empty_rva) {
     uintptr_t *slots = klass;
     for (int i = 0; i < 0x100; i++) {
         if (slots[i] != stay_begin) continue;
-        if (slots[i + 2] == (uintptr_t)(base + 0x3A05C64)) {
+        if (slots[i + 2] == (uintptr_t)(base + empty_rva)) {
             stay_update_original = slots[i + 2];
             slots[i + 2] = (uintptr_t)stay_update;
         }
@@ -247,6 +448,9 @@ static void route_stay_update(void *klass, uint8_t *base) {
 }
 
 static uint8_t *game_base;
+
+// Global pointer to the active client's RVA table (set in apply()).
+static const ClientRvas *g_current_rvas;
 
 /** Runs at the start of InternalFiniteStateMachine.ChangeState with the next state. */
 __attribute__((visibility("hidden"), used)) void state_changing(void *state) {
@@ -260,7 +464,8 @@ __attribute__((visibility("hidden"), used)) void state_changing(void *state) {
         if (!klass) continue;
         if (!stay_class && !strcmp(*(const char **)((char *)klass + 0x10), "EventTriggerOnStayCollision")) {
             stay_class = klass;
-            route_stay_update(klass, game_base);
+            // 【rev D·L3b】Use per-client empty_onstateupdate RVA.
+            route_stay_update(klass, game_base, g_current_rvas ? g_current_rvas->empty_onstateupdate : 0x3A05C64);
         }
         if (!enter_class && !strcmp(*(const char **)((char *)klass + 0x10), "EventTriggerOnEnterCollision")) enter_class = klass;
         if (klass == stay_class) { stay = conductor; stay_zone = *(void **)((char *)conductor + 0x50); }
@@ -313,25 +518,26 @@ __attribute__((naked)) static void trigger_enter_hook(void) {
         "br x16\n");
 }
 
-static int hook_event_zones(uint8_t *base) {
+static int hook_event_zones(uint8_t *base, const ClientRvas *rvas) {
     game_base = base;
-    stay_on_stay = (void (*)(void *, void *, void *))(base + 0x2984420);
-    stay_begin = (uintptr_t)(base + 0x2984210);
-    change_state_resume = (uintptr_t)(base + 0x3A0ECF8 + 16);
-    trigger_enter_resume = (uintptr_t)(base + 0x363082C + 16);
-    if (hook((uint32_t *)(base + 0x3A0ECF8), kChangeState, change_state_hook)) return -1;
-    return hook((uint32_t *)(base + 0x363082C), kTriggerEnter, trigger_enter_hook);
+    g_current_rvas = rvas;
+    stay_on_stay = (void (*)(void *, void *, void *))(base + rvas->stay_on_stay);
+    stay_begin = (uintptr_t)(base + rvas->stay_begin);
+    change_state_resume = (uintptr_t)(base + rvas->hook_changestate + 16);
+    trigger_enter_resume = (uintptr_t)(base + rvas->hook_triggerenter + 16);
+    if (hook((uint32_t *)(base + rvas->hook_changestate), kChangeState, change_state_hook)) return -1;
+    return hook((uint32_t *)(base + rvas->hook_triggerenter), kTriggerEnter, trigger_enter_hook);
 }
 
-static int hook_frame_rate(uint8_t *base) {
-    time_unscaled_delta = (float (*)(void *))(base + 0x4D7ED90);
-    time_fixed_delta = (float (*)(void *))(base + 0x4D7EDC4);
-    time_set_fixed_delta = (void (*)(float, void *))(base + 0x4D7EDF8);
-    time_frame_count = (int (*)(void *))(base + 0x4D7EF50);
-    fixed_process_resume = (uintptr_t)(base + 0x2D5F7A0 + 16);
-    battle_process = (uintptr_t)(base + 0x37DC3D0);
-    if (hook((uint32_t *)(base + 0x2D5F7A0), kFixedProcessPrologue, fixed_process_hook)) return -1;
-    return hook((uint32_t *)(base + 0x2A6530C), kBattleStepCall, battle_step_hook);
+static int hook_frame_rate(uint8_t *base, const ClientRvas *rvas) {
+    time_unscaled_delta = (float (*)(void *))(base + rvas->time_unscaled_delta);
+    time_fixed_delta = (float (*)(void *))(base + rvas->time_fixed_delta);
+    time_set_fixed_delta = (void (*)(float, void *))(base + rvas->time_set_fixed_delta);
+    time_frame_count = (int (*)(void *))(base + rvas->time_frame_count);
+    fixed_process_resume = (uintptr_t)(base + rvas->hook_fixedprocess + 16);
+    battle_process = (uintptr_t)(base + rvas->battle_process);
+    if (hook((uint32_t *)(base + rvas->hook_fixedprocess), kFixedProcessPrologue, fixed_process_hook)) return -1;
+    return hook((uint32_t *)(base + rvas->hook_battlestep), kBattleStepCall, battle_step_hook);
 }
 
 static void *game_library;
@@ -342,14 +548,20 @@ static void roulette_log(const char *message) { __android_log_print(ANDROID_LOG_
 // add x29, sp, #0x10; adrp x20, ..."; the hook replaces the whole method.
 static const uint32_t kShowRewardedVideo[4] = {0xa9be4ff4u, 0xa9017bfdu, 0x910043fdu, 0xd00237f4u};
 
-static void hook_roulette_ads(uint8_t *base) {
-    if (roulette_ads_init(game_symbol, roulette_log, NULL) || hook((uint32_t *)(base + 0x3291FB4), kShowRewardedVideo, (void (*)(void))roulette_ads_show))
+// 【rev D·L3b】warning-only when hook_showrewardedvideo is 0 (JP unresolved) or mismatch.
+static void hook_roulette_ads(uint8_t *base, const ClientRvas *rvas) {
+    if (!rvas->hook_showrewardedvideo) {
+        __android_log_print(ANDROID_LOG_WARN, "Bunker", "Special Gift Roulette: no %s RVA (unresolved); the video ad stays",
+                            rvas == &kJpRvas ? "JP" : "EN");
+        return;
+    }
+    if (roulette_ads_init(game_symbol, roulette_log, NULL) || hook((uint32_t *)(base + rvas->hook_showrewardedvideo), kShowRewardedVideo, (void (*)(void))roulette_ads_show))
         __android_log_print(ANDROID_LOG_WARN, "Bunker", "Special Gift Roulette: unsupported game binary; the video ad stays");
 }
 
-static const char *apply(int fps, int size, char *message, size_t length) {
+static const char *apply(int fps, int size, const char *declared_region,
+                         const char *declared_package, char *message, size_t length) {
     Site list[8];
-    int count = sites(fps, size, list);
     void *library = dlopen("libil2cpp.so", RTLD_NOW);
     void *symbol = library ? dlsym(library, "il2cpp_init") : NULL;
     Dl_info info;
@@ -358,16 +570,44 @@ static const char *apply(int fps, int size, char *message, size_t length) {
         return message;
     }
     uint8_t *base = info.dli_fbase;
+
+    // 【rev D·L4】Region-consistency detection: the declared region and the
+    // package name are cross-checked against the library file; any
+    // contradiction or unknown client fails fast.
+    const ClientFact *fact = detect_client(info.dli_fname, declared_region, declared_package);
+    if (!fact) {
+        snprintf(message, length, "Unsupported game binary: client detection refused libil2cpp.so (%s)", info.dli_fname ? info.dli_fname : "?");
+        return message;
+    }
+    const ClientRvas *rvas = fact->rvas;
+    __android_log_print(ANDROID_LOG_INFO, "Bunker",
+                        "Display patch: %s table selected (package %s, libil2cpp.so %lld B)",
+                        fact->region, fact->package, fact->lib_size);
+
+    int count = sites(rvas, fps, size, list);
     game_library = library;
-    hook_roulette_ads(base);
-    uint32_t *snap = (uint32_t *)(base + kSnapArrive.rva);
-    if (*snap == kSnapArrive.original) write_word(snap, kSnapArrive.patched);
-    else if (*snap != kSnapArrive.patched)
+    hook_roulette_ads(base, rvas);
+
+    // kSnapArrive: per-client RVA, same original/patched words.
+    Site snap = {rvas->snap_arrive, kSnapArriveOriginal.original, kSnapArriveOriginal.patched};
+    uint32_t *snap_addr = (uint32_t *)(base + snap.rva);
+    if (*snap_addr == snap.original) {
+        if (write_word_assert(snap_addr, snap.patched)) {
+            snprintf(message, length, "Byte assertion failed at 0x%X after snap patch", snap.rva);
+            return message;
+        }
+    } else if (*snap_addr != snap.patched)
         __android_log_print(ANDROID_LOG_WARN, "Bunker", "Snapping lists: unsupported game binary; summon buttons can stop answering above 30 fps");
+
     if (text_buffer_fix(base, write_word))
         __android_log_print(ANDROID_LOG_WARN, "Bunker", "Text builder: unsupported game binary; long texts can still overrun");
-    const struct { uint32_t rva; const uint32_t *original; } hooks[] = {{0x2D5F7A0, kFixedProcessPrologue}, {0x2A6530C, kBattleStepCall},
-        {0x3A0ECF8, kChangeState}, {0x363082C, kTriggerEnter}};
+
+    const struct { uint32_t rva; const uint32_t *original; } hooks[] = {
+        {rvas->hook_fixedprocess, kFixedProcessPrologue},
+        {rvas->hook_battlestep, kBattleStepCall},
+        {rvas->hook_changestate, kChangeState},
+        {rvas->hook_triggerenter, kTriggerEnter}
+    };
     // The event-zone hooks (2 and 3) go in at every frame rate; the frame-timing ones only above 30.
     for (int h = fps > 30 ? 0 : 2; h < 4; h++) {
         uint32_t *at = (uint32_t *)(base + hooks[h].rva);
@@ -386,28 +626,43 @@ static const char *apply(int fps, int size, char *message, size_t length) {
     }
     for (int i = 0; i < count; i++) {
         uint32_t *address = (uint32_t *)(base + list[i].rva);
-        if (*address != list[i].patched && write_word(address, list[i].patched)) {
-            snprintf(message, length, "Could not write the game code at 0x%X", list[i].rva);
-            return message;
+        if (*address != list[i].patched) {
+            int rc = write_word_assert(address, list[i].patched);
+            if (rc == -1) {
+                snprintf(message, length, "Could not write the game code at 0x%X", list[i].rva);
+                return message;
+            }
+            if (rc == -2) {
+                snprintf(message, length, "Byte assertion failed at 0x%X after patch", list[i].rva);
+                return message;
+            }
         }
     }
-    if (hook_event_zones(base)) {
+    if (hook_event_zones(base, rvas)) {
         snprintf(message, length, "Could not write the game's story-event code");
         return message;
     }
-    if (fps > 30 && hook_frame_rate(base)) {
+    if (fps > 30 && hook_frame_rate(base, rvas)) {
         snprintf(message, length, "Could not write the game's frame timing code");
         return message;
     }
     return "";
 }
 
-/** Applies the choices; 0 keeps the game's own value. Returns "" or an error. */
-JNIEXPORT jstring JNICALL Java_org_veritr1x_bunker_DisplayPatch_apply(JNIEnv *env, jclass cls, jint fps, jint size) {
+/** Applies the choices; 0 keeps the game's own value. Returns "" or an error.
+ *  region (manifest org.veritr1x.bunker.REGION) and package_name feed the
+ *  【rev D·L4】region-consistency detection; either may be empty when the
+ *  build declares nothing. */
+JNIEXPORT jstring JNICALL Java_org_veritr1x_bunker_DisplayPatch_apply(JNIEnv *env, jclass cls, jint fps, jint size,
+                                                                     jstring region, jstring package_name) {
     (void)cls;
     char message[160];
     if ((fps && (fps < 30 || fps > 240)) || (size && (size < FullHD || size > DeviceMax)))
         return (*env)->NewStringUTF(env, "Unsupported display setting");
-    return (*env)->NewStringUTF(env, apply(fps, size, message, sizeof message));
+    const char *declared_region = region ? (*env)->GetStringUTFChars(env, region, NULL) : NULL;
+    const char *declared_package = package_name ? (*env)->GetStringUTFChars(env, package_name, NULL) : NULL;
+    const char *result = apply(fps, size, declared_region, declared_package, message, sizeof message);
+    if (declared_region) (*env)->ReleaseStringUTFChars(env, region, declared_region);
+    if (declared_package) (*env)->ReleaseStringUTFChars(env, package_name, declared_package);
+    return (*env)->NewStringUTF(env, result);
 }
-

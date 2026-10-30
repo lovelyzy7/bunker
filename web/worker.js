@@ -164,14 +164,6 @@ async function loadSources() {
   return sources;
 }
 
-/** Refuse a launcher whose bytes are not the ones this site publishes. */
-async function checkLauncher(bytes, label) {
-  const known = ((await loadSources()).bundle || {}).sha256;
-  if (known && (await sha256(bytes)) !== known) {
-    throw new Error(`${label} does not match the site's checksum`);
-  }
-}
-
 /** A bundle from a proxy: two tries, then the same digest check as everything else. */
 async function proxyBytes(url, label, expected) {
   let lastError = null;
@@ -196,23 +188,57 @@ async function proxyBytes(url, label, expected) {
   throw lastError;
 }
 
+/** Proxy prefix/templates for every prebuilt file (entered one first). Non-empty
+ *  only in proxy mode; a full launcher URL is left out — it says nothing about
+ *  other files. */
+let proxyTemplates = [];
+
+/** The same prefix/template rules the page uses (app.js resolveVia, modmenu case). */
+function viaProxy(template, target) {
+  if (!template || !target) return null;
+  if (template.includes("{url}")) return template.replace("{url}", target);
+  if (template.endsWith("/") || /^https?:\/\/[^/]+$/i.test(template)) return template + target;
+  return null;
+}
+
+/**
+ * One prebuilt payload file (a builder source, the fix3 tables, the font
+ * payloads). In proxy mode every file with a declared GitHub home in
+ * mirrors.json goes through the proxy first (two tries, digest-checked);
+ * the site always covers for a dead, stale or wrong proxy, and digests the
+ * copy either way.
+ */
+async function prebuiltBytes(path, label) {
+  const info = ((await loadSources()).files || {})[path] || {};
+  for (const template of proxyTemplates) {
+    const url = viaProxy(template, info.github);
+    if (!url) continue;
+    try {
+      const bytes = await proxyBytes(url, label, info.sha256);
+      post("log", `${label} came from ${url}`);
+      return bytes;
+    } catch (error) {
+      post("log", "The proxy did not work; trying this site…");
+    }
+  }
+  const fetchUrl = await versioned("py/" + path);
+  const bytes = new Uint8Array(await (await fetch(fetchUrl)).arrayBuffer());
+  if (info.sha256 && (await sha256(bytes)) !== info.sha256) {
+    throw new Error(`${label.replace(/^./, (c) => c.toUpperCase())} does not match the site's checksum`);
+  }
+  return bytes;
+}
+
 function describeMs(ms) {
   return Number.isFinite(ms) ? `${Math.round(ms)} ms` : "no answer";
 }
 
 /**
- * The launcher: the picked file, the site, or the proxy. With a proxy the two
- * downloads are timed first (64 KB each) so a slow proxy does not win just
- * because it was chosen, and either one can cover for the other.
+ * The launcher: the site, or the proxy. With a proxy the two downloads are
+ * timed first (64 KB each) so a slow proxy does not win just because it was
+ * chosen, and either one can cover for the other.
  */
-async function launcherBytes(launcher, launcherUrl, proxies) {
-  if (launcher) {
-    const bytes = new Uint8Array(await launcher.arrayBuffer());
-    post("log", `Using the local launcher bundle (${Math.round(bytes.length / 1048576)} MB)`);
-    await checkLauncher(bytes, "The local launcher bundle");
-    usedSource = "local";
-    return bytes;
-  }
+async function launcherBytes(launcherUrl, proxies) {
   if (!launcherUrl) {
     usedSource = "site";
     return bundleBytes("bundle", "the launcher");
@@ -377,8 +403,7 @@ async function setup() {
       const manifest = await (await fetch(`py/manifest.json?b=${encodeURIComponent(stamp)}`)).json();
       post("log", `Loading the builder sources (${manifest.length} files)…`);
       for (const file of manifest) {
-        const bytes = await (await fetch(`py/${file}?b=${encodeURIComponent(stamp)}`)).arrayBuffer();
-        writeFile(pyodide, "/repo/" + file, new Uint8Array(bytes));
+        writeFile(pyodide, "/repo/" + file, await prebuiltBytes(file, file));
       }
       pyodide.runPython("import sys; sys.path.insert(0, '/repo/web'); import webbuild");
       post("log", "Python ready.");
@@ -430,7 +455,7 @@ function warmLauncher(url) {
 
 async function build(data) {
   const { game, master, portOffset = 0, modMenu = false, verify = true,
-          launcher = null, launcherUrl = null } = data;
+          launcherUrl = null } = data;
   try {
     const pyodide = await runtime();
     const FS = pyodide.FS;
@@ -441,8 +466,10 @@ async function build(data) {
     const gamePath = "/input/" + game.name, masterPath = "/input/" + master.name;
     const log = (line) => post("log", line);
     const builder = pyodide.globals.get("webbuild");
-    writeFile(pyodide, "/bundles/android.zip", await launcherBytes(launcher, launcherUrl, data.proxies));
-    let payload = null;
+    writeFile(pyodide, "/bundles/android.zip", await launcherBytes(launcherUrl, data.proxies));
+    // JS null becomes a truthy JsNull proxy in Pyodide 0.28.3 and defeats the
+    // Python None guards; undefined converts to None properly (L5 §7.2).
+    let payload = undefined;
     if (modMenu) {
       let bytes = null;
       if (data.modmenuUrl) {
@@ -456,16 +483,20 @@ async function build(data) {
       writeFile(pyodide, "/bundles/modmenu.zip", bytes);
       payload = "/bundles/modmenu.zip";
     }
-    const output = "/output/bunker.apk";
+    // Product naming contract (§9.1): the Python side names the product from
+    // the client detection (nier-jp.apk / nier-en.apk) and returns its path.
     FS.mkdirTree("/output");
-    const built = builder.build_android(gamePath, masterPath, "/bundles/android.zip", output, log,
+    const built = builder.build_android(gamePath, masterPath, "/bundles/android.zip", undefined, log,
                                         portOffset, payload, verify);
     const info = built && built.toJs ? built.toJs({ dict_converter: Object.fromEntries }) : {};
     if (built && built.destroy) built.destroy();
-    const blob = readBlob(FS, output, FS.stat(output).size);
+    const productPath = info.product_path || "/output/bunker.apk";
+    const productName = info.product_name || "bunker.apk";
+    const blob = readBlob(FS, productPath, FS.stat(productPath).size);
     // info.sha256 comes from the signing pass; the finished APK is not hashed again.
-    post("done", { name: "bunker.apk", blob, info: { ...info, source: usedSource } });
-    FS.unlink(output);
+    post("done", { name: productName, blob, info: { ...info, source: usedSource } });
+    FS.unlink(productPath);
+    if (info.sidecar) FS.unlink(info.sidecar);
     for (const name of FS.readdir("/bundles")) if (name !== "." && name !== "..") FS.unlink("/bundles/" + name);
   } catch (error) {
     post("error", String(error.message || error).split("\n").filter(Boolean).slice(-3).join("\n"));
@@ -473,10 +504,11 @@ async function build(data) {
 }
 
 self.onmessage = ({ data }) => {
+  if (data.proxyTemplates) proxyTemplates = data.proxyTemplates;
   if (data.type === "preload") {
     // Start the slow parts now; failures stay quiet and the build reports them.
     runtime().catch(() => {});
-    if (!data.skipLauncher) warmLauncher(data.launcherUrl);
+    warmLauncher(data.launcherUrl);
     return;
   }
   build(data);

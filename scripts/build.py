@@ -6,6 +6,7 @@ supported: the project has no iOS build.
 """
 import argparse
 import hashlib
+import json
 import os
 from pathlib import Path
 import shutil
@@ -20,6 +21,7 @@ sys.path.insert(0, str(ROOT / "android/tools"))
 import command  # noqa: E402
 import menu  # noqa: E402
 import region  # noqa: E402
+import zh_client  # noqa: E402
 
 def addresses(port_offset):
     """The game's loopback addresses (game, assets, accounts), moved by --port-offset."""
@@ -58,25 +60,63 @@ def android_sdk(parser, env):
     return sdk
 
 
-def build_android(args, env, python, master, sdk, release, menu_root=None):
+def signing_cert_sha256(apk, env):
+    """The signing certificate's SHA-256 of a signed APK, via apksigner --print-certs."""
+    import re
+    sdk = env.get("ANDROID_HOME", "")
+    tools = sorted(Path(sdk).glob("build-tools/*/apksigner")) if sdk else []
+    signer = str(tools[-1]) if tools else "apksigner"
+    shown = subprocess.run(command.command(signer, "verify", "--print-certs", str(apk)),
+                           capture_output=True, text=True, check=True).stdout
+    match = re.search(r"certificate SHA-256 digest:\s*([0-9a-fA-F:]+)", shown)
+    return match.group(1).replace(":", "").lower() if match else None
+
+
+def build_android(args, env, python, master, sdk, release, profile, menu_root=None):
     work = ROOT / ".build"
     run(ROOT / "android/tools/build_native.sh", env=env)
     run(ROOT / "android/gradlew", "assembleDebug", "lintDebug", cwd=ROOT / "android", env=env)
-    output = ROOT / "artifacts/bunker.apk"
+    # Product naming contract (§9.1): auto-named from the client detection.
+    output = ROOT / "artifacts" / profile["product_name"]
+    output.parent.mkdir(parents=True, exist_ok=True)
+    bin_report = work / "bin-e-report.json"
     with tempfile.TemporaryDirectory(prefix="game-", dir=work) as temp:
         decoded = Path(temp) / "decoded"
         run("apktool", "d", args.apk, "-o", decoded, env=env)
         grpc, http, auth = addresses(args.port_offset)
+        # §1.7.2 #3: REGIONS patcher = lunar-scripts-zh dual front-ends.
         run(python, ROOT / region.REGIONS[release]["patcher"], decoded,
             "--grpc-addr", grpc, "--http-addr", http, "--auth-host", auth, env=env)
         run(python, ROOT / "android/tools/package_game.py", "--decoded-dir", decoded,
             "--companion-apk", ROOT / "android/app/build/outputs/apk/debug/app-debug.apk", "--game-apk", args.apk,
             "--output", output, "--sdk", sdk, "--keystore", args.keystore.resolve(), "--port-offset", args.port_offset,
+            "--key-alias", profile["key_alias"], "--key-pass", profile["key_pass"],
             "--region", release, env=env)
     if args.mod_menu:
         menu.inject(release, output, output, python, args.keystore.resolve(), menu_root=menu_root)
     record_checksum(output)
-    print(f"\nReady: {output}\nKeep your signing key: {args.keystore.resolve()}")
+    # Signature gate (§8.2): the product's certificate must match the region key.
+    # client_detect_triple is enforced only in strict detection; non-strict
+    # (skip-check / split-APK) records "skipped" instead of failing. False fails.
+    cert = signing_cert_sha256(output, env)
+    triple = bool(profile["zh"].get("detected", {}).get("triple_ok"))
+    gates = {
+        "client_detect_triple": triple if profile.get("strict", True) else "skipped",
+        "bunker_zh_consistency": True,
+        "cert_matches_expected": cert == profile["cert_sha256"],
+        "patcher": True,
+    }
+    gates["ok"] = all(v for v in gates.values() if v != "skipped")
+    if not gates["ok"]:
+        raise SystemExit(f"verification gate failed: {gates} (cert={cert}, expected={profile['cert_sha256']})")
+    master_report = json.loads(bin_report.read_text(encoding="utf-8")) if bin_report.exists() else {}
+    sidecar = zh_client.write_manifest_sidecar(
+        output, profile, input_apk=args.apk, cert_sha256=cert,
+        patch_counts={"masterdata_edits": master_report.get("edit_stats"),
+                      "mod_menu": bool(args.mod_menu)},
+        verify_gates=gates, verify_report=bin_report if bin_report.exists() else None,
+        bin_e=master_report.get("output"))
+    print(f"\nReady: {output}\nSidecar: {sidecar}\nKeep your signing key: {args.keystore.resolve()}")
 
 
 def _utf8_console():
@@ -92,7 +132,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--apk", type=Path, required=True, help="Original ARM64 game 3.7.1 APK (日服 or 全球服)")
     parser.add_argument("--master", type=Path, required=True, help="Original 20240404193219.bin.e")
-    parser.add_argument("--keystore", type=Path, default=ROOT / "inputs/lunar-local.keystore", help="Android signing key")
+    parser.add_argument("--keystore", type=Path, default=None,
+                        help="Android signing key (default: the detected client's lunar-scripts-zh key, "
+                             "jp→nier-jp.keystore / en→nier-en.keystore; §8.2)")
     parser.add_argument("--port-offset", type=int, default=0,
                         help="Move the game's local ports 8003/8080/3000 by this amount, for devices where another app uses them")
     parser.add_argument("--region", choices=["auto", *sorted(region.REGIONS)], default="auto",
@@ -104,7 +146,14 @@ def main():
     args.apk = args.apk.resolve(strict=True)
     detected, name = region.region_of_apk(args.apk)
     release = region.resolve(args.region, detected)
+    # Client auto-dispatch + bunker/zh consistency gate (fail-fast, no default):
+    # region.py and lunar-scripts-zh detect_client must agree, else SystemExit.
+    profile = zh_client.dispatch(args.apk, expect=args.region if args.region != "auto" else None)
     print(f"{region.REGIONS[release]['name']}: {name}")
+    print(f"Client dispatch: {profile['region']} → {profile['patcher']} "
+          f"(product {profile['product_name']}, key {Path(profile['keystore']).name})")
+    if args.keystore is None:
+        args.keystore = Path(profile["keystore"])   # key auto-select (§8.2)
     master = args.master.resolve(strict=True)
     env = os.environ.copy()
     if env.get("JAVA_HOME"):
@@ -125,8 +174,10 @@ def main():
     assets.mkdir(parents=True, exist_ok=True)
     shutil.copy2(master, assets / "original-master.bin.e")
     patched_master = assets / "20240404193219.bin.e"
-    run(python, ROOT / "upstream/lunar-scripts/patch_masterdata.py", "--input", master,
-        "--output", patched_master, env=env)
+    # §1.7.2 #4: master-data edits go to lunar-scripts-zh jp-client/build_bin_e.py
+    # through the thin adapter (old --input/--output contract kept).
+    run(python, ROOT / "android/tools/patch_masterdata_zh.py", "--input", master,
+        "--output", patched_master, "--report", work / "bin-e-report.json", env=env)
     env["LUNAR_TEST_MASTER"] = str(patched_master)
     env["GOBIN"] = str(work / "bin")
     Path(env["GOBIN"]).mkdir(exist_ok=True)
@@ -140,7 +191,7 @@ def main():
         env["LUNAR_PORT_OFFSET"] = "20000"
     run("go", "test", "./...", cwd=ROOT / "server", env=env)
     _utf8_console()
-    build_android(args, env, python, patched_master, sdk, release)
+    build_android(args, env, python, patched_master, sdk, release, profile)
 
 
 if __name__ == "__main__":

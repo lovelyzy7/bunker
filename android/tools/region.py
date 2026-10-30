@@ -19,24 +19,53 @@ EN_PACKAGE = "com.square_enix.android_googleplay.nierspww"
 JP_PACKAGE = "com.square_enix.android_googleplay.nierspjp"
 
 # The package names the game uses, in the order the build tries them.
+# Call-face switch (BUNKER-ADAPT-PLAN §1.7.2 #1/#2): the patchers are the
+# lunar-scripts-zh dual front-ends (jp-client / en-client). The original
+# lunar-scripts(-jp) checkouts stay pinned for provenance with zero call sites.
+# Key selection (§8.2) and product naming (§9.1) live here so every build entry
+# point derives them from the same detection. zh_client.dispatch() cross-checks
+# these facts against lunar-scripts-zh/shared/detect_client.py and refuses on
+# any disagreement.
 REGIONS = {
     "en": {
         "name": "全球服 (EN)",
         "package": EN_PACKAGE,
-        # The upstream patcher, present in every lunar-scripts checkout.
-        "patcher": "upstream/lunar-scripts/android/patch_apk.py",
+        # lib/arm64-v8a/libil2cpp.so 3.7.1 文件大小。display_patch.c detect_client
+        # 与 lunar-scripts-zh/shared/detect_client.py 同一套 JP/EN 事实表：
+        # 包名 / 清单 org.veritr1x.bunker.REGION meta / 本三元组 与 so 大小交叉
+        # 核对选 RVA 表，不一致 fail-fast 拒补丁。
+        "libil2cpp_size": 127359872,
+        # The upstream patcher: lunar-scripts-zh en-client (was lunar-scripts).
+        "patcher": "upstream/lunar-scripts-zh/en-client/patches/patch_apk_en.py",
         # The 3.7.1 release this build's offsets were read from. A different
         # build is refused unless the caller allows it: its metadata offsets
         # move, and the patched metadata would corrupt the game.
         "size": 263571029,
         "sha256": "9ded0797ee607b6892b531ba3a02f4c4510774f5fe098ccada78ccff881c9209",
+        # Product naming contract (§9.1): auto-named from the detection.
+        "product": "nier-en.apk",
+        "client": "en-client",
+        # Signing key auto-selection (§8.2), relative to lunar-scripts-zh/.
+        "keystore": "en-client/keys/nier-en.keystore",
+        "key_alias": "androiddebugkey",
+        "key_pass": "android",
+        "cert_sha256": "7d792c3cfefd73223764206edebd9526618638ff152165df5fbecd356aa4a173",
     },
     "jp": {
         "name": "日服 (JP)",
         "package": JP_PACKAGE,
-        "patcher": "upstream/lunar-scripts-jp/android/patch_apk_jp.py",
+        # lib/arm64-v8a/libil2cpp.so 3.7.1 文件大小（同上，双表同源）。
+        "libil2cpp_size": 126216336,
+        # The upstream patcher: lunar-scripts-zh jp-client (was lunar-scripts-jp).
+        "patcher": "upstream/lunar-scripts-zh/jp-client/patches/patch_apk_jp.py",
         "size": 254131762,
         "sha256": "25b6326c610290dd1f581fc3b41e60efb1126172aae45804d5345caa0b653609",
+        "product": "nier-jp.apk",
+        "client": "jp-client",
+        "keystore": "jp-client/keys/nier-jp.keystore",
+        "key_alias": "nier",
+        "key_pass": "lunar-jp",
+        "cert_sha256": "eec23be0cb205c401791be3d4b82e8851560f5c2aed3ec644166093d3d98a2fe",
     },
 }
 

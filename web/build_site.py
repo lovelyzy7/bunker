@@ -19,6 +19,13 @@ import sys
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
+# §1.7.2 #8: the packaging list ships the lunar-scripts-zh dual front-ends and
+# the master-data builder (plus the thin adapter and the dispatch/sidecar
+# helpers) instead of the original lunar-scripts(-jp) patchers. Paths keep the
+# upstream/lunar-scripts-zh/... mount layout, so the in-page copy lands where
+# the redirect table's call sites expect it.
+# 汉化层（F2/F3）：fix3 权威表 + 上游 fix3 映射面 + 字体 payload 四条目（双客户端）
+# + L6 验证门，随站点离线可用；modmenu 走 bundles/modmenu.zip（既有）。
 PYTHON = [
     "LICENSE",
     "web/webbuild.py",
@@ -29,11 +36,42 @@ PYTHON = [
     "android/tools/command.py",
     "android/tools/package_game.py",
     "android/tools/region.py",
-    "upstream/lunar-scripts/android/patch_apk.py",
-    "upstream/lunar-scripts-jp/android/patch_apk_jp.py",
-    "upstream/lunar-scripts/patch_masterdata.py",
+    "android/tools/zh_client.py",
+    "android/tools/patch_masterdata_zh.py",
+    "android/tools/fix3_zh.py",
+    "android/tools/verify_gate_zh.py",
+    # fix4 数据面（EN 两态纯化；fix4_orig_en_values 复制 + NT_KO_TRANSLATIONS 表导出）
+    "android/tools/fix4_orig_en_values.json",
+    "android/tools/fix4_nt_ko_translations.json",
+    "upstream/lunar-scripts-zh/en-client/patches/patch_apk_en.py",
+    "upstream/lunar-scripts-zh/jp-client/patches/patch_apk_jp.py",
+    "upstream/lunar-scripts-zh/jp-client/build_bin_e.py",
+    "upstream/lunar-scripts-zh/jp-client/bin-edit.default.json",
+    # fix3 权威表 + 上游 fix3 步骤（映射构建/ metadata 原地替换的纯函数面）
+    "upstream/lunar-scripts-zh/jp-client/fix3/builtin_strings.json",
+    "upstream/lunar-scripts-zh/jp-client/fix3/patch_fix3.py",
+    "upstream/lunar-scripts-zh/en-client/patch_fix3_en.py",
+    "upstream/lunar-scripts-zh/en-client/patch_fix3_ko.py",
+    "upstream/lunar-scripts-zh/en-client/patch_fix3l.py",
+    "upstream/lunar-scripts-zh/shared/detect_client.py",
+    "upstream/lunar-scripts-zh/shared/manifest_sidecar.py",
+    # L6 验证门（断言目录/执行器，bunker 侧 verify_gate_zh 装载）
+    "upstream/lunar-scripts-zh/shared/gate_defs.py",
+    "upstream/lunar-scripts-zh/shared/verify_gate.py",
     "web/signing/bunker-key.pem",
     "web/signing/bunker-cert.der",
+    "web/signing/nier-en-key.pem",
+    "web/signing/nier-en-cert.der",
+]
+# 字体 payload 四条目 × 双客户端（jp=payload2 / en=payload3 Hangul 版；sha 断言
+# = gate_defs.FONTS_ZH_{JP,EN}）。路径与 fix3_zh.font_payload_entries 同面。
+FONT_PAYLOADS = [
+    f"upstream/lunar-scripts-zh/{client}-client/fonts/payload/assets/bin/Data/{name}"
+    for client in ("jp", "en")
+    for name in ("6f937efa0660c47f59d5215d276b1cbb",
+                 "7089ac60979c94824ac549baab08cfa7",
+                 "ad1489eb70ff840d19d7d0841bcdd3a9",
+                 "550e0743a6b6344cfa3380b9a07f58b6")
 ]
 PAGES_LIMIT = 100 * 1024 * 1024  # GitHub Pages refuses larger files.
 # A fixed timestamp inside the zips: the same inputs must give the same bytes,
@@ -130,11 +168,12 @@ def main():
     for name in ("index.html", "app.js", "worker.js", "sw.js"):
         shutil.copy2(ROOT / "web" / name, out / name)
     shutil.copy2(ROOT / "web/signing/bunker-key.p12", out / "bunker-key.p12")
-    for name in PYTHON:
+    # 代码面 + 字体 payload 同一清单进 /repo（Pyodide 挂载位与调用面一致）。
+    for name in PYTHON + FONT_PAYLOADS:
         target = out / "py" / name
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / name, target)
-    (out / "py/manifest.json").write_text(json.dumps(PYTHON), encoding="utf-8")
+    (out / "py/manifest.json").write_text(json.dumps(PYTHON + FONT_PAYLOADS), encoding="utf-8")
     if args.launcher_zip:
         shutil.copy2(args.launcher_zip, out / "bundles/android.zip")
     else:
@@ -173,6 +212,28 @@ def main():
     if (out / "bundles/modmenu.zip").exists():
         mirrors["modmenu"] = source(out / "bundles/modmenu.zip", ["bundles/modmenu.zip"])
         mirrors["modmenuGithub"] = f"https://github.com/{REPO}/releases/download/v{version}/modmenu.zip"
+    # Every prebuilt payload file (builder sources, fix3 tables, font payloads)
+    # may also come through a GitHub proxy: its raw home plus the digest the
+    # worker checks before trusting the copy. Prefix order matters: the longest
+    # match wins.
+    raw_homes = [
+        ("upstream/lunar-scripts-zh/", "https://raw.githubusercontent.com/lovelyzy7/lunar-scripts-zh/main/"),
+        ("", f"https://raw.githubusercontent.com/{REPO}/main/"),
+    ]
+    files = {}
+    manifest_path = out / "py" / "manifest.json"
+    if manifest_path.is_file():
+        for name in json.loads(manifest_path.read_text(encoding="utf-8")):
+            path = out / "py" / name
+            if not path.is_file():
+                continue
+            home = next((base + name[len(prefix):] for prefix, base in raw_homes
+                         if name.startswith(prefix)), None)
+            if home:
+                files[name] = {"sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                               "github": home}
+    if files:
+        mirrors["files"] = files
     (out / "mirrors.json").write_text(json.dumps(mirrors), encoding="utf-8")
     for path in out.rglob("*"):
         if path.is_file() and path.stat().st_size > PAGES_LIMIT:

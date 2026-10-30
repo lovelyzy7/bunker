@@ -13,3 +13,22 @@
 [submodule "upstream/lunar-tear-masterdata-patcher"]
 	path = upstream/lunar-tear-masterdata-patcher
 	url = https://github.com/NavHobbyDev/lunar-tear-masterdata-patcher.git
+
+# ---- lunar-scripts-zh：路径引用/目录登记（非 gitlink，BUNKER-ADAPT-PLAN §2）----
+# lunar-scripts-zh 是本地目录（E:\NieRReincarnation\lunar-scripts-zh），暂未 git init，
+# 因此不走 [submodule] 条目（写入 submodule.* 会被 git submodule 命令当作可初始化的
+# gitlink 处理并失败）。登记形态 = 本节（upstream-local）+ upstream.lock.json 的
+# kind=directory 条目，两者与 5 个 submodule 同一账本：
+#   * pin 方式：upstream.lock.json 记录调用面契约文件集的 sha256 摘要（commit pin 的
+#     等价物），prepare.py 预检时重算校验；变更即 bump（等价于 bump commit pin）；
+#   * 挂载点：upstream/lunar-scripts-zh = 指向 location 的目录联接（junction），
+#     即 §2.2 挂载布局中的替换式挂载位；见 .gitignore 对该挂载位的忽略说明；
+#   * 衔接：zh 将来 init 为 git 仓后，把本节改回 [submodule "upstream/lunar-scripts-zh"]
+#     （url + path），lock 条目改 "git": true + commit pin，即无缝回归 submodule 纪律；
+#   * 纪律不变：禁止 git submodule update --remote；更新走 fetch/checkout <tag> +
+#     bump lock + MANIFEST 重生成 + 冒烟（§2.5）。
+[upstream-local "upstream/lunar-scripts-zh"]
+	path = upstream/lunar-scripts-zh
+	location = E:/NieRReincarnation/lunar-scripts-zh
+	pin = upstream.lock.json#lunar-scripts-zh
+	update = none

@@ -6,7 +6,8 @@
 
 Unlike package_game.py, this needs no apktool, Android SDK or Java, so it can
 also run in a browser. It patches the game library and metadata with the
-pinned lunar-scripts code, edits the compiled manifest, appends the launcher
+pinned lunar-scripts-zh code (dual front-ends jp-client/en-client, selected by
+the client auto-dispatch), edits the compiled manifest, appends the launcher
 and server from the companion APK, and writes an unsigned, aligned APK.
 Sign the result yourself, for example with apksigner or uber-apk-signer.
 
@@ -32,17 +33,30 @@ import zlib
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import axml  # noqa: E402
 import build_info  # noqa: E402
+import fix3_zh  # noqa: E402
 import region  # noqa: E402
 from axml import Attr, Element  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
-SCRIPTS = ROOT / "upstream/lunar-scripts"
-SCRIPTS_JP = ROOT / "upstream/lunar-scripts-jp"
+# Call-face switch (BUNKER-ADAPT-PLAN §1.7.2 #5/#6/#7): the in-process patchers
+# and the master-data editor are the lunar-scripts-zh dual front-ends. The
+# original lunar-scripts(-jp) checkouts stay pinned for provenance with zero
+# call sites. The master-data call goes through the thin adapter
+# android/tools/patch_masterdata_zh.py (old --input/--output contract ->
+# zh jp-client/build_bin_e.py), which keeps build_bin_e's semantics untouched.
+ZH = ROOT / "upstream/lunar-scripts-zh"
+PATCH_EN = ZH / "en-client/patches/patch_apk_en.py"
+PATCH_JP = ZH / "jp-client/patches/patch_apk_jp.py"
+PATCH_MASTER = ROOT / "android/tools/patch_masterdata_zh.py"
 GRPC, HTTP = "127.0.0.1:8003", "127.0.0.1:8080"
 
 
 def addresses(port_offset=0):
-    """The game's loopback addresses, moved by the build's port offset."""
+    """The game's server addresses, moved by the build's port offset.
+
+    The endpoint is fixed at 127.0.0.1: the server runs on the device itself,
+    so no build parameter can point the game at another machine.
+    """
     if not 0 <= port_offset <= 65535 - 8080:
         raise ValueError(f"Port offset must be 0–{65535 - 8080}")
     return f"127.0.0.1:{8003 + port_offset}", f"127.0.0.1:{8080 + port_offset}"
@@ -107,14 +121,16 @@ def patch_game_files(archive, work, port_offset=0):
     # on the binary manifest below instead.
     (work / "AndroidManifest.xml").write_text("<application >")
     grpc, http = addresses(port_offset)
-    run_cli(load("patch_apk", SCRIPTS / "android/patch_apk.py"), work, "--grpc-addr", grpc, "--http-addr", http)
+    host, _port = grpc.rsplit(":", 1)
+    run_cli(load("patch_apk_en", PATCH_EN), work, "--grpc-addr", grpc, "--http-addr", http,
+            "--auth-host", f"{host}:{3000 + int(port_offset)}")
     load("package_game", ROOT / "android/tools/package_game.py").patch_local_reachability(work)
     return lib, metadata
 
 
 def patch_game_files_jp(archive, work, port_offset=0):
     """The 日服 (JP) library, metadata and network_config patches, without the smali."""
-    jp = load("patch_apk_jp", SCRIPTS_JP / "android/patch_apk_jp.py")
+    jp = load("patch_apk_jp", PATCH_JP)
     grpc, http = addresses(port_offset)
     host, port = grpc.rsplit(":", 1)
     web = f"http://{http}"
@@ -145,7 +161,7 @@ def patch_master(original):
     with tempfile.TemporaryDirectory() as work:
         source, target = Path(work) / "in.bin.e", Path(work) / "out.bin.e"
         source.write_bytes(original)
-        run_cli(load("patch_masterdata", SCRIPTS / "patch_masterdata.py"), "--input", source, "--output", target)
+        run_cli(load("patch_masterdata_zh", PATCH_MASTER), "--input", source, "--output", target)
         return target.read_bytes()
 
 
@@ -182,10 +198,12 @@ def patch_manifest(game_manifest, companion_manifest, port_offset=0, menu=False,
                     app.children.remove(child)
     # The launcher replaces the game's launcher entry and opens the game itself.
     game_activity = None
+    stripped = []   # (activity, intent-filter, index), restored only if nothing else launches
     for activity in app.find_all("activity") + app.find_all("activity-alias"):
         for intent in activity.find_all("intent-filter"):
             if any(c.get("name") and c.get("name").raw == "android.intent.category.LAUNCHER" for c in intent.find_all("category")):
                 game_activity = activity.get("name").raw
+                stripped.append((activity, intent, activity.children.index(intent)))
                 activity.children.remove(intent)
     if not game_activity:
         raise RuntimeError("Cannot find the game's launcher activity")
@@ -226,6 +244,19 @@ def patch_manifest(game_manifest, companion_manifest, port_offset=0, menu=False,
             if source.name == "provider":  # Authorities are unique per device: use the game's.
                 source.set(Attr.string("authorities", package + ".lunar_loopback", AUTHORITIES))
             app.children.append(source)
+    # A minimal companion has no launcher activity of its own: with the game's
+    # filter stripped the product would carry no MAIN/LAUNCHER entry at all and
+    # could not be started from the desktop (its manifest counted 0 against the
+    # original game's 2). When no companion node took over the launch, put the
+    # just-stripped game filter back as the fallback entry; a real companion's
+    # launcher keeps the replacement above unchanged. find_all only sees direct
+    # children, so walk the whole application subtree (iter()) for the check.
+    if not any(e.name == "intent-filter"
+               and any(c.get("name") and c.get("name").raw == "android.intent.category.LAUNCHER"
+                       for c in e.find_all("category"))
+               for e in app.iter()):
+        for activity, intent, index in reversed(stripped):
+            activity.children.insert(index, intent)
     return axml.serialize(doc), game_activity
 
 
@@ -320,25 +351,52 @@ class ApkWriter:
         self.out.write(struct.pack("<IHHHHIIH", 0x06054B50, 0, 0, count, count, end - directory, directory, 0))
 
 
-def assemble(apk, master, companion_apk, output, log=print, port_offset=0, menu=None):
-    """Build the APK. menu=(dex files, libniermenu.so) adds the Mod Menu."""
+def assemble(apk, master, companion_apk, output, log=print, port_offset=0, menu=None,
+             strict_detection=True, profile=None):
+    """Build the APK. menu=(dex files, libniermenu.so) adds the Mod Menu.
+
+    strict_detection=True runs the full client dispatch gate (package + triple
+    hard assert + bunker/zh consistency, fail-fast). False is only for the web
+    builder's documented --skip-checks override (split-APK bundles): the
+    package-level consistency check still applies. profile is an optional
+    dispatch result from zh_client.dispatch() (avoids re-hashing a 250 MB APK
+    when the caller already ran the gate).
+    """
     work = Path(tempfile.mkdtemp(prefix="bunker-"))
     try:
-        return _assemble(Path(apk), Path(master), Path(companion_apk), Path(output), work, log, port_offset, menu)
+        built = _assemble(Path(apk), Path(master), Path(companion_apk), Path(output), work,
+                          log, port_offset, menu, strict_detection, profile)
     finally:
         shutil.rmtree(work, ignore_errors=True)
+    # L6 产物验证门（assemble 期，产物未签名 → 证书断言在 webbuild 签名后门）：
+    # region 匹配 / RVA 表按客户端选对 / 字体四条目完整性 / fix3（optional）/
+    # 内嵌 master 文件名不变 + 文本表结构。断言定义与报告口径 = lunar-scripts-zh
+    # shared/gate_defs.py（nier-verify-gate/v1）；失败 fail-fast。
+    import verify_gate_zh
+    gate = verify_gate_zh.product_gate(Path(output), bin_e=None,
+                                       client=profile["region"],
+                                       product_class="pre-sign",
+                                       raise_on_fail=True)
+    if isinstance(built, dict):
+        built["l6_gate"] = gate.to_dict()
+    return built
 
 
-def _assemble(apk, master, companion_apk, output, work, log, port_offset, menu):
+def _assemble(apk, master, companion_apk, output, work, log, port_offset, menu,
+              strict_detection=True, profile=None):
+    # Client auto-dispatch + consistency gate (§1.7.2 任务项 3): bunker's own
+    # region.py detection and lunar-scripts-zh detect_client must agree, else
+    # SystemExit; the profile selects the zh patch face, key and product name.
+    import zh_client
+    if profile is None:
+        profile = zh_client.dispatch(apk, strict=strict_detection)
+    release = profile["region"]
     with zipfile.ZipFile(apk) as game, zipfile.ZipFile(companion_apk) as companion, open(apk, "rb") as raw:
         names = set(game.namelist())
         for required in ("AndroidManifest.xml", LIB, METADATA, "resources.arsc"):
             if required not in names:
                 raise RuntimeError(f"Not the ARM64 game APK: {required} is missing")
         package = axml.parse(game.read("AndroidManifest.xml")).root.get("package", ns=None).raw
-        release = region.region_for_package(package)
-        if release is None:
-            raise RuntimeError(f"Not a game this build accepts: {package} ({', '.join(i['package'] for i in region.REGIONS.values())})")
         if release == "jp" and NETWORK_CONFIG not in names:
             raise RuntimeError(f"Not the 日服 (JP) game APK: {NETWORK_CONFIG} is missing")
         log("Patching the game library and metadata…")
@@ -346,6 +404,27 @@ def _assemble(apk, master, companion_apk, output, work, log, port_offset, menu):
             lib, metadata, network_config = patch_game_files_jp(game, work, port_offset)
         else:
             lib, metadata = patch_game_files(game, work, port_offset)
+        # fix3 内置串 + 字体 payload（lunar-scripts-zh 汉化阶段的纯移植；顺序同
+        # jp-client 流水线：私服补丁 → fix3 → 字体 → modmenu）。fix3 就地改
+        # metadata 保证上面已写入的服务器地址不被覆盖。
+        zh = fix3_zh.zh_root_of(ROOT)
+        log("Applying the fix3 built-in strings…")
+        ta_names = fix3_zh.ta_entries(release)
+        for name in ta_names:
+            extract(game, name, work / name)
+        fix3_report = fix3_zh.apply_fix3_workdir(release, work, zh)
+        stage_counts = [(stage["stage"], stage["changed_count"])
+                        for f in fix3_report["files"].values()
+                        for stage in (f.get("stages") or [])]
+        fix3_lines = sum(n for stage, n in stage_counts if not stage.startswith("fix4"))
+        fix4_lines = sum(n for stage, n in stage_counts if stage.startswith("fix4"))
+        log(f"  fix3: {len(ta_names)} text tables + metadata patched ({fix3_lines} lines).")
+        if release != "jp":
+            # fix4 两态纯化（EN=fix4 态：EN 段 81 键还原 + ko nt 67 键翻译；JP 无此阶段）
+            log(f"  fix4: en restore + ko nt translate ({fix4_lines} lines).")
+        log("Writing the font payload…")
+        fonts = fix3_zh.font_payload_entries(release, zh)
+        log(f"  fonts: {len(fonts)} entries (sha asserted against the payload).")
         log("Updating the manifest…")
         manifest, game_activity = patch_manifest(game.read("AndroidManifest.xml"),
                                                  companion.read("AndroidManifest.xml"),
@@ -356,6 +435,9 @@ def _assemble(apk, master, companion_apk, output, work, log, port_offset, menu):
         replaced = {"AndroidManifest.xml": manifest, LIB: lib, METADATA: metadata}
         if release == "jp":
             replaced[NETWORK_CONFIG] = network_config
+        # fix3 文本表与字体 payload 直接以文件路径进替换面（大文件不进内存）。
+        replaced.update({name: work / name for name in ta_names})
+        replaced.update(fonts)
         dex = [n for n in names if re.fullmatch(r"classes\d*\.dex", n)]
         next_dex = max(int(n[7:-4] or 1) for n in dex) + 1
         temporary = Path(str(output) + ".partial")
@@ -411,9 +493,17 @@ def _assemble(apk, master, companion_apk, output, work, log, port_offset, menu):
             log("Finalizing the archive…")
             writer.close()
         os.replace(temporary, output)
-    return {"activity": game_activity, "region": release, "name": region.REGIONS[release]["name"],
-            "package": package, "version": info["version"], "modMenu": bool(menu),
-            "portOffset": int(port_offset), "size": Path(output).stat().st_size}
+    built = {"activity": game_activity, "region": release, "name": region.REGIONS[release]["name"],
+             "package": package, "version": info["version"], "modMenu": bool(menu),
+             "portOffset": int(port_offset), "size": Path(output).stat().st_size,
+             "product_name": profile["product_name"], "cert_sha256_expected": profile["cert_sha256"],
+             "fix3_strings": {"lines_patched": fix3_lines,
+                              "tables": sorted(ta_names), "ok": True},
+             "font_payload": {"entries": sorted(fonts), "count": len(fonts), "ok": True}}
+    if release != "jp":
+        # fix4 两态纯化计数（JP=fix3 终态，无 fix4 概念，不带该字段）
+        built["fix4_strings"] = {"lines_patched": fix4_lines, "ok": True}
+    return built
 
 
 def update(installed_apk, companion_apk, output, log=print):
