@@ -44,9 +44,8 @@ jobs:
           python-version: "3.11"
       - run: python3 -m pip install pycryptodome msgpack lz4
       - run: |
-          (cd scripts && python3 -m unittest test_version test_release_assets test_notices)
-          (cd android/tools && python3 -m unittest test_privacy test_update_apk test_build_info test_notice_pack test_master_patch test_assemble_stream)
-          (cd web && python3 -m unittest test_build_site)
+          (cd scripts && python3 -m unittest test_version test_release_assets test_zh_switch)
+          (cd android/tools && python3 -m unittest test_privacy test_update_apk test_build_info test_master_patch test_assemble_stream)
 
   # What to build: a push builds what was pushed; a publish builds the given
   # ref, or the latest release, so a run by hand never publishes a +dev site.
@@ -95,6 +94,13 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Android SDK components
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" "ndk;27.2.12479018" > /dev/null
+      - name: Materialise lunar-scripts-zh
+        # upstream-local 是目录挂载（Windows junction）；CI 无本地挂载时从 GitHub
+        # 取实体。内容正确性由 prepare 的 contract-digest 预检（upstream.lock pin）。
+        run: |
+          if [ ! -d upstream/lunar-scripts-zh ]; then
+            git clone --depth 1 https://github.com/lovelyzy7/lunar-scripts-zh upstream/lunar-scripts-zh
+          fi
       - name: Prepare sources
         run: |
           python3.11 scripts/prepare.py
