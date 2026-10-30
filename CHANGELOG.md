@@ -1,8 +1,27 @@
-﻿# Changelog
+# Changelog
 
 What changed in Bunker, newest first. Each day lists its changes by area.
 Commit ids are in brackets. Each release's heading sits above the dated
 sections it contains; its notes run down to the previous release.
+
+## 1.3.1 (2026-10-30)
+
+The web builder downloads its runtime sources as one small archive and
+fetches only the game's own font payload, and a product built in the
+browser installs again: the piecewise delivery copied the wrong bytes
+from the runtime's shared buffer.
+
+## 2026-10-30
+
+### Web builder
+- The "Prepare runtime" step fetches one sources archive instead of 40
+  separate files. [e0293f9]
+- The font payload is fetched per client at build time (jp or en only),
+  not both up front; the service worker keeps it for later builds.
+- Fixed: a build finished in the browser delivered an APK that Android
+  rejected as corrupt. Each piece was copied from the whole runtime
+  buffer instead of its own window; the on-disk product and its
+  signatures were never affected.
 
 ## 1.3.5 (2026-10-27)
 

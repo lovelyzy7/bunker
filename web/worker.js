@@ -488,9 +488,12 @@ async function build(data) {
     // The APK comes out in pieces as it is written; it is never held whole here.
     const pieces = new Pieces();
     const handOver = (piece) => {
-      const buffer = piece.getBuffer("u8");
-      pieces.add(buffer.data.slice());
-      buffer.release();
+      // getBuffer().data is the whole backing ArrayBuffer (the WASM heap); the
+      // piece itself is the byteOffset..byteLength window. Slice that window —
+      // copying .data whole corrupts the reassembled APK.
+      const view = piece.getBuffer("u8");
+      pieces.add(new Uint8Array(view.data, view.byteOffset, view.byteLength).slice());
+      view.release();
       piece.destroy();
     };
     const built = builder.build_android(gamePath, masterPath, "/bundles/android.zip", undefined, log,
