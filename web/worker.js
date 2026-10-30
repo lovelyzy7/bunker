@@ -16,8 +16,6 @@ let sources = null;    // mirrors.json: {bundle: {urls, sha256}, modmenu: {...}}
 let ready = null;      // promise of the loaded Pyodide instance
 const post = (type, value) => self.postMessage({ type, value });
 
-const CHUNK = 8 << 20;   // Read the finished APK in 8 MB pieces; a 300 MB Uint8Array is a lot to hold twice.
-
 /** fetch with a deadline, for hosts that accept the connection and then hang. */
 function timed(url, options, ms) {
   if (!ms) return fetch(url, options);
@@ -324,20 +322,17 @@ async function forget(url) {
   }
 }
 
-/** A Blob for the finished APK, built piece by piece so the page never sees a second copy. */
-function readBlob(FS, path, size) {
-  const parts = [];
-  const fd = FS.open(path, "r");
-  try {
-    for (let position = 0; position < size; position += CHUNK) {
-      const part = new Uint8Array(Math.min(CHUNK, size - position));
-      FS.read(fd, part, 0, part.length, position);
-      parts.push(part);
-    }
-  } finally {
-    FS.close(fd);
+// The finished file goes to the page as a Blob built from pieces, so it is never
+// held whole twice: browsers can keep a large Blob out of the page's memory.
+class Pieces {
+  constructor() { this.blob = new Blob([]); this.pending = []; this.size = 0; }
+  add(bytes) {
+    this.pending.push(bytes);
+    this.size += bytes.length;
+    if (this.pending.length >= 8) this.fold();
   }
-  return new Blob(parts, { type: "application/vnd.android.package-archive" });
+  fold() { this.blob = new Blob([this.blob, ...this.pending], { type: "application/octet-stream" }); this.pending = []; }
+  done() { this.fold(); return this.blob; }
 }
 
 function writeFile(pyodide, path, bytes) {
@@ -484,19 +479,22 @@ async function build(data) {
       payload = "/bundles/modmenu.zip";
     }
     // Product naming contract (§9.1): the Python side names the product from
-    // the client detection (nier-jp.apk / nier-en.apk) and returns its path.
-    FS.mkdirTree("/output");
+    // the client detection (nier-jp.apk / nier-en.apk) and returns its name.
+    // The APK comes out in pieces as it is written; it is never held whole here.
+    const pieces = new Pieces();
+    const handOver = (piece) => {
+      const buffer = piece.getBuffer("u8");
+      pieces.add(buffer.data.slice());
+      buffer.release();
+      piece.destroy();
+    };
     const built = builder.build_android(gamePath, masterPath, "/bundles/android.zip", undefined, log,
-                                        portOffset, payload, verify);
+                                        portOffset, payload, verify, handOver);
     const info = built && built.toJs ? built.toJs({ dict_converter: Object.fromEntries }) : {};
     if (built && built.destroy) built.destroy();
-    const productPath = info.product_path || "/output/bunker.apk";
-    const productName = info.product_name || "bunker.apk";
-    const blob = readBlob(FS, productPath, FS.stat(productPath).size);
+    const blob = pieces.done();
     // info.sha256 comes from the signing pass; the finished APK is not hashed again.
-    post("done", { name: productName, blob, info: { ...info, source: usedSource } });
-    FS.unlink(productPath);
-    if (info.sidecar) FS.unlink(info.sidecar);
+    post("done", { name: info.product_name || "bunker.apk", blob, info: { ...info, source: usedSource } });
     for (const name of FS.readdir("/bundles")) if (name !== "." && name !== "..") FS.unlink("/bundles/" + name);
   } catch (error) {
     post("error", String(error.message || error).split("\n").filter(Boolean).slice(-3).join("\n"));

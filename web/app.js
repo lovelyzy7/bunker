@@ -647,14 +647,14 @@ const ZH = {
   "Bunker · Lunar Tear builder": "Bunker · Lunar Tear 构建器",
   "The original master data,": "原版主数据，",
   "NOT CHOSEN": "未选择",
-  "The game talks to its server on this device through ports 8003, 8080 and 3000. If another app already uses one of them, the launcher says so. An offset moves all three, for example 30000 gives 38003, 38080 and 33000. Leave it at 0 unless you need it, and use the same offset for updates.": "游戏在本机通过 8003、8080、3000 三个端口连接服务器。如果其中某个端口已被其他应用占用，启动器会提示。设置偏移可一次性移动这三个端口，例如 30000 会得到 38003、38080、33000。除非确有需要，请保持 0，并在更新时沿用同一偏移。",
+  "The game talks to its server on this device through ports 8003, 8080 and 3000. If another app already uses one of them, the launcher tells you. An offset moves all three. For example, 30000 gives 38003, 38080 and 33000. Leave it at 0 unless you need it, and use the same offset for updates.": "游戏在本机通过 8003、8080、3000 三个端口连接服务器。如果其中某个端口已被其他应用占用，启动器会提示。设置偏移可一次性移动这三个端口，例如 30000 会得到 38003、38080、33000。除非确有需要，请保持 0，并在更新时沿用同一偏移。",
   " password and alias ": "，密码与别名 ",
-  ") to sign your own builds the same way. The key is public: to keep anyone else's build from installing over yours, sign with a key of your own instead.": "）以便用同样方式签名你自己的构建。该密钥是公开的：若不想让别人构建的包覆盖你的，请改用自己的密钥。",
+  ") to sign your own builds the same way. The key is public, so anyone's build can install over yours. To prevent this, sign with a key of your own instead.": "）以便用同样方式签名你自己的构建。该密钥是公开的，所以任何人都可以构建覆盖你的包。若要防止这一点，请改用自己的密钥。",
   "Play on a Mac": "在 Mac 上运行",
   "Then copy the resource dump's": "然后，将资源包的",
-  "to the device and choose it in the Bunker; the app unpacks only the files the game uses. An extracted folder works too, as described in the": "复制到设备，并在「地堡」中选择它；应用只会解出游戏实际使用的文件。已解压的文件夹同样可用，详见",
+  "to the device and choose it in the Bunker. The app unpacks only the files the game uses. An extracted folder works too, as described in the": "复制到设备，并在「地堡」中选择它；应用只会解出游戏实际使用的文件。已解压的文件夹同样可用，详见",
   "guide": "指南",
-  ". The Android build made here leaves out the in-game Facebook account link; offline play, Pod Programs and save backups work.": "。此处构建的 Android 版本不含游戏内的 Facebook 账号绑定；离线游玩、Pod Programs 与存档备份均可使用。",
+  ". The Android build made here has no in-game Facebook account link. Offline play, Pod Programs and save backups work.": "。此处构建的 Android 版本没有游戏内的 Facebook 账号绑定。离线游玩、Pod Programs 与存档备份均可使用。",
   "the game server, by Walter-Sparrow": "游戏服务器，作者 Walter-Sparrow",
   "game and master-data patching, by Walter-Sparrow": "游戏与主数据补丁，作者 Walter-Sparrow",
   "the save editors in Pod Programs, by NMeliksah": "Pod Programs 的存档编辑器，作者 NMeliksah",
@@ -726,8 +726,21 @@ const ZH = {
   "The APK is signed and ready to install. Every APK built on this page is signed with the same public Bunker key, so a newer build installs over an older one and keeps your saves.":
     "APK 已签名，可直接安装。本页构建的每个 APK 都用同一把公开的 Bunker 密钥签名，因此新版本可覆盖旧版本安装并保留存档。",
   "Download the key": "下载密钥",
-  "to sign your own builds the same way. The key is public: to keep anyone else's build from installing over yours, sign with a key of your own instead.":
-    "以便用同样方式签名你自己的构建。该密钥是公开的：若不想让别人构建的包覆盖你的，请改用自己的密钥。",
+  "to sign your own builds the same way. The key is public, so anyone's build can install over yours. To prevent this, sign with a key of your own instead.":
+    "以便用同样方式签名你自己的构建。该密钥是公开的，所以任何人都可以构建覆盖你的包。若要防止这一点，请改用自己的密钥。",
+  // 0764eb1 的 Windows 段落（剔 iOS/Mac 句子；链接已改 lovelyzy7 仓库）
+  "The same APK runs on a Windows PC with an Intel or AMD processor, in Google's Android Emulator. Download":
+    "同一 APK 也能在使用 Intel 或 AMD 处理器的 Windows 电脑上运行，使用 Google 的 Android 模拟器。下载",
+  "from the": "（来自",
+  "latest release": "最新发布",
+  "and put it in one folder with the APK, named": "）；把它与名为",
+  ", and": " 的 APK 以及",
+  ". Turn on": " 放进同一个文件夹。接着在「Windows 功能」中启用",
+  "in Windows features, then double-click": "，然后双击",
+  ". The first start downloads about 2.3 GB from Google and copies the game files in. Open the launcher with Ctrl+B and move with WASD. See":
+    "。首次启动会从 Google 下载约 2.3 GB，并把游戏文件拷入。按 Ctrl+B 打开启动器，用 WASD 移动。详见",
+  "Play on Windows": "在 Windows 上运行",
+  ".": "。",
   "Build failed: ": "构建失败：",
   "Choose the game file and the master data first.": "请先选择游戏文件与主数据。",
   "Choose two different files.": "请选择两个不同的文件。",

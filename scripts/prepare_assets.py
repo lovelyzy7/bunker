@@ -28,7 +28,7 @@ def prepare_assets(source, output):
     for info in revision.rglob("info.json"):
         aliases = json.loads(info.read_text())
         if any(str(item.get("to-revision", 0)) != "0" for item in aliases):
-            raise ValueError(f"{info} refers to another revision; this dump needs separate preparation")
+            raise ValueError(f"{info} points to another revision. This tool copies only revision 0, so it cannot prepare this dump")
     output = output.resolve()
     if output == source or source in output.parents:
         raise ValueError("Choose an output outside the extracted source")

@@ -34,6 +34,10 @@ PYTHON = [
     "android/tools/assemble_apk.py",
     "android/tools/build_info.py",
     "android/tools/command.py",
+    # 962eb57 安卓遥测扩展：privacy 接线随 assemble_apk（模块级 import privacy）
+    # 与 telemetry_patches.json 一起进站点清单。
+    "android/tools/privacy.py",
+    "android/tools/telemetry_patches.json",
     "android/tools/package_game.py",
     "android/tools/region.py",
     "android/tools/zh_client.py",

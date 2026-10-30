@@ -13,6 +13,8 @@
 [submodule "upstream/lunar-tear-masterdata-patcher"]
 	path = upstream/lunar-tear-masterdata-patcher
 	url = https://github.com/NavHobbyDev/lunar-tear-masterdata-patcher.git
+	# The builders load its patcher, which leaves __pycache__ behind.
+	ignore = untracked
 
 # ---- lunar-scripts-zh：路径引用/目录登记（非 gitlink，BUNKER-ADAPT-PLAN §2）----
 # lunar-scripts-zh 是本地目录（E:\NieRReincarnation\lunar-scripts-zh），暂未 git init，

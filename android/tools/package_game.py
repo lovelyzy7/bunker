@@ -13,12 +13,14 @@ import re
 import shutil
 import struct
 import subprocess
+import privacy
 import xml.etree.ElementTree as ET
 import zipfile
 
 import build_info
 import command
 import region
+from assemble_apk import SDK_PROVIDERS, SDK_SWITCHES, patch_unity_connect
 
 NS = "http://schemas.android.com/apk/res/android"
 ET.register_namespace("android", NS)
@@ -157,6 +159,12 @@ def main():
         region.region_for_package(package)
     if release is None: raise RuntimeError(f"Unknown game release for package {package}")
     patch_local_reachability(game)
+    settings=game/"assets/bin/Data/globalgamemanagers";settings.write_bytes(patch_unity_connect(settings.read_bytes()))
+    library = game / "lib/arm64-v8a/libil2cpp.so"
+    if release == "en":
+        privacy.patch_library_file(library)   # Global(EN) 专有站点表
+    else:
+        print("Telemetry sites are the Global client's; leaving this library unchanged.")
     old=app.find("meta-data[@"+attr("name")+"='org.veritr1x.bunker.GAME_ACTIVITY']")
     original=old.get(attr("value")) if old is not None else None
     for activity in list(app.findall("activity")):
@@ -192,6 +200,12 @@ def main():
             # Authorities are unique per device: use the game's, not the standalone companion's.
             if name=="provider":element.set(attr("authorities"),doc.get("package")+".lunar_loopback")
             app.append(element)
+    for provider in list(app.findall("provider")):
+        if provider.get(attr("name")) in SDK_PROVIDERS:app.remove(provider)
+    for name,on in SDK_SWITCHES:
+        meta=app.find("meta-data[@"+attr("name")+"='"+name+"']")
+        if meta is None:meta=ET.SubElement(app,"meta-data",{attr("name"):name})
+        meta.set(attr("value"),"true" if on else "false")
     ET.indent(tree,space="    ");tree.write(manifest,encoding="utf-8",xml_declaration=True)
     # The wrapper uses Android 9+ file APIs. Preserve the game's target SDK to
     # avoid changing Unity's behavior; raise only its minimum supported version.
@@ -207,6 +221,7 @@ def main():
         game_dex=sum(1 for n in game_apk.namelist() if re.fullmatch(r"classes\d*\.dex",n))
         (notices/"build.json").write_text(json.dumps(build_info.describe(source,game_dex,args.port_offset,release),indent=1))
         (notices/"game-manifest.xml").write_bytes(game_apk.read("AndroidManifest.xml"))
+    privacy.harden_text_manifest(manifest)
     unsigned=output.with_suffix(".unsigned.apk");merged=output.with_suffix(".merged.apk")
     run("apktool","b",game,"-o",unsigned)
     shutil.copyfile(unsigned,merged)

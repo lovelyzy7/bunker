@@ -28,6 +28,13 @@
 //   applies with any settings too.
 // - Text builder: ArtStringBuilder grows its buffer to fit long text instead of
 //   writing past its end (text_buffer.c). This one applies with any settings too.
+// - Remaining days: "{0}d" times stop at 999 days, so a campaign left open to
+//   2099 fits its badge (remain_days.c). Any setting.
+// - Guerrilla quests: the Force Unlock button shows only while the game data
+//   has an unlock valid now (guerrilla_unlock.c). Any setting.
+// - Story rooms: on screens wider than 19.5:9 the camera stops at the room's
+//   edge where the screen-edge walls do, so a story trigger there can be
+//   reached (camera_edge.c). Any setting.
 // - Snapping lists (the summon banners): DarkScrollRect.UpdateSnapPosition eases
 //   the list to the chosen row with SmoothDamp and counts it as there within
 //   0.01. Above 30 fps each frame's step is so small that, far down a long list,
@@ -57,6 +64,9 @@
 
 #include "roulette_ads.h"
 #include "text_buffer.h"
+#include "remain_days.h"
+#include "guerrilla_unlock.h"
+#include "camera_edge.h"
 
 enum { FullHD = 6, WQHD = 7, DeviceMax = 8 };
 
@@ -601,6 +611,12 @@ static const char *apply(int fps, int size, const char *declared_region,
 
     if (text_buffer_fix(base, write_word))
         __android_log_print(ANDROID_LOG_WARN, "Bunker", "Text builder: unsupported game binary; long texts can still overrun");
+    if (remain_days_cap(base, write_word))
+        __android_log_print(ANDROID_LOG_WARN, "Bunker", "Remaining days: unsupported game binary; open campaigns show their full day count");
+    if (camera_edge_fix(base, write_word))
+        __android_log_print(ANDROID_LOG_WARN, "Bunker", "Story rooms: unsupported game binary; on very wide screens the camera stops short of the room's edge");
+    if (guerrilla_unlock_button(base, hook))
+        __android_log_print(ANDROID_LOG_WARN, "Bunker", "Guerrilla quests: unsupported game binary; Force Unlock shows before it exists");
 
     const struct { uint32_t rva; const uint32_t *original; } hooks[] = {
         {rvas->hook_fixedprocess, kFixedProcessPrologue},

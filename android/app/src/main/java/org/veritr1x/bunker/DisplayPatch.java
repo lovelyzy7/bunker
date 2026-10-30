@@ -5,13 +5,24 @@ import android.app.Application;
 import android.content.Context;
 import android.hardware.display.DisplayManager;
 import android.os.Bundle;
+import android.view.ActionMode;
 import android.view.Display;
+import android.view.KeyEvent;
+import android.view.KeyboardShortcutGroup;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.MotionEvent;
+import android.view.SearchEvent;
+import android.view.View;
+import android.view.Window;
 import android.view.WindowManager;
+import android.view.accessibility.AccessibilityEvent;
 import android.util.Log;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.List;
 
 /**
  * Frame rate and resolution chosen in Pod Programs (android_display.py writes
@@ -29,6 +40,7 @@ final class DisplayPatch {
         File tools = new File(context.getFilesDir(), "tools");
         File status = new File(tools, "display.status");
         int fps = 0, size = 0;
+        boolean full = true;  // the game's own setting leaves a black bar beside the camera
         try {
             for (String line : Files.readAllLines(new File(tools, "display.conf").toPath(), StandardCharsets.UTF_8)) {
                 String[] pair = line.split("=", 2);
@@ -36,6 +48,7 @@ final class DisplayPatch {
                 String value = pair[1].trim();
                 if (pair[0].trim().equals("fps")) fps = frameRate(value, maxMode(context));
                 if (pair[0].trim().equals("resolution")) size = size(value);
+                if (pair[0].trim().equals("screen")) full = !value.equals("safe");
             }
         } catch (Exception missing) {
             // Never chosen: the game's own settings.
@@ -54,6 +67,7 @@ final class DisplayPatch {
         }
         if (!result.isEmpty()) Log.w("Bunker", "Display settings not applied: " + result);
         else if (fps > 0) requestRefreshRate(context, fps);
+        wrapWindows(context, full);
         if (fps == 0 && size == 0) {
             status.delete();  // Pod Programs reports on chosen settings only.
             return;
@@ -104,7 +118,17 @@ final class DisplayPatch {
             }
             @Override public void onActivityStarted(Activity activity) {}
             @Override public void onActivityResumed(Activity activity) {}
-            @Override public void onActivityPaused(Activity activity) {}
+            // Before the pause starts: the game can take seconds to pause, and
+            // its focus can come back before onActivityPaused would run.
+            @Override public void onActivityPrePaused(Activity activity) {
+                AudioResume.install();
+                AudioResume.paused();
+            }
+            @Override public void onActivityPaused(Activity activity) {
+                // Android 9 has no onActivityPrePaused.
+                AudioResume.install();
+                AudioResume.paused();
+            }
             @Override public void onActivityStopped(Activity activity) {}
             @Override public void onActivitySaveInstanceState(Activity activity, Bundle out) {}
             @Override public void onActivityDestroyed(Activity activity) {}
@@ -119,6 +143,92 @@ final class DisplayPatch {
             case "native": return 8;
             default: return 0;
         }
+    }
+
+    /**
+     * Wraps the callback of each of the game's windows, for the keyboard
+     * controls (Keyboard) and, when full is set, the screen area.
+     *
+     * The game was built without Unity's "render outside safe area", so in
+     * landscape Android leaves the camera cutout's whole edge black. Drawing
+     * there is a window setting, and Unity sets it back from its own setting
+     * once it starts, through Window.setAttributes. Every such change passes
+     * through the window's callback with the window's own attributes, so the
+     * callback restores short edges before the change reaches the screen.
+     */
+    private static void wrapWindows(Application app, boolean full) {
+        app.registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
+            @Override public void onActivityCreated(Activity activity, Bundle state) {}
+            @Override public void onActivityStarted(Activity activity) {
+                Window window = activity.getWindow();
+                if (window.getCallback() instanceof GameWindow) return;
+                window.setCallback(new GameWindow(window.getCallback(), activity, full));
+                if (full) window.setAttributes(window.getAttributes());
+            }
+            @Override public void onActivityResumed(Activity activity) {}
+            // Before the pause starts: the game can take seconds to pause, and
+            // its focus can come back before onActivityPaused would run.
+            @Override public void onActivityPrePaused(Activity activity) {
+                AudioResume.install();
+                AudioResume.paused();
+            }
+            @Override public void onActivityPaused(Activity activity) {
+                // Android 9 has no onActivityPrePaused.
+                AudioResume.install();
+                AudioResume.paused();
+            }
+            @Override public void onActivityStopped(Activity activity) {}
+            @Override public void onActivitySaveInstanceState(Activity activity, Bundle out) {}
+            @Override public void onActivityDestroyed(Activity activity) {}
+        });
+    }
+
+    /** The activity's window callback: keyboard controls, and the window around the camera cutout. */
+    private static final class GameWindow implements Window.Callback {
+        private final Window.Callback base;
+        private final boolean shortEdges;
+        private final Keyboard keyboard;
+        GameWindow(Window.Callback base, Activity activity, boolean shortEdges) {
+            this.base = base;
+            this.shortEdges = shortEdges;
+            this.keyboard = new Keyboard(activity, base);
+        }
+
+        @Override public void onWindowAttributesChanged(WindowManager.LayoutParams attrs) {
+            if (shortEdges) attrs.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            base.onWindowAttributesChanged(attrs);
+        }
+        @Override public boolean dispatchKeyEvent(KeyEvent event) { return keyboard.handle(event) || base.dispatchKeyEvent(event); }
+        @Override public boolean dispatchKeyShortcutEvent(KeyEvent event) { return base.dispatchKeyShortcutEvent(event); }
+        @Override public boolean dispatchTouchEvent(MotionEvent event) { return base.dispatchTouchEvent(event); }
+        @Override public boolean dispatchTrackballEvent(MotionEvent event) { return base.dispatchTrackballEvent(event); }
+        @Override public boolean dispatchGenericMotionEvent(MotionEvent event) { return base.dispatchGenericMotionEvent(event); }
+        @Override public boolean dispatchPopulateAccessibilityEvent(AccessibilityEvent event) { return base.dispatchPopulateAccessibilityEvent(event); }
+        @Override public View onCreatePanelView(int feature) { return base.onCreatePanelView(feature); }
+        @Override public boolean onCreatePanelMenu(int feature, Menu menu) { return base.onCreatePanelMenu(feature, menu); }
+        @Override public boolean onPreparePanel(int feature, View view, Menu menu) { return base.onPreparePanel(feature, view, menu); }
+        @Override public boolean onMenuOpened(int feature, Menu menu) { return base.onMenuOpened(feature, menu); }
+        @Override public boolean onMenuItemSelected(int feature, MenuItem item) { return base.onMenuItemSelected(feature, item); }
+        @Override public void onContentChanged() { base.onContentChanged(); }
+        @Override public void onWindowFocusChanged(boolean focused) {
+            if (!focused) keyboard.release();
+            else {
+                HostKeys.attach(keyboard);
+                AudioResume.install();
+            }
+            base.onWindowFocusChanged(focused);
+        }
+        @Override public void onAttachedToWindow() { base.onAttachedToWindow(); }
+        @Override public void onDetachedFromWindow() { base.onDetachedFromWindow(); }
+        @Override public void onPanelClosed(int feature, Menu menu) { base.onPanelClosed(feature, menu); }
+        @Override public boolean onSearchRequested() { return base.onSearchRequested(); }
+        @Override public boolean onSearchRequested(SearchEvent event) { return base.onSearchRequested(event); }
+        @Override public ActionMode onWindowStartingActionMode(ActionMode.Callback callback) { return base.onWindowStartingActionMode(callback); }
+        @Override public ActionMode onWindowStartingActionMode(ActionMode.Callback callback, int type) { return base.onWindowStartingActionMode(callback, type); }
+        @Override public void onActionModeStarted(ActionMode mode) { base.onActionModeStarted(mode); }
+        @Override public void onActionModeFinished(ActionMode mode) { base.onActionModeFinished(mode); }
+        @Override public void onProvideKeyboardShortcuts(List<KeyboardShortcutGroup> data, Menu menu, int device) { base.onProvideKeyboardShortcuts(data, menu, device); }
+        @Override public void onPointerCaptureChanged(boolean captured) { base.onPointerCaptureChanged(captured); }
     }
 
     private static native String apply(int fps, int size, String region, String packageName);

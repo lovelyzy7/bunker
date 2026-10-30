@@ -94,14 +94,30 @@ def menu_payload(resources, release):
         close()
 
 
-def build_android(apk, master, companion, output=None, log=print, port_offset=0, modmenu=None, verify_inputs=True):
+def build_android(apk, master, companion, output=None, log=print, port_offset=0, modmenu=None,
+                  verify_inputs=True, hand_over=None):
+    """Build, sign and verify one product: nier-jp.apk or nier-en.apk (§9.1).
+
+    output is a path or None (§9.1 auto-names the product). hand_over takes the
+    signed APK in pieces — the 4205647 contract where output itself is "a path,
+    or a function that takes the signed APK in pieces", so a callable output is
+    that function too: the product then goes out in pieces and its file is
+    deleted once over, so the page never holds it whole twice (a browser keeps
+    every file in memory). The product is still assembled, signed and gated on
+    a file, because the verification chain reads it.
+    """
     # Pyodide delivers JS null as a truthy JsNull proxy (JS undefined → None), so
-    # "no output name" and "no menu payload" from the page must be normalized
-    # before the None checks below; Path(JsNull) raises TypeError.
+    # "no output name", "no menu payload" and "no hand-over" from the page must
+    # be normalized before the None checks below; Path(JsNull) raises TypeError.
     if type(output).__name__ in ("JsNull", "JsUndefined"):
         output = None
     if type(modmenu).__name__ in ("JsNull", "JsUndefined"):
         modmenu = None
+    if type(hand_over).__name__ in ("JsNull", "JsUndefined"):
+        hand_over = None
+    if callable(output):
+        # 4205647's shape: the output parameter itself is the hand-over.
+        hand_over, output = output, None
     addresses(port_offset)  # Validate before the slow steps.
     release, package = region.region_of_apk(Path(apk))
     log(f"{region.REGIONS[release]['name']}: {package}")
@@ -170,6 +186,21 @@ def build_android(apk, master, companion, output=None, log=print, port_offset=0,
                                      raise_on_fail=True)
     gates["l6_unified_gate"] = True
     log(f"Signed APK ready to install. Sidecar: {Path(sidecar).name}")
+    if hand_over is not None:
+        # 4205647's delivery: the signed APK goes to the page in pieces and its
+        # file is deleted once over (a browser keeps every file in memory).
+        # apk_sign.StreamSigner (the same commit's android/tools half) signs as
+        # the APK is written; it takes over here once assemble_apk.assemble
+        # accepts a stream — its Path wrapper and pre-sign L6 gate read the
+        # product file today, which is why the file exists at all.
+        log("Handing the signed APK to the page in pieces…")
+        pieces = _Pieces(hand_over)
+        with open(output, "rb") as product:
+            for chunk in iter(lambda: product.read(pieces.size), b""):
+                pieces.write(chunk)
+        pieces.flush()
+        Path(output).unlink()
+        Path(sidecar).unlink()
     built = built if isinstance(built, dict) else {}
     built["sha256"] = sha256
     built["certificate"] = certificate
@@ -181,6 +212,22 @@ def build_android(apk, master, companion, output=None, log=print, port_offset=0,
     return built
 
 
+class _Pieces:
+    """Hands the APK to the page's function in 4 MB pieces as it is written: it never sits whole in memory here."""
+
+    def __init__(self, hand_over, size=4 << 20):
+        self.hand_over, self.size, self.buffer = hand_over, size, bytearray()
+
+    def write(self, data):
+        self.buffer += data
+        if len(self.buffer) >= self.size:
+            self.flush()
+        return len(data)
+
+    def flush(self):
+        if self.buffer:
+            self.hand_over(bytes(self.buffer))
+            self.buffer = bytearray()
 
 
 def _utf8_console():

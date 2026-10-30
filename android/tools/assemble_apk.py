@@ -17,6 +17,8 @@ not run apktool. Offline play, Tools and save import do not use them — a fresh
 install reaches the story on its own anonymous account.
 """
 import argparse
+import contextlib
+import hashlib
 import importlib.util
 import io
 import json
@@ -34,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import axml  # noqa: E402
 import build_info  # noqa: E402
 import fix3_zh  # noqa: E402
+import privacy  # noqa: E402
 import region  # noqa: E402
 from axml import Attr, Element  # noqa: E402
 
@@ -60,8 +63,22 @@ def addresses(port_offset=0):
     if not 0 <= port_offset <= 65535 - 8080:
         raise ValueError(f"Port offset must be 0–{65535 - 8080}")
     return f"127.0.0.1:{8003 + port_offset}", f"127.0.0.1:{8080 + port_offset}"
+
+
+def patch_unity_connect(settings):
+    """Turn off Unity Connect, which sends Unity's own analytics to cdp.cloud.unity3d.com.
+
+    UnityConnectSettings in globalgamemanagers starts with m_Enabled and
+    m_TestMode (aligned to 4 bytes), then its old event URL. Already off is fine."""
+    url = b"\x2b\x00\x00\x00https://api.uca.cloud.unity3d.com/v1/events"
+    at = settings.find(url)
+    if at < 4 or settings.find(url, at + 1) != -1 or settings[at - 4:at] not in (b"\x01\0\0\0", b"\0\0\0\0"):
+        raise RuntimeError("Unsupported game data: expected 3.7.1 Unity Connect settings")
+    return settings[:at - 4] + b"\0" + settings[at - 3:]
+
 MASTER = "20240404193219.bin.e"
 LIB, METADATA = "lib/arm64-v8a/libil2cpp.so", "assets/bin/Data/Managed/Metadata/global-metadata.dat"
+SETTINGS = "assets/bin/Data/globalgamemanagers"
 # 日服 keeps its API host and port in a small Unity asset. The metadata strings
 # only carry the host name, so the port has to be written here.
 NETWORK_CONFIG = "assets/bin/Data/deace60a64f3d4398a2db0f3d1a41195"
@@ -79,6 +96,17 @@ MENU_SHIM = "org.veritr1x.bunker.MenuShim"
 MENU_SERVICE = "com.android.support.Launcher"
 OVERLAY_PERMISSION = "android.permission.SYSTEM_ALERT_WINDOW"
 PAGE_SIZE_COMPAT_ENABLED = 32
+# The ad and analytics libraries can't reach their servers offline but still start
+# with the game. These providers start them before the game's own code runs; the
+# game's Facebook account link is unavailable anyway (see above).
+SDK_PROVIDERS = ("com.google.android.gms.ads.MobileAdsInitProvider", "com.applovin.sdk.AppLovinInitProvider",
+                 "com.ironsource.lifecycle.IronsourceLifecycleProvider", "com.facebook.ads.AudienceNetworkContentProvider",
+                 "com.facebook.internal.FacebookInitProvider", "com.facebook.FacebookContentProvider")
+# The libraries' own off switches. Firebase stays: the game waits for it to start.
+SDK_SWITCHES = (("firebase_data_collection_default_enabled", False), ("firebase_analytics_collection_deactivated", True),
+                ("firebase_crashlytics_collection_enabled", False),
+                ("firebase_messaging_auto_init_enabled", False), ("com.facebook.sdk.AutoInitEnabled", False),
+                ("com.facebook.sdk.AutoLogAppEventsEnabled", False), ("com.facebook.sdk.AdvertiserIDCollectionEnabled", False))
 
 
 def load(name, path):
@@ -125,6 +153,7 @@ def patch_game_files(archive, work, port_offset=0):
     run_cli(load("patch_apk_en", PATCH_EN), work, "--grpc-addr", grpc, "--http-addr", http,
             "--auth-host", f"{host}:{3000 + int(port_offset)}")
     load("package_game", ROOT / "android/tools/package_game.py").patch_local_reachability(work)
+    privacy.patch_library_file(work / LIB)
     return lib, metadata
 
 
@@ -154,6 +183,8 @@ def patch_game_files_jp(archive, work, port_offset=0):
         jp.patch_network_config(str(work), host, int(port))
         jp.patch_libil2cpp(str(work / LIB))
         load("package_game", ROOT / "android/tools/package_game.py").patch_local_reachability(work)
+        # telemetry_patches.json 是 Global(EN) 3.7.1 专有站点表（上游只接 EN 路径
+        # patch_game_files）；JP 无对应站点表，不接遥测补丁（原版语义，JP 冒烟实证）。
         return lib, metadata, network_config
 
 
@@ -211,6 +242,15 @@ def patch_manifest(game_manifest, companion_manifest, port_offset=0, menu=False,
                     if a.get("name") and a.get("name").raw == game_activity)
     if game_activity.startswith("."):
         game_activity = package + game_activity
+    for provider in app.find_all("provider"):
+        if provider.get("name") and provider.get("name").raw in SDK_PROVIDERS:
+            app.children.remove(provider)
+    meta = {m.get("name").raw: m for m in app.find_all("meta-data") if m.get("name")}
+    for name, on in SDK_SWITCHES:
+        if name in meta:
+            meta[name].set(Attr.boolean("value", on, VALUE))
+        else:
+            app.children.append(Element("meta-data", [Attr.string("name", name, NAME), Attr.boolean("value", on, VALUE)]))
     if menu:
         # The menu runs inside the game's process, so the game's launcher entry
         # points at a prebuilt subclass that starts the menu and then the game.
@@ -257,6 +297,7 @@ def patch_manifest(game_manifest, companion_manifest, port_offset=0, menu=False,
                for e in app.iter()):
         for activity, intent, index in reversed(stripped):
             activity.children.insert(index, intent)
+    privacy.harden_manifest(manifest)
     return axml.serialize(doc), game_activity
 
 
@@ -281,7 +322,7 @@ class ApkWriter:
             extra = b"\0" * ((-start) % align)
         self.out.write(struct.pack("<IHHHHHIIIHH", 0x04034B50, 20, flags & ~0x8, method, 0, 0x21, crc,
                                    compressed, size, len(encoded), len(extra)) + encoded + extra)
-        if isinstance(data, bytes):
+        if isinstance(data, (bytes, bytearray)):
             self.out.write(data)
         else:
             data(self.out)
@@ -342,13 +383,17 @@ class ApkWriter:
 
     def close(self):
         directory = self.out.tell()
+        central = bytearray()
         for name, method, crc, compressed, size, offset, flags in self.entries:
             encoded = name.encode()
-            self.out.write(struct.pack("<IHHHHHHIIIHHHHHII", 0x02014B50, 20, 20, flags, method, 0, 0x21, crc,
-                                       compressed, size, len(encoded), 0, 0, 0, 0, 0, offset) + encoded)
-        end = self.out.tell()
+            central += struct.pack("<IHHHHHHIIIHHHHHII", 0x02014B50, 20, 20, flags, method, 0, 0x21, crc,
+                                   compressed, size, len(encoded), 0, 0, 0, 0, 0, offset) + encoded
         count = len(self.entries)
-        self.out.write(struct.pack("<IHHHHIIH", 0x06054B50, 0, 0, count, count, end - directory, directory, 0))
+        eocd = struct.pack("<IHHHHIIH", 0x06054B50, 0, 0, count, count, len(central), directory, 0)
+        if hasattr(self.out, "finish"):  # apk_sign.StreamSigner: signs as it writes.
+            self.out.finish(bytes(central), eocd)
+        else:
+            self.out.write(bytes(central) + eocd)
 
 
 def assemble(apk, master, companion_apk, output, log=print, port_offset=0, menu=None,
@@ -393,7 +438,7 @@ def _assemble(apk, master, companion_apk, output, work, log, port_offset, menu,
     release = profile["region"]
     with zipfile.ZipFile(apk) as game, zipfile.ZipFile(companion_apk) as companion, open(apk, "rb") as raw:
         names = set(game.namelist())
-        for required in ("AndroidManifest.xml", LIB, METADATA, "resources.arsc"):
+        for required in ("AndroidManifest.xml", LIB, METADATA, SETTINGS, "resources.arsc"):
             if required not in names:
                 raise RuntimeError(f"Not the ARM64 game APK: {required} is missing")
         package = axml.parse(game.read("AndroidManifest.xml")).root.get("package", ns=None).raw
@@ -432,7 +477,8 @@ def _assemble(apk, master, companion_apk, output, work, log, port_offset, menu,
         log("Patching master data…")
         original_master = Path(master).read_bytes()
         patched_master = patch_master(original_master)
-        replaced = {"AndroidManifest.xml": manifest, LIB: lib, METADATA: metadata}
+        replaced = {"AndroidManifest.xml": manifest, LIB: lib, METADATA: metadata,
+                    SETTINGS: patch_unity_connect(game.read(SETTINGS))}
         if release == "jp":
             replaced[NETWORK_CONFIG] = network_config
         # fix3 文本表与字体 payload 直接以文件路径进替换面（大文件不进内存）。
@@ -440,8 +486,10 @@ def _assemble(apk, master, companion_apk, output, work, log, port_offset, menu,
         replaced.update(fonts)
         dex = [n for n in names if re.fullmatch(r"classes\d*\.dex", n)]
         next_dex = max(int(n[7:-4] or 1) for n in dex) + 1
-        temporary = Path(str(output) + ".partial")
-        with open(temporary, "wb") as out:
+        # output is a path, or something to write to (apk_sign.StreamSigner in the browser).
+        streaming = hasattr(output, "write")
+        temporary = None if streaming else Path(str(output) + ".partial")
+        with contextlib.nullcontext(output) if streaming else open(temporary, "wb") as out:
             writer = ApkWriter(out)
             log("Writing the APK…")
             entries = game.infolist()
@@ -465,6 +513,14 @@ def _assemble(apk, master, companion_apk, output, work, log, port_offset, menu,
                         writer.add(name, value)
                     else:                          # the patched files, written from disk
                         writer.add_file(name, value, compress=name != LIB or info.compress_type != 0)
+                        if isinstance(value, Path):
+                            # 只回收流水线自建的 work 临时件。字体 payload 等源件是
+                            # 仓库文件，绝不能吃掉（P6 实证：每次构建后源字体消失）。
+                            try:
+                                if value.resolve().is_relative_to(Path(work).resolve()):
+                                    value.unlink()  # In the browser this frees its memory.
+                            except (OSError, ValueError):
+                                pass
                 else:
                     writer.copy(raw, info)
             for name in sorted(companion.namelist(), key=lambda n: (len(n), n)):
@@ -492,10 +548,11 @@ def _assemble(apk, master, companion_apk, output, work, log, port_offset, menu,
             writer.add("assets/lunar/game-manifest.xml", game.read("AndroidManifest.xml"))
             log("Finalizing the archive…")
             writer.close()
-        os.replace(temporary, output)
+        if temporary:
+            os.replace(temporary, output)
     built = {"activity": game_activity, "region": release, "name": region.REGIONS[release]["name"],
              "package": package, "version": info["version"], "modMenu": bool(menu),
-             "portOffset": int(port_offset), "size": Path(output).stat().st_size,
+             "portOffset": int(port_offset), "size": Path(output).stat().st_size if not streaming else 0,
              "product_name": profile["product_name"], "cert_sha256_expected": profile["cert_sha256"],
              "fix3_strings": {"lines_patched": fix3_lines,
                               "tables": sorted(ta_names), "ok": True},
@@ -523,6 +580,8 @@ def update(installed_apk, companion_apk, output, log=print):
             raise RuntimeError("This update needs the web builder: the installed game is not a release Bunker knows")
         if old.get("gamePatch") != build_info.GAME_PATCH:
             raise RuntimeError("This update needs the web builder: it changes how the game itself is patched")
+        if LIB not in names:
+            raise RuntimeError("Not the ARM64 game APK: " + LIB + " is missing")
         log("Updating the manifest…")
         manifest, _ = patch_manifest(game.read("assets/lunar/game-manifest.xml"), companion.read("AndroidManifest.xml"),
                                      old["portOffset"], release=release)
@@ -539,6 +598,10 @@ def update(installed_apk, companion_apk, output, log=print):
                         continue
                     if name == "AndroidManifest.xml":
                         writer.add(name, manifest)
+                    elif name == LIB:
+                        writer.add(name, privacy.patch_library(game.read(name)), compress=info.compress_type != zipfile.ZIP_STORED)
+                    elif name == SETTINGS:  # Earlier builds left Unity Connect on.
+                        writer.add(name, patch_unity_connect(game.read(name)), compress=info.compress_type != zipfile.ZIP_STORED)
                     elif not build_info.is_bunker_entry(name, old) or name in kept:
                         writer.copy(raw, info)
                 next_dex = old["gameDex"] + 1

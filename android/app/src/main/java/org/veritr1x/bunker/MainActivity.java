@@ -219,7 +219,7 @@ public final class MainActivity extends Activity {
                 &&!serverDetail.equals(Text.of("Import your game files to get started."))
                 &&!serverDetail.equals(Text.of("Tap Play to restart."))
                 &&!serverDetail.equals(Text.of("Your saves are stored on this phone.")))message=serverDetail;
-        if(message.isEmpty())message=tools?Text.of("Close Pod Programs to deploy again."):running?Text.of("Lunar Tear is up. The game connects to it on this device; no network is needed."):ready?Text.of("Deploy starts Lunar Tear, then opens the game."):Text.of("Choose the game files to begin: the resource dump's .7z or its extracted folder.");
+        if(message.isEmpty())message=tools?Text.of("Close Pod Programs to deploy again."):running?Text.of("Lunar Tear is running. The game connects to it on this phone. No internet is needed."):ready?Text.of("Deploy starts Lunar Tear, then opens the game."):Text.of("Choose the game files to begin: the resource dump's .7z or its extracted folder.");
         message=Text.of(message);detail.setText(warning?"> "+message:message);detail.setTextColor(warning?look.alert:look.ink);
     }
     private void chooseAssets(){
@@ -239,7 +239,7 @@ public final class MainActivity extends Activity {
         if(Build.VERSION.SDK_INT<30){dialog().setTitle(Text.of("Use in place")).setMessage(Text.of("Using a folder in place needs Android 11 or later. Copy it into the app instead.")).setPositiveButton("OK",null).show();return;}
         if(FilesStore.canUseInPlace()){chooseFolder(LINK);return;}
         dialog().setTitle(Text.of("Allow All files access"))
-            .setMessage(Text.of("To read the game files where they are, NieR needs All files access. It only reads the folder you choose next.\n\nTurn on the switch in Settings, then come back. Keep the folder where it is afterwards: if it is moved or deleted, choose it again."))
+            .setMessage(Text.of("To read the game files where they are, NieR needs All files access. It only reads the folder you choose next.\n\nTurn on the switch in Settings, then come back. Do not move or delete the folder afterwards. If you do, choose it again."))
             .setNegativeButton(Text.of("Cancel"),null)
             .setPositiveButton(Text.of("Open Settings"),(dialog,which)->{
                 awaitingAccess=true;
@@ -361,7 +361,7 @@ public final class MainActivity extends Activity {
         boolean running=Updater.updating();
         String text=Text.of("Bunker ")+r.version+Text.of(" is available.");
         if(r.offer==Updater.Offer.WEB_BUILDER)text+=Text.of("\n> This update needs the web builder.");
-        else if(r.offer==Updater.Offer.OWN_KEY)text+=Text.of("\n> Signed with your own key: rebuild with the web builder.");
+        else if(r.offer==Updater.Offer.OWN_KEY)text+=Text.of("\n> This app uses your own signing key. Rebuild it with the web builder.");
         if(running&&!Updater.status.isEmpty())text=Updater.status;
         else if(Updater.statusFailed)text+="\n> "+Updater.status+Text.of("\n> You can also rebuild with the web builder.");
         updateText.setText(text);
@@ -388,7 +388,7 @@ public final class MainActivity extends Activity {
         Updater.status=message;Updater.statusFailed=true;renderUpdate();
     }
     private void help(){
-        dialog().setTitle(Text.of("Help")).setMessage(Text.of("This is the Bunker. Lunar Tear is the game's server, running on this phone.\n\nChoose the game files once: the resource dump's .7z, or an extracted folder to copy or use in place. Master data is already included. When your files are ready, Lunar Tear starts and Deploy opens the game.\n\nTap the Lunar Tear notification to return here. Stop Lunar Tear from ⋮ before changing files or exporting saves. Export a backup before uninstalling or clearing app storage. Import save backup restores one, from this phone or another Android phone. Pod Programs edits your save and chooses events.\n\nIf Samsung pauses Lunar Tear, set Battery usage to Unrestricted in App settings."))
+        dialog().setTitle(Text.of("Help")).setMessage(Text.of("This is the Bunker. Lunar Tear is the game's server, running on this phone.\n\nChoose the game files once: the resource dump's .7z, or an extracted folder to copy or use in place. Master data is already included. When your files are ready, Lunar Tear starts and Deploy opens the game.\n\nTap the Lunar Tear notification to return here. Stop Lunar Tear from ⋮ before changing files or exporting saves. Export a backup before uninstalling or clearing app storage. Import save backup restores a backup from this phone or another Android phone. Pod Programs edits your save and chooses events.\n\nIf Samsung pauses Lunar Tear, set Battery usage to Unrestricted in App settings."))
             .setPositiveButton(Text.of("Close"),null).show();
     }
     private void showLog(){query(2);}

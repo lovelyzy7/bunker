@@ -1,8 +1,109 @@
-# Changelog
+﻿# Changelog
 
 What changed in Bunker, newest first. Each day lists its changes by area.
 Commit ids are in brackets. Each release's heading sits above the dated
 sections it contains; its notes run down to the previous release.
+
+## 1.3.5 (2026-10-27)
+
+Chapter 4's "A Tool of the Master" can be finished on very wide Android
+screens, the guerrilla quests' unlock follows the game's rules, and new
+builds start with all content open and no ads.
+
+## 2026-10-26
+
+### Game client
+- Guerrilla quests: the "Use 100 gems" unlock now takes the 100 gems.
+  The first unlock each day stays free and comes back at the daily reset.
+  Before, every unlock was free and the day's count never reset. With
+  fewer than 100 gems the game's Unlock button does nothing; that is the
+  game's own check. [087b373]
+- With the Original calendar, the guerrilla quests' Force Unlock button
+  appears when the unlock did in the live service, about six weeks into
+  each loop. Before, the game showed it from the start, offering an unlock
+  "for 0m" that opened nothing; it is now hidden until then, and the
+  server takes no gems for it either. [1319534, ccda6e3]
+- Android, story rooms: on screens wider than 19.5:9 (2.4:1 phones with
+  "Full screen, around the camera") the camera now goes all the way to the
+  room's edge, where the invisible walls are. Before, it stopped short, the
+  wall stopped the player the same distance short, and a story trigger near
+  the edge could not be reached (chapter 4, "A Tool of the Master").
+  [b0b1121]
+
+### Game data
+- New builds (APK and the web page) start with the game data Pod
+  Programs makes when nothing is picked: content stays open until 31
+  December 2099, which the server treats as never ending, and the menu's
+  ad banners, the home screen's news cut-ins and the login popup are hidden.
+  Before, a fresh install was open only to 2030 and showed the ads until
+  Pod Programs patched it. Installed apps keep their current game data.
+  [0b195b6]
+
+### Web builder
+- The Android build needs much less memory: about 1.2 GB in Chrome instead
+  of 2 GB. The game library is patched where it lies, and the APK is signed
+  as it is written and passed to the page in pieces. The APK is the same as
+  before. [4205647]
+
+### Development
+- The unit tests now run on every push to main, not only at release.
+  [9588b6e]
+
+## 1.3.1 (2026-10-25)
+
+On Android more of the game's tracking stays off.
+
+## 2026-10-25
+
+### Privacy
+- On Android, more of the game's tracking stays off: Unity Analytics,
+  Crashlytics, Facebook events, Adjust and ironSource no longer start, and
+  the advertising-ID permission and Adjust's install tracker are removed
+  from the app. New builds get this at once; an existing install gets it
+  from its second in-app update after this one, because each update runs
+  the tools already installed. See docs/PRIVACY.md. Contributed by
+  nathangerday (PR #3). [962eb57, 6ba7d42]
+
+## 1.3.0 (2026-10-25)
+
+Bunker now runs on Windows, with keyboard controls. The music comes back
+after you leave the game, and campaign badges no longer show a jumbled
+number.
+
+## 2026-10-25
+
+### Windows
+- New: `Bunker-<version>.exe` plays the Android build on a Windows PC, in
+  Google's Android Emulator. The first time, it downloads the emulator
+  from Google, sets up a phone, installs your APK and copies the game
+  files in from the `.7z`. Each step shows on screen, and it asks for any
+  file it can't find. See docs/WINDOWS.md. [550840e]
+- Keyboard controls: WASD or the arrow keys move, and Ctrl+B opens the
+  Bunker. [7cb3539]
+- Release notes end with a Downloads list that says what `Bunker.exe`
+  is for and which files you don't need. The Windows guide now says
+  gameplay was tested: the field with the keyboard, and the music after a
+  pause. [0934243]
+
+### Web builder
+- After an Android build, a separate paragraph explains how to play the
+  APK on Windows with `Bunker.exe`. [0764eb1]
+
+### Game client
+- Music no longer stops for good after you leave the game. Before, after
+  opening the Bunker, the home screen or another app, the game stayed
+  silent until it was restarted. Now the music comes back about a second
+  after you return. [03f176e]
+- Campaign badges (such as half stamina on EX Character Quests) no longer
+  show a jumbled number: campaigns left open end in 2099, 26,000 days away,
+  too long for the badge. Remaining times now stop at "999d".
+  [d7b1ed6]
+
+### Docs
+- The README, guides, changelog and on-screen messages use shorter,
+  plainer sentences. Facts, commands and button names are unchanged.
+  [c6639f3]
+
 
 ## 1.2.8 (2026-10-18)
 
@@ -11,8 +112,8 @@ to the CDN.
 
 - **`pyodide.asm.js` was not copied into `site/pyodide/`**: Pyodide loads that
   glue file next to the wasm, so the first attempt failed with
-  "The script at …/pyodide.asm.js failed to load" and the builder quietly used
-  jsDelivr — the dependency 1.2.7 set out to remove. It is copied now, and a
+  "The script at 鈥?pyodide.asm.js failed to load" and the builder quietly used
+  jsDelivr 鈥?the dependency 1.2.7 set out to remove. It is copied now, and a
   local build loads the runtime from the page's own host.
 
 ## 1.2.7 (2026-10-18)
@@ -22,16 +123,16 @@ from whichever of site and proxy is faster, and Python ships with the site
 instead of a CDN.
 
 - **Stop a build**: a STOP button appears while one runs. It ends the build at
-  once by terminating the worker — Python's long calls cannot be interrupted
-  from JavaScript — and the next build reloads the runtime from the cache.
+  once by terminating the worker 鈥?Python's long calls cannot be interrupted
+  from JavaScript 鈥?and the next build reloads the runtime from the cache.
   Measured: cancel after 3 s, then a full build in 29 s.
 - **The log does more than scroll**: COPY LOG copies it, ONLY ERRORS hides the
   rest, the result card gains a SOURCE row (this site / the local file / the
   GitHub proxy), and the three switches (skip check, Mod Menu, port offset)
   survive a reload.
 - **One page can no longer mix releases**: the build stamp is part of the script
-  urls (`app.js?b=…`, `worker.js?b=…`), so a fresh index.html never runs the
-  previous release's app.js — the state seen on a phone right after a deploy.
+  urls (`app.js?b=鈥, `worker.js?b=鈥), so a fresh index.html never runs the
+  previous release's app.js 鈥?the state seen on a phone right after a deploy.
 - **The faster of site and proxy wins**: with a proxy chosen, the site, that
   proxy and the other known proxy are timed with 64 KB before the download, the
   quickest fetches it, and the others cover a failure. Two public proxies answer
@@ -45,8 +146,8 @@ instead of a CDN.
   (`test_apk_sign.py`) runs in the Android job of both workflows, `ruff` reports
   style problems in the release check (non-blocking), and the browser build
   driver moved to `tests/browser/` with real arguments instead of Windows paths.
-- **Encoding**: `build_site.py` writes UTF-8 explicitly — on Windows the default
-  cp936 could not even hold the ▶ in the build button, and the stamping step
+- **Encoding**: `build_site.py` writes UTF-8 explicitly 鈥?on Windows the default
+  cp936 could not even hold the 鈻?in the build button, and the stamping step
   failed on it.
 
 ## 1.2.6 (2026-10-18)
@@ -59,18 +160,18 @@ own controls.
   on the choice, so the row belonging to it (the picker, the proxy field) sat
   against the line. Each choice is now a group whose rule comes after its
   controls.
-- **The downloads are buttons**: “Download the launcher bundle (25 MB)” and
-  “Download the Mod Menu bundle (0.8 MB)” are boxed, follow the chosen source
+- **The downloads are buttons**: 鈥淒ownload the launcher bundle (25 MB)鈥?and
+  鈥淒ownload the Mod Menu bundle (0.8 MB)鈥?are boxed, follow the chosen source
   (through the proxy when one is set), and stay readable when their row is grey.
 - **Mainland China gets the proxy on the first visit**: the page reads the time
-  zone — Asia/Shanghai and the other mainland zones preselect option 2 with
+  zone 鈥?Asia/Shanghai and the other mainland zones preselect option 2 with
   https://gh-proxy.com/ filled in, everywhere else option 0. The choice is
   remembered from then on.
 - **The Mod Menu can come through the proxy as well**: the release now carries
   `modmenu.zip`, `mirrors.json` names its url, and a proxy build fetches it with
   the same digest check; if the proxy fails, both bundles fall back to this site.
 - **The watchdog waits three minutes**, not 90 seconds: a phone (or a busy
-  machine) can spend a minute in one patch step, and a false “stuck” is worse
+  machine) can spend a minute in one patch step, and a false 鈥渟tuck鈥?is worse
   than a late one.
 
 ## 1.2.5 (2026-10-18)
@@ -82,7 +183,7 @@ GitHub-proxy source can be checked against the same digest.
   bundle were built from two separate APK builds, so they differed byte for byte
   and the page stopped with "does not match the site's checksum". The site now
   downloads the release's `android.zip` and serves it unchanged, so a proxy
-  build and a normal build produce the same APK (`64360096…`, measured).
+  build and a normal build produce the same APK (`64360096鈥, measured).
 - **Publishing is a minute, not ten**: the Pages job no longer compiles an APK
   (the release already did); it fetches the release asset and assembles the
   site. A push still builds the APK to prove it compiles.
@@ -91,10 +192,10 @@ GitHub-proxy source can be checked against the same digest.
 
 ## 1.2.4 (2026-10-18)
 
-A new 00 section decides where the 25 MB launcher comes from — this site, a file
-you already have, or a GitHub proxy — and the phone's top bar became a proper bar.
+A new 00 section decides where the 25 MB launcher comes from 鈥?this site, a file
+you already have, or a GitHub proxy 鈥?and the phone's top bar became a proper bar.
 
-- **Choosing the launcher source**: 00 准备运行时 offers three exclusive options.
+- **Choosing the launcher source**: 00 鍑嗗杩愯鏃?offers three exclusive options.
   *This site* is the default and works as before (downloaded once, then kept on
   the device). *A local launcher bundle* takes an `android.zip` from the device
   and downloads nothing at all. *A GitHub download proxy* takes a base such as
@@ -104,7 +205,7 @@ you already have, or a GitHub proxy — and the phone's top bar became a proper 
   (a file picked, a valid url). Whatever arrives is hashed against
   `mirrors.json` first, so a proxy cannot put different bytes into the APK.
 - **The release carries the launcher**: `android.zip`, the same bundle the site
-  serves, is attached to every release — that is what a proxy fetches. A page
+  serves, is attached to every release 鈥?that is what a proxy fetches. A page
   cannot download a release asset directly (GitHub sends no CORS header).
 - **Progress past 100%**: jsDelivr serves the Python wasm with
   `Content-Encoding: br`, so `Content-Length` is the compressed size while the
@@ -112,8 +213,8 @@ you already have, or a GitHub proxy — and the phone's top bar became a proper 
   compressed response now reports megabytes instead of a percentage.
 - **The phone's top bar**: the five links wrapped 4+1 and the language button
   dropped onto a row of its own under BUILD, next to a three-line title. It is
-  now two rows — identity (17px name, 10px version, language button) and four
-  equal action cells with separators, 44px tall — while the desktop bar keeps
+  now two rows 鈥?identity (17px name, 10px version, language button) and four
+  equal action cells with separators, 44px tall 鈥?while the desktop bar keeps
   its single line.
 - **The repository is `bunker` now**: the site moved to
   https://lovelyzy7.github.io/bunker/ and every link in the page, the app's
@@ -126,20 +227,20 @@ you already have, or a GitHub proxy — and the phone's top bar became a proper 
 Every step the build takes is on screen now, the Mod Menu included, and the
 long waits say what they are waiting for.
 
-- **The Mod Menu had no step of its own**: the chips went from 打包 APK straight
-  to 签名与校验 while the menu's dex files and library were being written. A
-  写入 MOD 菜单 chip now sits between them, with the details in the log
-  (dex 1/3（1 KB）…, libniermenu.so（1 MB）…). When the menu is not ticked the chip
+- **The Mod Menu had no step of its own**: the chips went from 鎵撳寘 APK straight
+  to 绛惧悕涓庢牎楠?while the menu's dex files and library were being written. A
+  鍐欏叆 MOD 鑿滃崟 chip now sits between them, with the details in the log
+  (dex 1/3锛? KB锛夆€? libniermenu.so锛? MB锛夆€?. When the menu is not ticked the chip
   is struck through, like a skipped file check. On a phone the seven chips are
   3 + 3, with the last one spanning the row.
 - **The last chip never turned green**: completion jumped to one short of the
-  end of the list, so 签名与校验 stayed outlined on "Done". It now passes the last
+  end of the list, so 绛惧悕涓庢牎楠?stayed outlined on "Done". It now passes the last
   step, and every chip is filled.
-- **准备运行时 was silent during its two big downloads**: it now reports the
+- **鍑嗗杩愯鏃?was silent during its two big downloads**: it now reports the
   Python runtime and standard library with a percentage, the packages, the
   builder sources and "Python ready".
 - **Signing a 300 MB APK was a silent wait**: the signing read reports every 10%
-  (正在签名 60%…), and the archive's central directory gets its own line.
+  (姝ｅ湪绛惧悕 60%鈥?, and the archive's central directory gets its own line.
 
 ## 1.2.2 (2026-10-18)
 
@@ -149,7 +250,7 @@ even rows on a phone with a gap above the bar, and the last step reads the
 
 - **A build could stop at a percentage and never move**: the launcher download
   had a 30 s abort, but aborting a fetch does not settle a pending `read()` when
-  the connection has already stalled — the build then waited forever at 31%.
+  the connection has already stalled 鈥?the build then waited forever at 31%.
   The read is now raced against a timer (20 s without data), the same source is
   retried once, and then the next source is tried; a test that serves 1 MB and
   then goes quiet shows the retry and the fallback finishing the build.
@@ -158,7 +259,7 @@ even rows on a phone with a gap above the bar, and the last step reads the
   or when the browser froze the tab (back/forward cache) mid-build, and starts a
   fresh worker for the next try.
 - **The step chips and the progress bar touched, and wrapped 4+2**: below 520px
-  they are a 3×2 grid of equal widths with the bar 9px below the last row, so
+  they are a 3脳2 grid of equal widths with the bar 9px below the last row, so
   nothing overlaps and the labels line up.
 - **The last step read the whole APK twice**: signing streamed the file to build
   the v2 digest and the page hashed it again for the SHA-256. `apk_sign` now
@@ -170,10 +271,10 @@ even rows on a phone with a gap above the bar, and the last step reads the
   (`AttributeError: module 'apk_sign' has no attribute 'sign_and_digest'`). Every
   same-origin download now carries the site's build stamp.
 - **The build log was English on a Chinese page**: the lines the build prints are
-  translated (正在下载启动器, 正在改写主数据, 正在打包 APK, 正在签名…), including
-  why a download failed (20 秒没有收到数据（已收 1 MB）).
+  translated (姝ｅ湪涓嬭浇鍚姩鍣? 姝ｅ湪鏀瑰啓涓绘暟鎹? 姝ｅ湪鎵撳寘 APK, 姝ｅ湪绛惧悕鈥?, including
+  why a download failed (20 绉掓病鏈夋敹鍒版暟鎹紙宸叉敹 1 MB锛?.
 - **Windows consoles mangled or refused the output**: `webbuild.py` and
-  `scripts/build.py` switch stdout to UTF-8, so 日服 (JP) and ✓ print instead of
+  `scripts/build.py` switch stdout to UTF-8, so 鏃ユ湇 (JP) and 鉁?print instead of
   raising `UnicodeEncodeError` or showing mojibake.
 - The bundle cache no longer stores a partial body, and the reader no longer
   waits for the disk write before the download starts.
@@ -184,27 +285,27 @@ The web builder is quicker to start, survives a slow or blocked CDN, and says
 which release your APK is before you build. The Mod Menu checkbox works again.
 
 - **The Mod Menu could not be built in the browser at all**: `menu_payload()` took
-  a `ZipFile.read` and called it after the `with` block had closed the archive —
+  a `ZipFile.read` and called it after the `with` block had closed the archive 鈥?
   `ValueError: Attempt to use ZIP archive that was already closed`. Only the site
   passes a zip (the command line passes the folder), so every browser build with
   the checkbox failed after downloading the launcher. It now reads inside the
   block, and a regression test builds the payload as a zip (`test_menu`, 13 tests).
 - **Filling in the two files on a phone looked scattered**: the label held a fixed
   column, the description wrapped around it and the file chip fell to a third
-  line. On a phone each file is now three rows — label, description, then the
-  file chip beside the button — with a long file name cut with an ellipsis; the
+  line. On a phone each file is now three rows 鈥?label, description, then the
+  file chip beside the button 鈥?with a long file name cut with an ellipsis; the
   button says *change* once a file is there. The `01 Your files` block is a grid
   below 520px and unchanged on a desktop.
 - **The page can name the release**: picking an APK computes its SHA-256 (about
-  one second for 254 MB on a phone) and shows `✓ 日服 · JP` or `✓ 全球服 · EN`
-  under the description, or `✗ not the original 3.7.1` when the bytes are not one
+  one second for 254 MB on a phone) and shows `鉁?鏃ユ湇 路 JP` or `鉁?鍏ㄧ悆鏈?路 EN`
+  under the description, or `鉁?not the original 3.7.1` when the bytes are not one
   of the two releases. The table behind it (`regions.json`) is generated from
   `android/tools/region.py`, the same digests the build checks.
 - **The English page showed Chinese**: the base string was "The original 3.7.1
-  ARM64 game APK (日服 or 全球服)." It is now "(JP or global)", with 日服/全球服
+  ARM64 game APK (鏃ユ湇 or 鍏ㄧ悆鏈?." It is now "(JP or global)", with 鏃ユ湇/鍏ㄧ悆鏈?
   in the Chinese dictionary, and the failure hints say "JP or global" too. A
   `notranslate` meta stops Chrome from translating the English page into Chinese
-  ("JP or global" used to arrive as 日本版或全球版).
+  ("JP or global" used to arrive as 鏃ユ湰鐗堟垨鍏ㄧ悆鐗?.
 - **Two minutes of waiting before anything happened**: the step chips had no
   *load runtime* step, so a build lit "check files" while Pyodide was still
   booting, and ticking *skip the file check* changed nothing on screen. There are
@@ -231,7 +332,7 @@ which release your APK is before you build. The Mod Menu checkbox works again.
 
 ## 1.2.0 (2026-10-18)
 
-The browser builds 日服 by itself, on a phone too; the panel and the Archive are
+The browser builds 鏃ユ湇 by itself, on a phone too; the panel and the Archive are
 easier to scan; the two Mod Menu repositories are checked against each other.
 
 - **The top of every page was too tall**: the bar and nav together took 87px of a
@@ -242,24 +343,24 @@ easier to scan; the two Mod Menu repositories are checked against each other.
   launcher title, in the Pod Programs bar and in the Archive bar (JP red). The
   Android side reads `assets/lunar/build.json` (`Region.java`) and hands it to
   both web apps; the desktop panel can set `LUNAR_BUILD_REGION`.
-- **A 日服 build still read English story text**: the Archive hard-coded
+- **A 鏃ユ湇 build still read English story text**: the Archive hard-coded
   `assetbundle/text/en` and `voice/en`. It now takes the language from the region
   (`ja` for JP, `en` otherwise), records it in the index signature and rebuilds
-  automatically — `FORMAT` 17 → 18.
+  automatically 鈥?`FORMAT` 17 鈫?18.
 - `archive/schedule.py` formatted dates with `%-d`, which only glibc understands:
   building the index on Windows (and in the browser builder) crashed.
-- **A 日服 APK could only be built on the command line**: the web builder refused
+- **A 鏃ユ湇 APK could only be built on the command line**: the web builder refused
   it, because the JP patcher rewrites smali. Those steps only serve Facebook
   login and the SQUARE ENIX BRIDGE account transfer, which no offline build uses.
   The in-place assembler now patches the JP library, its metadata and the
   `network_config` asset (API host **and** port), drops the dead Adjust/Firebase
-  providers, and leaves the smali alone — so the browser and a CI runner can
+  providers, and leaves the smali alone 鈥?so the browser and a CI runner can
   build JP. Verified on a phone: a fresh anonymous account reaches the story, and
   the Mod Menu's JP payload works. `scripts/build.py` keeps the full apktool
   route for anyone who wants the social login redirects.
-- **The browser is now the only route for 日服**: the page ships the JP patcher
+- **The browser is now the only route for 鏃ユ湇**: the page ships the JP patcher
   (`upstream/lunar-scripts-jp/android/patch_apk_jp.py` was missing from
-  `web/build_site.py`), so selecting the 日服 APK builds a working JP APK with no
+  `web/build_site.py`), so selecting the 鏃ユ湇 APK builds a working JP APK with no
   tools and no GitHub account.
 - **A wrong file now says so**: the page checks the APK's and the master data's
   SHA-256 against the 3.7.1 releases the patch offsets come from, shows which
@@ -276,13 +377,13 @@ easier to scan; the two Mod Menu repositories are checked against each other.
   and the private assets repository were removed. Visitors supply their own
   APKs, so nothing game-related is published, and one route is easier to keep
   honest than two.
-- **A phone builds 日服 on its own**: the same page in the phone's Chrome, with
+- **A phone builds 鏃ユ湇 on its own**: the same page in the phone's Chrome, with
   the files chosen in the system picker, produced an APK with the identical
-  SHA-256 as the desktop build (296,237,450 B, `51b4cd22…`) in 44 s. No OPFS
+  SHA-256 as the desktop build (296,237,450 B, `51b4cd22鈥) in 44 s. No OPFS
   staging or chunked output was needed for a 12 GB device.
 - **Chrome translated the Chinese page into Chinese**: the builder declared
   `lang="en"` while displaying Chinese, so the phone offered a translation and
-  mangled the text (「几分钟」 became 「三十」). The page now sets `lang` from the
+  mangled the text (銆屽嚑鍒嗛挓銆?became 銆屼笁鍗併€?. The page now sets `lang` from the
   language on screen.
 - **The two Mod Menu repositories are checked against each other**:
   `scripts/check_menu_parity.py` compares every file of both menu modules and
@@ -290,17 +391,17 @@ easier to scan; the two Mod Menu repositories are checked against each other.
   device build's removed server hot-switch), pinning the pair in
   `menu.lock.json`. `scripts/menu_parity.allow` lists the four files that may
   differ, each with its reason. The first run found uncommitted work in both
-  checkouts — the font-size setting did not cover every control, a refresh
+  checkouts 鈥?the font-size setting did not cover every control, a refresh
   could leave the settings page open, and one `setScaledTextSize` call sat
-  outside its `if` — which is now committed in both repositories
+  outside its `if` 鈥?which is now committed in both repositories
   (`bunker-modmenu` 19bde45, original 722ad23).
 - **Status page tiles**: the ten Pod Programs links were one run-on paragraph
-  (nothing styled their `tool-grid` class). They are now tiles — name over
+  (nothing styled their `tool-grid` class). They are now tiles 鈥?name over
   description with a chevron, four across on a desktop and one per row on a
-  phone — and `Choose the player` gained its Chinese label.
+  phone 鈥?and `Choose the player` gained its Chinese label.
 - **Archive home tiles**: the seven sections were inline text that ran together
   on a phone. They are now the same kind of tile, and the page's search box and
-  build stamp are translated (`搜索剧情文本与记录`, `索引构建于 …`).
+  build stamp are translated (`鎼滅储鍓ф儏鏂囨湰涓庤褰昤, `绱㈠紩鏋勫缓浜?鈥).
 
 - **Profile / Mission / Quest editors were broken on the phone**: their services
   still called the desktop grant executable, whose path the device config never
@@ -313,18 +414,18 @@ easier to scan; the two Mod Menu repositories are checked against each other.
   with a full-width field and a 44px save button; on desktop the field grows with
   the panel instead of stopping at 260px. `.op-input` also referenced two variables
   that never existed, so the boxes had no fill or border.
-- **The ◐ theme button did nothing**: it set `data-theme` while the stylesheet had
+- **The 鈼?theme button did nothing**: it set `data-theme` while the stylesheet had
   no dark rules. Added the dark palette (tokens, row rules, rarity colours).
 - **Windows builds silently dropped the Mod Menu** in the browser builder: payload
   names were compared with `\` against `/` keys. `prepare.py` had the matching
   line-ending/encoding bug, which made every patch fail to apply on a fresh tree.
 - `check_ui.py --theme light|dark` measures either palette.
-- The profile page's back link printed two arrows (← ← All users).
+- The profile page's back link printed two arrows (鈫?鈫?All users).
 
 The Special Gift Roulette now pays gems, and both rate tables moved to the panel.
 
 - **Special Gift Roulette** (Global client only): a spin pays free gems instead of
-  materials — 10, 30, 50, 100 or 3000 with Lunar Tear's weighting (60/25/10/4.7/0.3),
+  materials 鈥?10, 30, 50, 100 or 3000 with Lunar Tear's weighting (60/25/10/4.7/0.3),
   at most six spins a day. The video ad is skipped by answering the ad SDK's
   rewarded/closed events, so the wheel plays offline. The wheel's amounts are fixed:
   the client only animates those five.
@@ -345,18 +446,18 @@ The update channel belongs to this fork.
 
 - The launcher checks **this** repository's releases for updates and opens this
   fork's web builder, not the upstream author's. A fork that kept the upstream
-  URLs would have offered the original Bunker (no 日服, no Chinese, no menu) as
+  URLs would have offered the original Bunker (no 鏃ユ湇, no Chinese, no menu) as
   an update.
 - About now credits the original project and links here.
 
 ## 1.1.0 (2026-10-17)
 
-日服 and 全球服 from one app, Chinese first, and an optional Mod Menu.
+鏃ユ湇 and 鍏ㄧ悆鏈?from one app, Chinese first, and an optional Mod Menu.
 
 
 ### Mod Menu in the browser, and the web builder page
 
-- The web builder can add the Mod Menu: **进阶选项 :: MOD 菜单**. The game's
+- The web builder can add the Mod Menu: **杩涢樁閫夐」 :: MOD 鑿滃崟**. The game's
   launcher entry points at a prebuilt subclass (`tools/menu/MenuShim.java`)
   that starts the menu and then the game, so the browser needs no dex compiler;
   the menu's dex files and `libniermenu.so` are appended the same way the
@@ -369,7 +470,7 @@ The update channel belongs to this fork.
 - Web builder fixes: the page stopped translating and the language button was
   blank because attribute originals were kept in `dataset` with a `:` key,
   which throws; the toggle label is now set before translating, so it can never
-  be blank, and 中/EN round-trips restore every string and attribute.
+  be blank, and 涓?EN round-trips restore every string and attribute.
 - The page's links (GUIDE, TROUBLESHOOTING, SOURCE, the guide sentence and the
   footer) point at this fork's README sections instead of the upstream repo.
 - Narrow screens keep the toggle readable; the header, frames and labels shrink
@@ -391,7 +492,7 @@ The update channel belongs to this fork.
   there (they froze the wave-end animation).
 - `scripts/test_menu.py` covers finding the checkout, per-release workspaces,
   stripping old signatures and picking the SDK build-tools.
-- Verified on Windows with the real 日服 APK: the injector merged the menu's
+- Verified on Windows with the real 鏃ユ湇 APK: the injector merged the menu's
   classes into `classes5.dex`, added `libniermenu.so` (no hot-switch strings,
   features present), and the result verifies under Bunker's own certificate.
 
@@ -408,11 +509,11 @@ The update channel belongs to this fork.
   Android only; `docs/VALIDATION.md` keeps its iPhone/iPad records as history
   with a note at the top.
 
-### 中文为主 (Chinese first)
+### 涓枃涓轰富 (Chinese first)
 
 - **Pod Programs** (the save editors) is Chinese by default. `base.html` now
   loads lunar-base's i18n and Bunker's own phrase table, hides the page for the
-  first paint unless English was chosen, and keeps a 中文/EN toggle. 310 phrases
+  first paint unless English was chosen, and keeps a 涓枃/EN toggle. 310 phrases
   and 32 patterns cover the nav, home grid, content patcher, display, summon
   rates, save data, players and every editor; game data names are never touched.
 - **The Android launcher** speaks Chinese: a new `Text.java` holds 224 entries
@@ -420,7 +521,7 @@ The update channel belongs to this fork.
   en, unchanged for strings it does not know). Every user-visible string in the
   launcher, service notifications, updater, file import and the Archive window
   goes through it, while state keys, preferences and file names stay English.
-- **The web builder page** is Chinese by default with a 中文/EN toggle, including
+- **The web builder page** is Chinese by default with a 涓枃/EN toggle, including
   the log lines and the download button.
 - **The Archive** is Chinese by default with a toggle: 83 phrases and plural/
   season patterns over its own pages, with character, costume, track and line
@@ -428,14 +529,14 @@ The update channel belongs to this fork.
 - iPhone and iPad are not translated yet: the iOS launcher needs Xcode to
   verify, and there is no JP client for iOS.
 
-### Regions (日服 / 全球服)
+### Regions (鏃ユ湇 / 鍏ㄧ悆鏈?
 
 - `scripts/build.py` reads the APK's package name and builds for that release:
-  `com.square_enix.android_googleplay.nierspjp` (日服) goes through
-  lunar-scripts-jp, `…nierspww` (全球服) through lunar-scripts as before.
+  `com.square_enix.android_googleplay.nierspjp` (鏃ユ湇) goes through
+  lunar-scripts-jp, `鈥ierspww` (鍏ㄧ悆鏈? through lunar-scripts as before.
   `--region en|jp` overrides the detection and is refused when it contradicts
   the files.
-- The 日服 client patch rewrites smali, so JP builds need apktool: the web
+- The 鏃ユ湇 client patch rewrites smali, so JP builds need apktool: the web
   builder reports that and points at the command line. The iOS build stays
   EN only, and a JP IPA is refused with the reason.
 - The local-reachability patch no longer uses a fixed address. It locates the
@@ -456,7 +557,7 @@ The update channel belongs to this fork.
   one instance, adds the JP transfer pages, and fixes the octo
   master-data and maintenance answers.
 - Lunar Base is now the bilingual fork (`lovelyzy7/lunar-base`, pinned
-  `4211ecc06310e`), which adds a 中文/EN toggle on every page, one-click
+  `4211ecc06310e`), which adds a 涓枃/EN toggle on every page, one-click
   admin setup, and further editors.
 - Added Lunar Scripts (JP) (`lovelyzy7/lunar-scripts-jp`, pinned
   `b84faf515fd94`) for the JP client patch pipeline.
@@ -510,7 +611,7 @@ before this date is part of 1.0.0 too.
   for any other build. About, the exported log, the server log and the web
   builder show it. [8ad1095, 01c86e0]
 - When the launcher opens and the device is online, it looks for a newer
-  release and offers it (⋮ › Check for updates turns this off). Android
+  release and offers it (鈰?鈥?Check for updates turns this off). Android
   rebuilds the app on the phone from Bunker's new files and the game files
   already in it, and Android asks to confirm the install; only builds signed
   with the public Bunker key can do this. iPhone and iPad build
@@ -709,7 +810,7 @@ master data, in UTC. [f6fd958]
   shop items with prices and limits, every home banner, login bonuses, Arena
   seasons, Subjugation Battles, mission passes, campaigns and fortune draws.
 - **No date in the game data:** about 150 rows carry a placeholder date
-  (mostly 19 Aug–16 Sep 2099) instead of their real dates. They are listed
+  (mostly 19 Aug鈥?6 Sep 2099) instead of their real dates. They are listed
   apart, with whether their art and title are in the English files and
   whether the same target ran on a dated row, not as "never ran".
 - **Names:** 62 summons whose title exists only in their banner art are named
@@ -720,7 +821,7 @@ master data, in UTC. [f6fd958]
 ## 2026-10-13
 
 ### Pod Programs: Original calendar
-Content › Schedule can replay the live service from global launch (28 July
+Content 鈥?Schedule can replay the live service from global launch (28 July
 2021) instead of keeping everything open. [36e881f, f8051fe, 921b5b3, 356d2d1]
 - **Game data:** events, summons, shops, seasons, missions, login bonuses,
   campaigns and item terms move forward by whole weeks to start at the current
@@ -729,7 +830,7 @@ Content › Schedule can replay the live service from global launch (28 July
 - **Moving ahead:** Next update, Next week, or Jump to a week or an update,
   with a preview of what opens, what is still paid and what is skipped. The
   calendar only moves forward, in whole days.
-- **Speed:** real time, 2×, 3.5× or 7×, one week at a time at the daily reset.
+- **Speed:** real time, 2脳, 3.5脳 or 7脳, one week at a time at the daily reset.
 - **Loops:** a loop is 144 weeks. The next loop's game data is built ahead,
   and the server starts it when a loop ends.
 - **Server:** an Arena season's final rank reward is paid after it ends. Event
@@ -764,7 +865,7 @@ Content › Schedule can replay the live service from global launch (28 July
   Yuletide and more).
 - FFXIV (159) and Monthly Featured (414) reruns run on their shop's dates.
 - Special summons follow their titles: free summons give one free 10-pull a
-  day, "★★★★ guaranteed" ones a single 10-pull with a ★4 for 3000 gems, and
+  day, "鈽呪槄鈽呪槄 guaranteed" ones a single 10-pull with a 鈽? for 3000 gems, and
   "paid only" ones take paid gems. Bonus and newcomer summons are left out.
   [c83dcc1]
 - Every draw carries a medal bonus, even an empty one; free summons hung
@@ -797,7 +898,7 @@ Checked against the game's master data and the 3.7.1 client. [2aa0757]
 - **Login bonus:** one stamp per day.
 - **Duplicates:** duplicate costumes and companions from any source give their
   exchange items. Enhanced costumes and companions arrive at their proper level.
-  Companions 49–51 and 53 below level 50 are raised to 50.
+  Companions 49鈥?1 and 53 below level 50 are raised to 50.
 - **Summons:** a failed payment cancels the draw. Each chapter summon uses its
   own chapter ticket. The summon medal limit comes from master data.
 - **Costumes:** level bonus stats and karma results now apply in battle.
@@ -884,7 +985,7 @@ Checked against the game's master data and the 3.7.1 client. [2aa0757]
 - Missing handlers added: the daily quest set reward, skipping several quests
   at once, costume level bonus confirmation, story choices, labyrinth season
   rewards, unread pop-ups and Portal Cage drops. [4683eba]
-- Pod Programs → Summon rates sets the summon rates, which the game's Rates page
+- Pod Programs 鈫?Summon rates sets the summon rates, which the game's Rates page
   shows. [4683eba]
 - The summon Details page shows the banner's costs, exchange and item rates.
   [926046b]
@@ -908,7 +1009,7 @@ Checked against the game's master data and the 3.7.1 client. [2aa0757]
 ## 2026-10-06
 
 ### Display
-- Pod Programs → Display sets the frame rate (30, 60, 90, 120 or the screen's
+- Pod Programs 鈫?Display sets the frame rate (30, 60, 90, 120 or the screen's
   maximum) and resolution (1080p, 1440p or the screen's own). Walking and
   battles keep their 30 fps speed. [f81a3e9, da80e25]
 - The same on iPhone and iPad, and Game Mode on both platforms. [1af9015]
@@ -947,7 +1048,7 @@ Checked against the game's master data and the 3.7.1 client. [2aa0757]
   [a37b411, a399acb]
 - Internal identifiers renamed to org.veritr1x.bunker; existing installs update
   normally. [ffbb2f3]
-- Mac: a Bunker menu with ⌘B opens the launcher. [a2ac31a]
+- Mac: a Bunker menu with 鈱楤 opens the launcher. [a2ac31a]
 - Pod Programs uses the launcher's colours. [c134238]
 
 ## 2026-10-04

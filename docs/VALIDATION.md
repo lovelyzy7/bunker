@@ -207,14 +207,15 @@
 
 ## Arena against computer players — 2026-10-08
 
-- The Arena had no server at all: the nine PvP calls, the defense deck,
-  weekly rewards and the three Arena tables. Opponents are a per-season
-  ladder of 5,000 computer players with playable costumes and their paired
-  weapons, raised to a share of the player's deck (more for those with more
-  points). Values from the game: 100 battle points, 1 back every 180 s, 10 a
-  battle, 5 a refresh; grades and win, weekly grade and weekly rank rewards
-  from the Arena tables. Season 202038 is in force (Bunker's patched seasons
-  all run to 2030; the one that started last).
+- The server had no Arena support at all: none of the nine PvP calls, the
+  defense deck, weekly rewards or the three Arena tables. Each season has a
+  ladder of 5,000 computer opponents. They use playable costumes and their
+  paired weapons, raised to a share of the player's deck (a larger share for
+  those with more points). These values come from the game: 100 battle
+  points, 1 point back every 180 s, 10 points a battle and 5 a refresh.
+  Grades and the win, weekly grade and weekly rank rewards come from the
+  Arena tables. Season 202038 is the current one: Bunker's patched seasons
+  all run to 2099, and it is the one that started last.
 - `internal/pvp` tests with the patched master data and the emulator's save:
   the ladder is the same each start and ranks the player; a battle costs
   battle points that come back on time; opponent decks stay within the
@@ -231,16 +232,18 @@
   opponent screen listed three computer players, a battle played to the end
   and won (rank 4934 → 4574, 0 → 100 points, a coin and materials), and
   History showed it.
-- Two client details found on the way: the opponent screen hangs without an
-  Arena deck, so the first visit copies quest deck 1 to Arena deck 1 (also the
-  defense deck); and battle loading stops on a null weapon awaken ability
-  (`CalculatorDataBattleDeckForPvp.SetWeaponAwakenInfo`), found with a
-  temporary hook on il2cpp's null-reference raise, so it is always sent, empty.
+- Two client problems were found along the way. First, the opponent screen
+  hangs without an Arena deck, so the first visit copies quest deck 1 to
+  Arena deck 1 (also the defense deck). Second, battle loading stops on a
+  null weapon awaken ability
+  (`CalculatorDataBattleDeckForPvp.SetWeaponAwakenInfo`). A temporary hook on
+  il2cpp's null-reference raise found it. The server now always sends it,
+  even when empty.
 
 ## Missions, rewards and summon rates — 2026-10-07
 
-- Inventory against the 3.7.1 client: client and server define the same 40
-  services and 174 calls; 28 had no handler. This adds missions, the mission
+- Checked against the 3.7.1 client: client and server define the same 40
+  services and 174 calls, and 28 had no handler. This adds missions, the mission
   pass, the daily quest set reward, multi-skip, costume level bonus
   confirmation, story choices, labyrinth season rewards, unread pop-ups,
   Portal Cage drops and the friend actions (which succeed with no friends
