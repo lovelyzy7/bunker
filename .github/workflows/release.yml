@@ -27,6 +27,13 @@ jobs:
         with:
           python-version: "3.11"
       - run: python3 -m pip install pycryptodome msgpack lz4
+      - name: Materialise lunar-scripts-zh
+        # upstream-local 是目录挂载（Windows junction）；CI 无本地挂载时从 GitHub
+        # 取实体。内容正确性由 prepare 的 contract-digest 预检（upstream.lock pin）。
+        run: |
+          if [ ! -d upstream/lunar-scripts-zh ]; then
+            git clone --depth 1 https://github.com/lovelyzy7/lunar-scripts-zh upstream/lunar-scripts-zh
+          fi
       - name: Unit tests
         run: |
           (cd scripts && python3 -m unittest test_version test_release_assets test_zh_switch)

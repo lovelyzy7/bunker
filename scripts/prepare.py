@@ -34,7 +34,9 @@ ZH_CONTRACT_FILES = (
 
 
 def digest(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    # 契约摘要对 LF 归一：工作区在 Windows（autocrlf）是 CRLF、CI 检出是 LF，
+    # 同一内容必须得到同一摘要（P6 实证：pin 按 CRLF 树算，CI 必漂）。
+    return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
 
 
 def zh_contract_digest(module):
