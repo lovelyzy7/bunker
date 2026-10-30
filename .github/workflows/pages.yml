@@ -135,6 +135,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Materialise lunar-scripts-zh
+        # build_site.py packs the module's patchers/tables into the site payload.
+        run: |
+          if [ ! -d upstream/lunar-scripts-zh ]; then
+            git clone --depth 1 https://github.com/lovelyzy7/lunar-scripts-zh upstream/lunar-scripts-zh
+          fi
       # Serve the very bytes the release attached: the page publishes that
       # digest, and a download proxy is checked against it, so it has to be the
       # same file rather than a second APK build that differs byte for byte.
