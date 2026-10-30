@@ -11,7 +11,7 @@ bunker 侧接线：挂载位装载（upstream/lunar-scripts-zh 目录联接）�
 产物类（product_class）：
   deliverable — zh 交付物（nier-jp.apk / nier-en.apk / 集成 bin.e）：
                 字体=zh payload、fix3 必需、bin.e 文本须带简体强度。
-  bunker      — bunker 链路自产（原版 APK+原版 master 改版产物）：
+  bunker      — bunker 链路自产（由原版 APK 与原版 master 数据重建的产品）：
                 字体=四条目完整性（zh 或原版皆可，报 which）、fix3 optional、
                 bin.e 文本 CJK-only（该链路 webbuild.verify 强制原版 master，
                 文本为原版日文；zh 强度断言在 deliverable 类启用）。
@@ -31,8 +31,8 @@ import sys
 import zipfile
 from pathlib import Path
 
-BUNKER_ROOT = Path(__file__).resolve().parents[2]          # E:\NieRReincarnation\bunker
-REPO_ROOT = BUNKER_ROOT.parent                             # E:\NieRReincarnation
+BUNKER_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = BUNKER_ROOT.parent
 ZH_MOUNT = BUNKER_ROOT / "upstream" / "lunar-scripts-zh"
 MASTER_ENTRY = "assets/lunar/20240404193219.bin.e"
 
@@ -73,8 +73,7 @@ def load_gate_modules():
 def setup_gate(raise_on_fail: bool = True):
     """setup 期预检（prepare.py 装载 lunar-scripts-zh 后调用）：
     ① MANIFEST 预检（jp-client / en-client 权威副本逐项 sha256）；
-    ② 字体 payload 四条目在位且 sha256 == 期望（jp=模块内 payload2；
-       en=payload3 在 zh-l10n/work/fonts-fix4/out3（模块外，可达则检））。"""
+    ② 字体 payload 四条目在位且 sha256 == 期望（双端均取模块内 payload）。"""
     gate_defs, verify_gate = load_gate_modules()
     G = gate_defs
     rep = G.GateReport(gate="bunker-setup", target={"zh_mount": str(ZH_MOUNT)})
@@ -85,16 +84,14 @@ def setup_gate(raise_on_fail: bool = True):
         rep.add("manifest_precheck", s, f"[{client}] {d}", actual=det)
 
     payload_dirs = {
-        "jp": ZH_MOUNT / "jp-client" / "fonts" / "payload" / "assets" / "bin" / "Data",
-        "en": REPO_ROOT / "zh-l10n" / "work" / "fonts-fix4" / "out3" / "payload3"
-              / "assets" / "bin" / "Data",
+        client: ZH_MOUNT / f"{client}-client" / "fonts" / "payload" / "assets" / "bin" / "Data"
+        for client in ("jp", "en")
     }
     for client, pdir in payload_dirs.items():
         expect = G.CLIENTS[client]["fonts_zh"]
         if not pdir.is_dir():
-            # en payload 在模块外（构建工作区）；不在则明确 skip，不算 fail
             rep.add("font_payload", "skip",
-                    f"[{client}] payload 目录不可达（模块外构建工作区）: {pdir}", None)
+                    f"[{client}] payload 目录不可达: {pdir}", None)
             continue
         bad = []
         got = {}

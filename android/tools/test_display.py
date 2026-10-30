@@ -12,9 +12,7 @@ client is detected from its file size, per-client).
     REGIONS、region.py REGIONS 同一套 JP/EN 事实表（漂移即红）。
   GameBinary     — BUNKER_GAME_LIB 所指客户端的 11 站点在其自身表下全部命
     中原始指令；对面客户端的表必须拒（选对=本表过、错表拒）。
-  离线证据同 zh-l10n/work/diag-rva-display/l3b-test/{test_display_rva.py,
-  verify_en_source.py}。协同点：任务 C L6 把本门并入 build.py 产物验证门 /
-  verify_*_client.py 清单时按本文件断言调用。
+  本门由 build.py 产物验证门与 verify_*_client.py 清单按本文件断言调用。
 """
 from pathlib import Path
 import importlib.util

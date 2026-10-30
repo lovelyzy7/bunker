@@ -29,7 +29,7 @@
         "shared/schemas.json",
         "shared/verify_gate.py"
       ],
-      "sha256": "a99162223f69a0b02795f43f13daeb882a2f68ae641b167ba82260f479704ab1"
+      "sha256": "455c2fe819d226bf5f14595f62c237091d3ac5e599c09144f403f745bb7af385"
     },
     "note": "路径引用/目录登记形态：lunar-scripts-zh 非 git 仓（暂未 init；禁止 git init / git submodule add）。等价 pin = 调用面契约文件集 sha256 摘要（prepare.py 按 pin.files 重算校验，等价于 submodule 的 commit pin 预检）。挂载点 upstream/lunar-scripts-zh = 指向 location 的目录联接（junction）。与 submodule 纪律衔接：与 5 个 submodule 同账本（本文件）同预检（prepare.py）；变更时重生成摘要并 bump 此条目（等价于 bump commit pin）；zh 将来 init 为 git 仓后，改登记为 \"git\": true + commit pin 即无缝切回 submodule 纪律。禁止 git submodule update --remote（同 §2.5）。"
   }

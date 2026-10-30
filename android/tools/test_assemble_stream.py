@@ -14,11 +14,12 @@ import package_game
 def reachability_library(path, prologue="f30f1ef8fd7b01a9"):
     """A small ELF carrying the shape the reachability scan recognises.
 
-    改版适配：package_game.patch_local_reachability 的定位方式是「名字串
-    UnityEngine.Application::get_internetReachability() 的唯一 adrp/add 引用
-    + 回溯 prologue」（双端通用，非上游固定 RVA 0x4910D4C）。夹具合成该形状：
-    串在 0x2100（同页 0x2000），wrapper 在 0x2F00（prologue+帧指令+nop+
-    adrp x0/add x0,#0x100 指向串页），供扫描器唯一命中。
+    package_game.patch_local_reachability locates the patch site by the
+    string "UnityEngine.Application::get_internetReachability()" and its
+    single adrp/add reference (works for both the JP and EN release
+    libraries, unlike a fixed RVA). The fixture synthesises that shape:
+    the string at 0x2100 (page 0x2000) and a wrapper at 0x2F00 (prologue,
+    frame instruction, nop, adrp x0/add x0,#0x100 aimed at the string page).
     """
     data = bytearray(0x4000)
     data[:6] = b"\x7fELF\x02\x01"
@@ -44,9 +45,10 @@ class StreamTests(unittest.TestCase):
             library = game / "lib/arm64-v8a/libil2cpp.so"
             at = reachability_library(library)
             before = library.read_bytes()
-            # 改版语义优先：patch_local_reachability 走 read_bytes 全量读（工具链侧
-            # 正确性优先，桌面无浏览器内存约束）。上游"禁整库读"是其流式优化断言，
-            # 此处改为功能断言——就地打上、仅 8 字节变化、重复调用幂等。
+            # patch_local_reachability reads the library whole (read_bytes); the
+            # toolchain side has no browser memory constraint and correctness
+            # comes first. Assert the functional contract: the patch lands in
+            # place, touches exactly 8 bytes, and repeat calls are idempotent.
             package_game.patch_local_reachability(game)
             after = library.read_bytes()
             self.assertEqual(after[at:at + 8], bytes.fromhex("40008052c0035fd6"))

@@ -153,7 +153,7 @@ def build_android(apk, master, companion, output=None, log=print, port_offset=0,
         progress=lambda percent: log(f"  signing {percent}%…"))
     # Signature gate (§8.2): the product's certificate must match the region key.
     # client_detect_triple is enforced only in strict mode; with skip-check the
-    # triple is intentionally unverified (split-APK bundles, 默认勾选裁定), so it
+    # triple is intentionally unverified (split-APK bundles, skip-check), so it
     # is recorded as "skipped" instead of failing the gate. False still fails.
     cert_ok = certificate == profile["cert_sha256"]
     triple = bool(profile["zh"].get("detected", {}).get("triple_ok"))

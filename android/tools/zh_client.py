@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-"""bunker ↔ lunar-scripts-zh 客户端自动分派与一致性校验（改版 bunker 调用链接入点）。
+"""bunker ↔ lunar-scripts-zh 客户端自动分派与一致性校验。
 
-BUNKER-ADAPT-PLAN §1.7.2（十处调用点改道）+ §3（客户端自动识别与分派）落地：
 调用链上接入 `upstream/lunar-scripts-zh/shared/detect_client.py`——识别 →
 选 jp-client/en-client（补丁器 / 签名 key / 产物名），未知客户端 fail-fast
 （无默认分支）；与 bunker 自家 region.py 识别做**一致性校验**：两处判定必须
@@ -12,9 +11,9 @@ BUNKER-ADAPT-PLAN §1.7.2（十处调用点改道）+ §3（客户端自动识�
 | 字段 | 含义 |
 |---|---|
 | region / package / name | 判定结果（= region.py 口径） |
-| product_name | 产物名契约：jp→nier-jp.apk，en→nier-en.apk（§9.1） |
-| patcher / patcher_path | REGIONS 补丁器（= zh 双前端补丁器，§1.7.2 #1/#2） |
-| keystore / key_alias / key_pass / cert_sha256 | 签名 key 自动选（§8.2） |
+| product_name | 产物名契约：jp→nier-jp.apk，en→nier-en.apk |
+| patcher / patcher_path | REGIONS 补丁器（zh 双前端补丁器） |
+| keystore / key_alias / key_pass / cert_sha256 | 签名 key 自动选 |
 | zh | detect_client 判定档案全文（manifest sidecar 的 region_info 输入） |
 
 用法：

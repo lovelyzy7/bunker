@@ -183,8 +183,8 @@ def patch_game_files_jp(archive, work, port_offset=0):
         jp.patch_network_config(str(work), host, int(port))
         jp.patch_libil2cpp(str(work / LIB))
         load("package_game", ROOT / "android/tools/package_game.py").patch_local_reachability(work)
-        # telemetry_patches.json 是 Global(EN) 3.7.1 专有站点表（上游只接 EN 路径
-        # patch_game_files）；JP 无对应站点表，不接遥测补丁（原版语义，JP 冒烟实证）。
+        # telemetry_patches.json holds Global(EN) 3.7.1 sites only (wired in
+        # patch_game_files); the JP library has no site table, so it is left alone.
         return lib, metadata, network_config
 
 
@@ -514,8 +514,9 @@ def _assemble(apk, master, companion_apk, output, work, log, port_offset, menu,
                     else:                          # the patched files, written from disk
                         writer.add_file(name, value, compress=name != LIB or info.compress_type != 0)
                         if isinstance(value, Path):
-                            # 只回收流水线自建的 work 临时件。字体 payload 等源件是
-                            # 仓库文件，绝不能吃掉（P6 实证：每次构建后源字体消失）。
+                            # Only recycle the pipeline's own work-dir temporaries.
+                            # Font payload entries point at repository source files,
+                            # which must never be consumed by the build.
                             try:
                                 if value.resolve().is_relative_to(Path(work).resolve()):
                                     value.unlink()  # In the browser this frees its memory.

@@ -8,7 +8,7 @@ stdlib-only，不依赖 UnityPy / apktool，手机浏览器（Pyodide）与桌�
 上游对照（步骤级替换，凡 lunar-scripts(-jp) 步骤均取 lunar-scripts-zh 对应物）：
   * 映射构建 —— 复用上游模块自身函数（jp fix3 repl_map / en key_map+meta_repl /
                 ko key_map(含 KO_OVERRIDE) / fix3l FIX3L_KEYS），零口径漂移；
-  * fix4 数据面 —— en-client 专有两态纯化数据（用户裁定 EN=fix4 态，JP=fix3 不动）：
+  * fix4 数据面 —— en-client 专有两态纯化数据（EN 段=原版英文、ko 段=中文；JP 仅 fix3）：
                 EN 段 81 键还原值 = en-client/fix4_orig_en_values.json 复制；
                 ko 段 67 nt 新译 = en-client/patch_fix4.py 内嵌 NT_KO_TRANSLATIONS 导出；
                 调用点在 fix3l 之后（patch_fix4.py apply 4d/7 语义，纯文件变换）；
@@ -425,7 +425,7 @@ def fix3_readback(release: str, read_entry) -> dict:
     """
     zh = Path(__file__).resolve().parents[2] / "upstream" / "lunar-scripts-zh"
     if not zh.is_dir():
-        zh = Path(r"E:\NieRReincarnation\lunar-scripts-zh")
+        raise RuntimeError(f"lunar-scripts-zh module not found at {zh}")
     entries = table_entries(zh, "all")
     rows = []
     ok_count = 0
@@ -491,7 +491,7 @@ def fix4_readback(read_entry, zh: Path | None = None) -> dict:
     if zh is None:
         zh = Path(__file__).resolve().parents[2] / "upstream" / "lunar-scripts-zh"
         if not zh.is_dir():
-            zh = Path(r"E:\NieRReincarnation\lunar-scripts-zh")
+            raise RuntimeError(f"lunar-scripts-zh module not found at {zh}")
     maps = upstream_maps(zh, "en")
     maps.update(fix4_maps())
     orig_en, nt_ko = maps["fix4_orig_en"], maps["fix4_ko_nt"]
