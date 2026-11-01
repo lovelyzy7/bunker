@@ -640,6 +640,11 @@ worker.onmessage = ({ data }) => {
     updateBuildEnabled();
     setStage(7, 100);   // one past the last chip: every step is done, none is "on"
     log(tr("Done."));
+    // The finished APK is hundreds of megabytes held by this page, and on a
+    // phone that memory is reclaimed within minutes — a download started late
+    // dies halfway and the installer calls the pending file a corrupt package.
+    // Start the save at once; the link and the share sheet stay for a retry.
+    setTimeout(() => { try { $("download").click(); } catch (error) {} }, 400);
   }
 };
 worker.onerror = (event) => {
