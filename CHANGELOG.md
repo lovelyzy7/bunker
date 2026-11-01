@@ -4,6 +4,21 @@ What changed in Bunker, newest first. Each day lists its changes by area.
 Commit ids are in brackets. Each release's heading sits above the dated
 sections it contains; its notes run down to the previous release.
 
+## 1.4.6 (2026-11-01)
+
+The web builder explains why a file is not the original and warns what
+happens if one is built anyway.
+
+## 2026-11-01 (after 1.4.5)
+
+### Web builder
+- The file check matches by SHA-256 and, when a file is not any original
+  release, shows its size and digest next to the originals' instead of
+  rejecting it on size alone without saying why. [app.js]
+- Forcing a build with bytes from a different build now warns that the patch
+  offsets land in the wrong places and the finished APK may be corrupt and
+  refuse to install. [app.js]
+
 ## 1.4.5 (2026-11-01)
 
 Pod Programs opens with cleaner navigation that is always in reach: five

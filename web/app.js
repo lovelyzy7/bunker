@@ -45,16 +45,28 @@ function fileKey(file) {
 
 async function releaseOf(file) {
   if (!RELEASES) return {state: "unavailable"};
-  const match = Object.entries(RELEASES).find(([, known]) => known.size === file.size);
-  if (!match) return {state: "bad"};  // Right size is a cheap first filter.
   if (!crypto.subtle || !crypto.subtle.digest) return {state: "unavailable"};
+  // Always hash the file: matching by size alone flagged legitimate dumps of a
+  // different build as “not the original” without ever looking at their bytes,
+  // and it never told the user what was expected. A size hit is only a hint.
+  let hex = null;
   try {
     const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
-    const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
-    return {state: hex === match[1].sha256 ? "ok" : "bad", region: match[0]};
+    hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
   } catch (error) {
     return {state: "unavailable"};  // Out of memory, or a file we cannot read.
   }
+  const entry = Object.entries(RELEASES).find(([, known]) => known.sha256 === hex);
+  const shown = {size: file.size, sha: hex};
+  if (entry) return {state: "ok", region: entry[0], shown};
+  // Not any known release: report both sides so the difference is visible.
+  const near = Object.entries(RELEASES).find(([, known]) => known.size === file.size);
+  return {
+    state: "bad",
+    region: near ? near[0] : null,
+    shown,
+    expected: Object.fromEntries(Object.entries(RELEASES).map(([k, v]) => [k, {size: v.size, sha: v.sha256}])),
+  };
 }
 
 // The one line under the game description: which release this APK is.
@@ -68,7 +80,13 @@ function showRelease(result) {
   } else if (result.state === "bad") {
     box.hidden = false;
     box.classList.add("bad");
-    box.textContent = `\u2717 ${tr("Not the original 3.7.1 release")}`;
+    const shown = result.shown ? ` \u00b7 ${result.shown.size} B / ${result.shown.sha.slice(0, 12)}\u2026` : "";
+    box.textContent = `\u2717 ${tr("Not the original 3.7.1 release")}${shown}`;
+    if (result.expected) {
+      const exp = Object.entries(result.expected)
+        .map(([k, v]) => `${k.toUpperCase()} ${v.size} B / ${v.sha.slice(0, 12)}\u2026`).join(" \u00b7 ");
+      box.title = `${tr("The file differs from the original 3.7.1 releases")} \u00b7 ${exp}`;
+    }
   } else if (result.state === "checking") {
     box.hidden = false;
     box.textContent = tr("Checking the checksum\u2026");
@@ -405,8 +423,8 @@ function log(line) {
 // else is shown raw, because a precise error is better than a vague apology.
 const FAILURES = [
   [/SHA-256 does not match.*game|The game APK is not the original/,
-    ["这不是原版 3.7.1 游戏包", "请使用官方 3.7.1 的日服或全球服 APK。若你确信文件正确（例如从已安装应用导出的拆分包），可在「进阶选项」里勾选「忽略文件校验」。"],
-    ["This is not the original 3.7.1 game", "Use the official 3.7.1 JP or global APK. If you are sure the file is right (a split APK exported from an installed app, for example), tick \"Build even if the files do not match\" under advanced options."]],
+    ["这不是原版 3.7.1 游戏包", "请使用官方 3.7.1 的日服或全球服 APK。若你确信文件正确（例如从已安装应用导出的拆分包），可在「进阶选项」里勾选「忽略文件校验」。注意：用不同构建的字节强建会把补丁偏移写到错误位置，成品 APK 可能已损坏、无法安装。"],
+    ["This is not the original 3.7.1 game", "Use the official 3.7.1 JP or global APK. If you are sure the file is right (a split APK exported from an installed app, for example), tick \"Build even if the files do not match\" under advanced options. Building with bytes from a different build applies its patch offsets to the wrong places, and the finished APK may be corrupt and refuse to install."]],
   [/The master data is not the original/,
     ["主数据不是原版文件", "请使用 20240404193219.bin.e 原文件（约 7.4 MB），未被内容修补器改过的那个。"],
     ["The master data is not the original", "Use the untouched 20240404193219.bin.e (about 7.4 MB), not one a content patcher has rewritten."]],
@@ -695,6 +713,7 @@ const ZH = {
   "Global": "全球服",
   "Checking the checksum…": "正在校验 SHA-256……",
   "Not the original 3.7.1 release": "不是原版 3.7.1（SHA-256 不匹配）",
+  "The file differs from the original 3.7.1 releases": "此文件与原版 3.7.1 不同；下方为本文件与原版的尺寸/摘要对照",
   "Choose the game .apk file.": "请选择游戏的 .apk 文件。",
   "Takes a few minutes and needs about 2 GB of free memory. A desktop browser works best.":
     "需要几分钟，并占用约 2 GB 内存。建议使用桌面浏览器。",
