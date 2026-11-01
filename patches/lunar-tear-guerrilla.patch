@@ -1,8 +1,8 @@
 diff --git a/server/internal/service/quest_event.go b/server/internal/service/quest_event.go
-index 8b58be1..6db9b16 100644
+index b6fac03..8d2ab17 100644
 --- a/server/internal/service/quest_event.go
 +++ b/server/internal/service/quest_event.go
-@@ -106,12 +106,21 @@ func (s *QuestServiceServer) StartGuerrillaFreeOpen(ctx context.Context, req *em
+@@ -116,12 +116,21 @@ func (s *QuestServiceServer) StartGuerrillaFreeOpen(ctx context.Context, req *em
  
  	userId := CurrentUserId(ctx, s.users, s.sessions)
  	nowMillis := gametime.NowMillis()

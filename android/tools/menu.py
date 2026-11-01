@@ -19,18 +19,19 @@ import command
 
 HERE = Path(__file__).resolve().parent
 DEFAULT_ROOT = HERE.parents[1] / "vendor/bunker-modmenu"
+UPSTREAM_ROOT = HERE.parents[1] / "upstream/bunker-modmenu"
 # Which workspace builds the menu for each release.
 WORKSPACE = {"en": "en-client", "jp": "jp-client"}
 
 
 def root(explicit=None):
-    """The bunker-modmenu checkout: --mod-menu-root, then $BUNKER_MODMENU, then vendor/."""
-    for candidate in (explicit, os.environ.get("BUNKER_MODMENU"), DEFAULT_ROOT):
+    """The bunker-modmenu checkout: --mod-menu-root, then $BUNKER_MODMENU, vendor/, upstream/."""
+    for candidate in (explicit, os.environ.get("BUNKER_MODMENU"), DEFAULT_ROOT, UPSTREAM_ROOT):
         if candidate and (Path(candidate) / "README.md").is_file():
             return Path(candidate).resolve()
     raise SystemExit(
-        "The Mod Menu sources are missing. Clone them next to this repository as vendor/bunker-modmenu "
-        "(git clone https://github.com/lovelyzy7/bunker-modmenu vendor/bunker-modmenu), set "
+        "The Mod Menu sources are missing. Run git submodule update --init --recursive "
+        "(upstream/bunker-modmenu), clone them as vendor/bunker-modmenu, set "
         "BUNKER_MODMENU to a checkout, or pass --mod-menu-root."
     )
 

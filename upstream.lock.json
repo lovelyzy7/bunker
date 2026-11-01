@@ -1,12 +1,11 @@
 {
-  "lunar-tear": "2e6a0fe048af06fe96a5bc80fc6556dda17da959",
-  "lunar-scripts": "942dced617ea836a0e3abcfc0e0befec42baab11",
-  "lunar-scripts-jp": "b84faf515fd940712963e4217db584a815e00b25",
-  "lunar-base": "0b1a6fe3ffaf452f3c2fac8dc86d1d3095e522bc",
+  "lunar-tear": "3a8c5f1c8c9f6a987de32b03b5a940d12e7ded5f",
+  "lunar-base": "9eff325df2885003159b3b1b5297ead5d26546fc",
+  "bunker-modmenu": "4b72e3a4050c649ae476a39cf120c45dec5f015c",
   "lunar-tear-masterdata-patcher": "9b6cd167b51dd3b84be200faf92877b4408c1901",
   "lunar-scripts-zh": {
-    "kind": "directory",
-    "git": false,
+    "kind": "git",
+    "git": true,
     "path": "upstream/lunar-scripts-zh",
     "location": "E:/NieRReincarnation/lunar-scripts-zh",
     "pin": {
@@ -29,8 +28,9 @@
         "shared/schemas.json",
         "shared/verify_gate.py"
       ],
-      "sha256": "455c2fe819d226bf5f14595f62c237091d3ac5e599c09144f403f745bb7af385"
+      "sha256": "a718c621bb6434db0407e84be740743df26c4a315ee81c8fa80e1fc0bec9cb6d"
     },
-    "note": "路径引用/目录登记形态：lunar-scripts-zh 非 git 仓（暂未 init；禁止 git init / git submodule add）。等价 pin = 调用面契约文件集 sha256 摘要（prepare.py 按 pin.files 重算校验，等价于 submodule 的 commit pin 预检）。挂载点 upstream/lunar-scripts-zh = 指向 location 的目录联接（junction）。与 submodule 纪律衔接：与 5 个 submodule 同账本（本文件）同预检（prepare.py）；变更时重生成摘要并 bump 此条目（等价于 bump commit pin）；zh 将来 init 为 git 仓后，改登记为 \"git\": true + commit pin 即无缝切回 submodule 纪律。禁止 git submodule update --remote（同 §2.5）。"
+    "note": "转正 submodule（双钉：gitlink commit pin + 契约摘要 pin，prepare 两者皆验）。本地开发位可用目录联接，联接目标 HEAD 须等于 commit。",
+    "commit": "b20db6efa4e6a8c909a0d0f699e6f6b964dbcf6f"
   }
 }

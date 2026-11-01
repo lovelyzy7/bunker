@@ -4,6 +4,167 @@ What changed in Bunker, newest first. Each day lists its changes by area.
 Commit ids are in brackets. Each release's heading sits above the dated
 sections it contains; its notes run down to the previous release.
 
+## 1.4.4 (2026-10-31)
+
+Flying Mama plays at its normal speed above 30 fps, and the Dark Memory
+chapter summon no longer leaves the game stuck before Dark Memories open.
+
+## 2026-10-31 (after 1.4.3)
+
+### Display (Android)
+- Flying Mama plays at its normal speed with a frame rate above 30 chosen in
+  Display. The minigame counts frames, so at 60 fps the stage scrolled and
+  Mama fell twice as fast against the same clock; its logic now runs 30 times
+  a second, and taps still count on every frame. [7869f1e]
+
+### Summons
+- The Dark Memory chapter summon appears once Dark Memories open (clearing
+  the last quest of Season 1, Chapter 14). Before that, its To Quests opened
+  an empty screen that the game could not leave. [c0554ce]
+
+### Tools
+- The Android tools tests run as a folder again: the two scripts that need
+  private game files are skipped there. [13d48c5]
+
+## 1.4.1 (2026-10-29)
+
+Bunker reads better on tablets and in landscape: Pod Programs shows every
+tab and full names, notices keep a readable column, and the Archive's
+stories fill the screen. The guides show their pictures (notice pack 3).
+
+## 2026-10-29 (after 1.4.0)
+
+### Display
+- On tablets and in landscape, every Pod Programs tab shows (on two rows
+  when they don't fit), and long costume, weapon and upgrade names wrap
+  instead of being cut off. [03e995b]
+- Notices and summon details keep their text in a readable column on wide
+  screens. [03e995b]
+- In the Archive, weapon stories, records, companion and costume texts
+  reflow to the screen instead of keeping the game's narrow line breaks;
+  lists, reports and the like keep their own breaks. [a8c9870]
+
+### Anecdotes
+- The sub-quest guides and the Anecdotes' How to Play pages show their
+  pictures, from notice pack 3. [f2b976b] [9af79be]
+- The completed sheet's story marks every panel's word, also where the
+  story uses a longer form of it ("nightmares", "wished"). [b0a3a65]
+
+## 1.4.0 (2026-10-29)
+
+The Anecdotes are playable again on the game's own panel mission page, the
+Library lists their stories, and notice pack 2 brings more of the official
+notices back. With the Original calendar, the Abyss Towers and the Anecdotes
+rerun on their own schedules, and many summons run as long as their notices
+say.
+
+## 2026-10-29
+
+### Calendar
+- With the Original calendar, the Abyss Towers rerun on their own schedule:
+  each tower opens for each of its runs (both Fivefold Unveilings included)
+  and closes between them, with the floors that run had (20, then 30, 40
+  and 50), and stays open for good from March 2023 as notice 1037 says.
+  Before, a tower opened at its first run with all its floors and never
+  closed. A tower's accumulation rewards are still claimed once. [ba0ccbe]
+- With the Original calendar, every Anecdote run plays, not only the
+  first (15 runs in all). [095eac0]
+- Record: Seat of Shadow (Resurrected) ends on 2 December 2023 as its
+  notices say, a day earlier than before. [9c8b65c]
+
+### Anecdotes
+- The Anecdotes are playable. Each of the eight has its two sheets of
+  panels again (from guides and gameplay videos; 26 panels whose exact
+  condition isn't recorded count the nearest thing). A run's panels count
+  what the player does while it is open, a reached panel's reward goes to
+  the gift box, and a finished sheet pays its own reward and unlocks its
+  story in the Library. [c55ecc4] [cadd148]
+- The sheets are the game's own page, restored from a preserved copy of the
+  official web app in the notice pack: the panels over the hidden picture,
+  each received panel opening onto its piece and word, and a finished sheet
+  assembling its card beside its story. The words of every sheet come from
+  gameplay videos. Mama's banners open the run that is on. [a32d3d7]
+- Three panels paid an item that doesn't exist instead of a Premium Summon
+  Ticket, a Skip Ticket or a Small Stamina Recovery. [a32d3d7]
+- With the Original calendar, Library › Card Stories lists each Anecdote
+  once, as the live game did. Before, it was listed once per run (Doll three
+  times). [438f7a1]
+- When a sub-quest type unlocks, its guide opens on the official page
+  (Dark Memory and Recollections of Dusk; the other guides weren't
+  preserved). Before, the page was blank. [dcaa007]
+
+### Notices
+- Notice pack 2: four notices that were missing, the later versions of
+  "Known issues" (#4) and three more, no garbled characters, and 274 more
+  images: banners and pictures from the Wayback Machine and gameplay videos
+  (where a banner is lost, the official X account's poster for the notice),
+  item icons rebuilt from the game's own art (and the event medal and
+  ticket coins), and 22 thumbnails. It also carries the official web app
+  the Anecdotes run on. [28608b6]
+- Updates from 1.3.x get the new notices without the web app, which their
+  launchers can't take; 1.4 and later updates take the whole pack.
+  [e240558]
+
+### Summons
+- The Paid Only Unacquired ★★★★ Witch and Assassin summons now give a
+  Witch (Saryu) or an Assassin (Akeha) the player lacks, any of them if the
+  player has them all, and their details list them. Before, they could give
+  any ★4 character. [9874b88]
+- The Healer & Support ★★★★ Guaranteed summons have their lineup: their
+  panels show its characters, their ★4s come from it, and their details
+  list it, taken from the Healer & Support Summon Medal Exchange. Before,
+  the panel had only the banner art. [9874b88]
+- With the Original calendar, 29 summons run as long as their notices say.
+  The game data dated them by their 3-day home banner, so they closed early,
+  such as the Unacquired ★★★★ Assassin summon after 3 of its 13 days and
+  the RoD Resonant Character summons. [05974bd]
+- The Re[in]carnation Appreciation Gala's free summons (July to September
+  2023) are back: seven free summons of 40 draws each, one a week, each
+  giving ★4 characters of one costume series. The game data lacked them.
+  [db8c595]
+- The Story Completion festivals (February to April 2024) have all three
+  volumes each, as their notices say; the game data had only the first.
+  Each volume's ★4 characters are its own lineup (limited-time characters,
+  or the series its art names), with the notices' 10% ★4 rate, as the
+  Black Friday Karma Festival now has too. [5a3fe20]
+- Guarantees that name a group of characters now give one of them: the
+  RoD Resonant Character, Abyssal, Celebratory and Yuletide summons, the
+  Season 1 summon (whose characters are now all it gives) and the
+  limited-time character summons. Before, the guaranteed slot gave any ★4.
+  The limited-time sets are a best guess, as no notice lists them.
+  [c4cd7c6]
+
+### Tests
+- The real-save tests pass on any save and game data: the arena season
+  and play history checks follow the save's own dates. [a2b6660]
+
+## 2026-10-28
+
+### Calendar
+- With the Original calendar, a rerun event's medal exchange now opens with
+  the event. The game data keeps only an event's last run, so events that
+  reopen from an earlier run (26 of them, such as "Record: The Cage of
+  Reincarnation" from July 2021) dropped medals for months before their
+  exchange and the medal itself opened. The exchange, its offers and the
+  medal now open when the event first does and stay until its last run
+  ends. Reported in GitHub issue #5. [bcd55ab]
+- With the Original calendar, the medals and tickets an event gives are
+  valid while it runs. Like the exchanges, they kept the dates of the
+  event's last run: silver and gold medals of events reopened from an
+  earlier run were not valid yet, story events' summon tickets were valid
+  in another year than the event, and three 2021 events dropped medals
+  never valid. Every item an event gives is now valid from its first run
+  to its last (100 medals and tickets). [3f0934d]
+- With the Original calendar, a story event's summon stays open for every
+  run of the event. Its 2023 reruns had no summon to spend their tickets
+  in (chapters 300 and 301). [9b7624b]
+- The Original calendar no longer replays 25 placeholder dates as runs:
+  dates content carried in the game data before it was used, such as
+  chapter 513's medal dated August 2021 for a November event, one-day
+  quests and home-screen pop-ups that were parked on their own days, and
+  a few tips and missions. A date range now counts only if the game data
+  published during it had the content live. [db9374f]
+
 ## 1.3.1 (2026-10-30)
 
 The web builder downloads its runtime sources as one small archive and

@@ -22,6 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - run: test "v$(cat VERSION)" = "$GITHUB_REF_NAME" || { echo "Tag $GITHUB_REF_NAME does not match VERSION $(cat VERSION)"; exit 1; }
       - uses: actions/setup-python@v5
         with:
@@ -36,7 +38,7 @@ jobs:
           fi
       - name: Unit tests
         run: |
-          (cd scripts && python3 -m unittest test_version test_release_assets test_zh_switch)
+          (cd scripts && python3 -m unittest test_version test_release_assets test_zh_switch test_notices test_history_runs test_tower_floors)
           (cd android/tools && python3 -m unittest test_privacy test_update_apk test_build_info test_master_patch test_assemble_stream)
       - name: Style checks
         continue-on-error: true   # a hint, not a gate
@@ -103,6 +105,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: actions/setup-go@v5
         with:
           go-version: "1.25.8"

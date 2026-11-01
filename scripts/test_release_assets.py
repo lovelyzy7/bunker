@@ -45,6 +45,35 @@ class MakeTests(unittest.TestCase):
             self.assertIn("assets/lunar/bunker-version.txt", z.namelist())
             self.assertNotIn("res/x.png", z.namelist())
 
+    def test_includes_the_notice_pack(self):
+        pack = self.work / "bunker-notices.zip"
+        with zipfile.ZipFile(pack, "w") as z:
+            z.writestr("notices.json", "{}")
+        update = release_assets.make("1.2.3", self.apk, self.out, notices=pack)
+        digest = sha256(pack)
+        name = f"bunker-notices-{digest[:12]}.zip"
+        self.assertEqual(update["assets"]["notices"], {"name": name, "size": pack.stat().st_size, "sha256": digest})
+        self.assertEqual((self.out / name).read_bytes(), pack.read_bytes())
+        self.assertNotIn("noticePack", update["assets"])  # no web app: one pack for every launcher
+
+    def test_a_pack_with_the_web_app_also_comes_without_it(self):
+        # Launchers before 1.4 accept only notices.json and img/ in the pack they
+        # update with ("notices"); 1.4 and later take the whole pack ("noticePack").
+        pack = self.work / "bunker-notices.zip"
+        with zipfile.ZipFile(pack, "w") as z:
+            z.writestr("notices.json", "{}")
+            z.writestr("img/a.webp", b"RIFF")
+            z.writestr("web/default_page.html", "<!doctype html>")
+        update = release_assets.make("1.2.3", self.apk, self.out, notices=pack)
+        full = update["assets"]["noticePack"]
+        self.assertEqual(full["sha256"], sha256(pack))
+        self.assertEqual((self.out / full["name"]).read_bytes(), pack.read_bytes())
+        legacy = update["assets"]["notices"]
+        with zipfile.ZipFile(self.out / legacy["name"]) as z:
+            self.assertEqual(sorted(z.namelist()), ["img/a.webp", "notices.json"])
+        self.assertEqual(legacy["sha256"], sha256(self.out / legacy["name"]))
+        self.assertNotEqual(legacy["name"], full["name"])
+
     def test_refuses_master_data(self):
         with zipfile.ZipFile(self.apk, "a") as z:
             z.writestr("assets/lunar/original-master.bin.e", "master")

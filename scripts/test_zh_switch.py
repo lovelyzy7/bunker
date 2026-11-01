@@ -177,13 +177,14 @@ class AdapterContractTest(unittest.TestCase):
 
 
 class UpstreamRegistrationTest(unittest.TestCase):
-    """kind=directory pin = the git-less equivalent of the submodule commit pin."""
+    """lunar-scripts-zh = submodule (gitlink commit pin) + contract-digest pin, both checked."""
 
     def test_lock_entry_shape(self):
         pins = json.loads((ROOT / "upstream.lock.json").read_text(encoding="utf-8"))
         entry = pins["lunar-scripts-zh"]
-        self.assertEqual(entry["kind"], "directory")
-        self.assertFalse(entry["git"])
+        self.assertEqual(entry["kind"], "git")
+        self.assertTrue(entry["git"])
+        self.assertRegex(entry["commit"], r"^[0-9a-f]{40}$")
         self.assertEqual(entry["path"], "upstream/lunar-scripts-zh")
         self.assertEqual(entry["pin"]["mode"], "contract-digest")
 
@@ -197,10 +198,10 @@ class UpstreamRegistrationTest(unittest.TestCase):
         self.assertEqual(prepare.check_zh_module("lunar-scripts-zh", pins["lunar-scripts-zh"]),
                          pins["lunar-scripts-zh"]["pin"]["sha256"])
 
-    def test_gitmodules_registers_the_directory_form(self):
+    def test_gitmodules_registers_the_submodule_form(self):
         text = (ROOT / ".gitmodules").read_text(encoding="utf-8")
-        self.assertIn('upstream-local "upstream/lunar-scripts-zh"', text)
-        self.assertIn("upstream.lock.json#lunar-scripts-zh", text)
+        self.assertIn('[submodule "upstream/lunar-scripts-zh"]', text)
+        self.assertIn("https://github.com/lovelyzy7/lunar-scripts-zh.git", text)
 
 
 if __name__ == "__main__":

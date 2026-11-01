@@ -221,15 +221,47 @@ func Start(dataRoot, assetRoot string) (err error) {
 	}
 	links := service.NewOctoLinks(octoRoot, assetRoot, platform)
 	go links.Sweep()
-	cdnMux.Handle("/", links.Wrap(cdn.Handler()))
+	// The game's Notices screen, from the notice pack the launcher copies in.
+	notices := service.NewNotices(service.NoticePackPath(assetRoot), gametime.NowMillis)
+	service.SetNotices(notices)
+	service.SetPanelWeb(notices) // the Anecdotes' official page, from the pack's web app
+	octo := links.Wrap(cdn.Handler())
+	cdnMux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if service.IsNoticePath(r.URL.Path) {
+			notices.ServeHTTP(w, r)
+			return
+		}
+		if service.IsPanelMissionPath(r.URL.Path) {
+			service.ServePanelMission(w, r) // an Anecdote's panel sheet
+			return
+		}
+		if notices.IsWebAppRoute(r) {
+			notices.ServeWebAppRoute(w, r) // a sub-quest's guide, on the official web app
+			return
+		}
+		if notices.HasWebFile(r.URL.Path) {
+			notices.ServeWeb(w, r) // the official web app's scripts, styles and images
+			return
+		}
+		octo.ServeHTTP(w, r)
+	}))
 	cdnHTTP := &http.Server{Handler: h2c.NewHandler(cdnMux, &http2.Server{}), ReadHeaderTimeout: 10 * time.Second}
 	s.http = []*http.Server{cdnHTTP, authHTTP}
 	store := sqlite.New(db, gametime.Now)
+	service.SetWebUsers(store)   // Summons Details shows the player's prize box
+	service.SetPanelUsers(store) // the Anecdotes' panel sheets read and pay the player's save
 	s.grpc = grpc.NewServer(
 		// Accept keepalive pings down to 1s apart, also between calls, instead of closing the connection (gRPC default: 5 min).
 		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{MinTime: time.Second, PermitWithoutStream: true}),
 		grpc.ChainUnaryInterceptor(interceptor.Recover, interceptor.Platform, interceptor.Logging, interceptor.NewDiffInterceptor(store, store), interceptor.NewMissionInterceptor(store, store), interceptor.TimeSync), grpc.UnknownServiceHandler(interceptor.UnknownService))
 	service.InitBunker(holder)
+	summonNotices := map[int32]int32{}
+	for _, e := range holder.Get().GachaEntries {
+		if e.InformationId != 0 {
+			summonNotices[e.GachaId] = e.InformationId
+		}
+	}
+	notices.LinkSummons(summonNotices)
 	service.SetArchiveRoot(dataRoot)
 	gacha.SetRatesPath(filepath.Join(dataRoot, "gacha_rates.json"))
 	gacha.SetRouletteRatesPath(filepath.Join(dataRoot, "roulette_rates.json"))

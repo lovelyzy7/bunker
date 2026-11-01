@@ -5,9 +5,42 @@
     "package": "com.square_enix.android_googleplay.nierspjp",
     "libil2cpp_size": 126216336,
     "rva_convention": "ELF LOAD0 RX: p_offset=p_vaddr=0, so file offset == VA == patcher RVA (base+dli_fbase)",
-    "source": "zh-l10n/work/diag-rva-display/rva-display-jp.json (L2 逆向产出, crossval_ok=true)",
+    "source": "zh-l10n/work/diag-rva-display/rva-display-jp.json (逆向产出, crossval_ok=true); 2026-11-01 复核重定位见 rework",
     "generated": "2026-10-29",
-    "l3b_note": "rev D·L3b 落地: display_patch.c 按 libil2cpp.so 文件大小自动选表, 每站点补丁后字节断言"
+    "l3b_note": "补丁器按 libil2cpp.so 文件大小自动选表, 每站点补丁后字节断言",
+    "rework": {
+      "date": "2026-11-01",
+      "reason": "用户实测 60/90/120 FPS 下游戏整体加速 2/3/4 倍（帧相关逻辑被提速）: fps>30 归一化钩链的支撑函数 time_* RVA 实际指向 UnityEngine.SystemInfo.* 错误函数, follow_frame_time/battle_step 无法把物理步长与战斗步进归一化, 钩链装上但失效",
+      "method": "以 Il2CppDumper JP 方法表（jp/dump-jp-3.7.1/out/dump.cs, metadata v24.4, 159134 方法）为 ground truth 逐站点核对所属方法与函数内偏移; 与 EN 同站点反汇编上下文逐指令比对（调用目标语义核对, 如 bl Application.set_targetFrameRate=0x488389C）; time_* 以 thunk 族形状核验 + 簇间距指纹（0x34/0x34/0x158 双端一致）+ setter 的 str d8 浮点参数序言判别 + 元数据缓存槽位错位证据; 全部条目在 scratch 副本上做补丁 dry-run（字断言+写入+回读）; 证据见 zh-l10n/work/diag-rva-display/jp-rework/ 与 JP-RVA-REWORK.md",
+      "changed_entries": {
+        "time_unscaled_delta": "0x4CA9C30 -> 0x4CAD878 (旧值实为 SystemInfo.get_systemMemorySize)",
+        "time_fixed_delta": "0x4CA9C98 -> 0x4CAD8AC (旧值实为 SystemInfo.get_deviceUniqueIdentifier)",
+        "time_set_fixed_delta": "0x4CA9D00 -> 0x4CAD8E0 (旧值实为 SystemInfo.get_deviceName)",
+        "time_frame_count": "0x4CA9F70 -> 0x4CADA38 (旧值实为 SystemInfo.get_graphicsDeviceVendor)"
+      },
+      "confidence": {
+        "fps_onlywhenstarting": "高（dump.cs 所属方法 Generator.OnlyWhenStarting +0x78; bl 目标 = Application.set_targetFrameRate 0x488389C 与 EN 同构）",
+        "fps_setuprenderer": "高（dump.cs Generator.SetupRenderer 方法入口+0x0, 尾调用 b set_targetFrameRate; 与 EN 同构）",
+        "fps_config_ccor": "高（dump.cs PerformanceSetting.Config..cctor +0x50, 字段偏移 [x8,#0xb8]/[x8,#4] 与 EN 一致）",
+        "res_config_start_high": "高（Config..cctor +0xA8, 与 EN 函数内偏移一致）",
+        "res_config_highest": "高（Config..cctor +0xE0, 与 EN 函数内偏移一致）",
+        "res_rendermgr_delaystart": "高（dump.cs RenderManager.<DelayStart>d__25.MoveNext +0x8C, 上下文与 EN 逐指令同构）",
+        "snap_arrive": "高（dump.cs DarkScrollRect.UpdateSnapPosition +0xB8, 上下文与 EN 逐指令同构）",
+        "hook_fixedprocess": "高（dump.cs ActorController.FixedProcess 方法入口, 序言 4 词与 EN 一致）",
+        "hook_battlestep": "高（dump.cs BattleUpdate.OnStateUpdate +0x98, 尾调用 b KernelBattle.Process=0x3762E14 与 EN 同构）",
+        "hook_changestate": "高（dump.cs InternalFiniteStateMachine.ChangeState 方法入口）",
+        "hook_triggerenter": "高（dump.cs ColliderBase.OnTriggerEnter 方法入口）",
+        "hook_showrewardedvideo": "维持 null（原 4 候选全部证伪: 各候选所属方法均与广告无关; EN 侧为混淆广告接口的虚调用包装, JP 对应项未能唯一确定, warning-only skip 安全）",
+        "time_unscaled_delta": "高（dump.cs UnityEngine.Time.get_unscaledDeltaTime; thunk 族形状+簇间距指纹与 EN 一致）",
+        "time_fixed_delta": "高（dump.cs UnityEngine.Time.get_fixedDeltaTime; 同上）",
+        "time_set_fixed_delta": "高（dump.cs UnityEngine.Time.set_fixedDeltaTime; str d8 浮点参数序言与 EN 一致, 旧值缺此特征）",
+        "time_frame_count": "高（dump.cs UnityEngine.Time.get_frameCount; 同上）",
+        "battle_process": "高（dump.cs KernelBattle.Process 入口, 与 EN 同构）",
+        "stay_on_stay": "高（dump.cs EventTriggerOnStayCollision.OnStay 入口）",
+        "stay_begin": "高（dump.cs EventTriggerOnStayCollision.OnStateBegin 入口）",
+        "empty_onstateupdate": "高（dump.cs StateConductor.OnStateUpdate 入口, ret 空虚函数）"
+      }
+    }
   },
   "patches": [
     {
@@ -113,17 +146,17 @@
       "id": "hook_showrewardedvideo",
       "kind": "hook",
       "rva": null,
-      "jp_candidates": ["0x3760A08", "0x3A53CF4", "0x3BA8E74", "0x444BEFC"],
+      "jp_candidates": [],
       "original_bytes": ["0xA9BE4FF4", "0xA9017BFD", "0x910043FD", "0xD00237F4"],
       "semantics": "IronSource.showRewardedVideo prologue (warning-only)",
-      "note": "JP 4候选未决 → rva=null → display_patch.c 设 0 → warning-only skip 不阻塞"
+      "note": "2026-11-01 复核: 原 4 候选 (0x3760A08/0x3A53CF4/0x3BA8E74/0x444BEFC) 全部证伪, 各自所属方法为 UserInterfaceLayerFacade.GetElapsedTimePreviousAction / XmlSchemaObjectCollection.GetEnumerator / MessageDictionary.GetEnumerator / ArrayList.ReadOnlyList.GetEnumerator, 均与广告无关; EN 侧该函数为混淆广告接口的虚调用包装 (lazy-init flag #0x113 + slot 7 vtable scan), JP 对应项经函数体严格匹配/家族扫描/调用方窗口匹配均未能唯一确定 -> 维持 rva=null -> display_patch.c 设 0 -> warning-only skip 不阻塞"
     }
   ],
   "support_functions": [
-    {"id": "time_unscaled_delta", "rva": "0x4CA9C30"},
-    {"id": "time_fixed_delta", "rva": "0x4CA9C98"},
-    {"id": "time_set_fixed_delta", "rva": "0x4CA9D00"},
-    {"id": "time_frame_count", "rva": "0x4CA9F70"},
+    {"id": "time_unscaled_delta", "rva": "0x4CAD878"},
+    {"id": "time_fixed_delta", "rva": "0x4CAD8AC"},
+    {"id": "time_set_fixed_delta", "rva": "0x4CAD8E0"},
+    {"id": "time_frame_count", "rva": "0x4CADA38"},
     {"id": "battle_process", "rva": "0x3762E14"},
     {"id": "stay_on_stay", "rva": "0x29BBA48"},
     {"id": "stay_begin", "rva": "0x29BB838"},

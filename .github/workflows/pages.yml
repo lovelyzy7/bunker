@@ -51,7 +51,7 @@ jobs:
             git clone --depth 1 https://github.com/lovelyzy7/lunar-scripts-zh upstream/lunar-scripts-zh
           fi
       - run: |
-          (cd scripts && python3 -m unittest test_version test_release_assets test_zh_switch)
+          (cd scripts && python3 -m unittest test_version test_release_assets test_zh_switch test_notices test_history_runs test_tower_floors)
           (cd android/tools && python3 -m unittest test_privacy test_update_apk test_build_info test_master_patch test_assemble_stream)
 
   # What to build: a push builds what was pushed; a publish builds the given

@@ -39,7 +39,7 @@ final class Updater {
 
     /** A newer release: its version, notes page and update.json, and what can be done here. */
     static final class Release {
-        String version,notes,bundleUrl;JSONObject update;Offer offer;
+        String version,notes,bundleUrl,noticesUrl;JSONObject update;Offer offer;
     }
     interface Found { void found(Release release); }
     interface Reporter { void report(String message); }
@@ -112,6 +112,22 @@ final class Updater {
         return Offer.UPDATE;
     }
 
+    /** The release's notice pack: the whole one ("noticePack", with the web app), else the one
+     *  launchers before 1.4 take ("notices", without it). */
+    static JSONObject noticeAsset(JSONObject assets) {
+        if(assets==null)return null;
+        JSONObject whole=assets.optJSONObject("noticePack");
+        return whole!=null?whole:assets.optJSONObject("notices");
+    }
+
+    /** The release's notice pack when it differs from the one this app carries (build.json "notices"), else null. */
+    static JSONObject noticesToFetch(JSONObject update,JSONObject installed) {
+        JSONObject notices=noticeAsset(update.optJSONObject("assets"));
+        if(notices==null||notices.optString("sha256").isEmpty())return null;
+        String have=installed==null?"":installed.optString("notices");
+        return notices.optString("sha256").equals(have)?null:notices;
+    }
+
     static boolean enabled(Context c) { return c.getSharedPreferences(PREFS,Context.MODE_PRIVATE).getBoolean("check",true); }
     static void enabled(Context c,boolean on) { c.getSharedPreferences(PREFS,Context.MODE_PRIVATE).edit().putBoolean("check",on).apply(); }
 
@@ -158,6 +174,9 @@ final class Updater {
                 for(int i=0;i<assets.length();i++)if(bundleName.equals(assets.getJSONObject(i).optString("name")))
                     bundleUrl=assets.getJSONObject(i).getString("browser_download_url");
                 Release r=new Release();r.version=version;r.notes=release.optString("html_url",WEB_BUILDER);r.update=update;r.bundleUrl=bundleUrl;
+                JSONObject notices=noticeAsset(update.getJSONObject("assets"));
+                if(notices!=null)for(int i=0;i<assets.length();i++)if(notices.optString("name").equals(assets.getJSONObject(i).optString("name")))
+                    r.noticesUrl=assets.getJSONObject(i).getString("browser_download_url");
                 r.offer=bundleUrl==null?Offer.WEB_BUILDER:offer(update,BuildConfig.BUNKER_VERSION,installedBuild(c),bunkerKey(c));
                 if(r.offer!=Offer.NONE){current=r;new Handler(Looper.getMainLooper()).post(()->found.found(r));}
             } catch(Exception ignored) {

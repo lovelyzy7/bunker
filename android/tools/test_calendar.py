@@ -8,6 +8,9 @@ No input is modified; everything runs in a temporary folder.
 from pathlib import Path
 import argparse, contextlib, json, re, shutil, sqlite3, sys, tempfile
 
+if __name__ != '__main__':  # unittest discovery imports it: it needs private inputs
+    import unittest
+    raise unittest.SkipTest('integration script: run it directly with --save, --assets and --original-master')
 root = Path(__file__).resolve().parents[2]
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--save', type=Path, required=True)
@@ -45,7 +48,7 @@ with tempfile.TemporaryDirectory(prefix='calendar-') as work:
     assert 'Start calendar' in page('/patcher').text
     page('/patcher/calendar/on', {})
     state = json.loads((data / 'calendar.json').read_text())
-    assert state['loop'] == 1 and Path(state['next']).exists(), state
+    assert state['loop'] == 1 and (server / 'assets/release' / state['next']).exists(), state
     print('Calendar on, loop 1 week', cal.week_of(state, cal.game_now(state)))
 
     target = int(re.search(r'name="target" value="(\d+)"', page('/patcher/calendar/next').text).group(1))

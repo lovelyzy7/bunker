@@ -13,6 +13,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import shutil
 import sys
 import zipfile
 
@@ -31,7 +32,7 @@ def _sha256(path):
     return h.hexdigest()
 
 
-def make(version, companion_apk, out_dir):
+def make(version, companion_apk, out_dir, notices=None):
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(companion_apk) as companion:
@@ -47,9 +48,34 @@ def make(version, companion_apk, out_dir):
             if any(build_site.is_master(n) for n in bundle.namelist()):
                 raise ValueError(f"{name} contains master data")
         assets[key] = {"name": name, "size": path.stat().st_size, "sha256": _sha256(path)}
+    if notices:
+        # Launchers before 1.4 take only notices.json and img/ from the pack they
+        # update with ("notices"); a pack with the web app (web/) goes to them
+        # without it, and whole to 1.4 and later ("noticePack").
+        with zipfile.ZipFile(notices) as pack:
+            web = any(n.startswith("web/") for n in pack.namelist())
+        assets["notices"] = _named_pack(notices, out, without_web=web)
+        if web:
+            assets["noticePack"] = _named_pack(notices, out)
     update = {"version": version, "gamePatch": build_info.GAME_PATCH, "assets": assets}
     (out / "update.json").write_text(json.dumps(update, indent=1) + "\n", encoding="utf-8")
     return update
+
+
+def _named_pack(notices, out, without_web=False):
+    source = notices
+    if without_web:
+        source = out / "notices-without-web.zip"
+        with zipfile.ZipFile(notices) as pack, zipfile.ZipFile(source, "w") as copy:
+            for item in pack.infolist():
+                if not item.filename.startswith("web/"):
+                    copy.writestr(item, pack.read(item.filename))
+    digest = _sha256(source)
+    name = f"bunker-notices-{digest[:12]}.zip"
+    shutil.copyfile(source, out / name)
+    if without_web:
+        source.unlink()
+    return {"name": name, "size": (out / name).stat().st_size, "sha256": digest}
 
 
 def changelog_section(text, version):
@@ -92,8 +118,9 @@ def main():
     p.add_argument("--version", required=True)
     p.add_argument("--companion-apk", type=Path, required=True)
     p.add_argument("--out", type=Path, required=True)
+    p.add_argument("--notices", type=Path, help="The notice pack zip (notice_pack.py)")
     args = p.parse_args()
-    make(args.version, args.companion_apk, args.out)
+    make(args.version, args.companion_apk, args.out, args.notices)
     notes = args.out / "notes.md"
     notes.write_text(changelog_section((ROOT / "CHANGELOG.md").read_text(encoding="utf-8"), args.version) + "\n\n" + downloads(args.version) + "\n",
                      encoding="utf-8")

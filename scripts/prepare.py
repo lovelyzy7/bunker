@@ -46,19 +46,33 @@ def zh_contract_digest(module):
 
 
 def check_zh_module(name, entry):
-    """Verify one kind=directory upstream entry: mount + contract digest pin."""
+    """Verify one lunar-scripts-zh upstream entry: mount + commit pin + contract digest pin."""
     module = ROOT / "upstream" / name
     if not module.exists():
         raise RuntimeError(
-            f"{name}: mount {module} is missing. Recreate the directory junction "
-            f"(Windows: New-Item -ItemType Junction -Path '{module}' -Target "
-            f"'{entry.get('location')}'), or see .gitmodules upstream-local notes.")
+            f"{name}: checkout {module} is missing. Run git submodule update --init "
+            f"--recursive (or recreate the directory junction to a checkout whose HEAD "
+            f"equals the pinned commit; Windows: New-Item -ItemType Junction -Path "
+            f"'{module}' -Target '{entry.get('location')}').")
     if not module.is_dir():
-        raise RuntimeError(f"{name}: {module} is not a directory/junction mount.")
+        raise RuntimeError(f"{name}: {module} is not a directory.")
+    if not (module / ".git").exists():
+        raise RuntimeError(f"{name}: run git submodule update --init --recursive first")
+    if entry.get("git"):
+        expected_commit = entry.get("commit") or ""
+        actual_commit = subprocess.check_output(
+            ["git", "-C", str(module), "rev-parse", "HEAD"], text=True).strip()
+        if actual_commit != expected_commit:
+            raise RuntimeError(f"{name} must be pinned to {expected_commit}; "
+                               f"run git submodule update --init --recursive")
+        dirty = subprocess.check_output(
+            ["git", "-C", str(module), "status", "--porcelain", "--untracked-files=no"], text=True)
+        if dirty:
+            raise RuntimeError(f"{name} has edits. Put Android changes in overlays/ or patches/.")
     pin = entry.get("pin") or {}
     if pin.get("mode") != "contract-digest":
         raise RuntimeError(f"{name}: unsupported pin mode {pin.get('mode')!r}; "
-                           f"expected 'contract-digest' for a directory entry.")
+                           f"expected 'contract-digest' for a lunar-scripts-zh entry.")
     expected_files = tuple(pin.get("files") or ())
     if expected_files != tuple(sorted(ZH_CONTRACT_FILES)):
         raise RuntimeError(f"{name}: upstream.lock.json pin.files disagrees with "
@@ -159,12 +173,16 @@ def prepare():
         shutil.copytree(ROOT / "overlays/server", output / "server", dirs_exist_ok=True)
         shutil.copytree(ROOT / "overlays/python", python, dirs_exist_ok=True)
         for patch in sorted((ROOT / "patches").glob("*.patch")):
-            applied = subprocess.run(["git", "apply", "--directory=" + output.relative_to(ROOT).as_posix(),
+            # --allow-empty: a patch whose whole delta lunar-tear merged
+            # upstream is kept as an empty file (its semantics live in the
+            # pinned submodule now), and the chain still applies every patch.
+            applied = subprocess.run(["git", "apply", "--allow-empty",
+                                      "--directory=" + output.relative_to(ROOT).as_posix(),
                                       str(patch)], cwd=ROOT, capture_output=True, text=True)
             if applied.returncode:
                 raise RuntimeError(f"{patch.name} did not apply: {applied.stderr.strip()[:800]}")
 
-        files = {str(path.relative_to(output)): digest(path) for path in output.rglob("*") if path.is_file()}
+        files = {path.relative_to(output).as_posix(): digest(path) for path in output.rglob("*") if path.is_file()}
         # Validate the entire update before replacing any generated source.
         unowned = [name for name, expected in files.items()
                    if name not in previous and (ROOT / name).exists()

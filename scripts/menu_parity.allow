@@ -15,3 +15,4 @@ modmenu/app/src/main/java/com/android/support/Menu.java   # 热切换 UI（原�
 modmenu/app/src/main/jni/Main.cpp                         # 热切换的 srv* 实现与功能条目 7–16
 modmenu/app/src/main/jni/Menu/Menu.hpp                    # srvInit/srvNote 声明
 modmenu/app/src/main/jni/Menu/Setup.cpp                   # 启动时的 srvInit 与标题里的服务器名
+modmenu/app/src/main/java/com/android/support/Launcher.java   # 息屏/切后台浮窗保活（生命周期钩子+重挂+可见性判定）

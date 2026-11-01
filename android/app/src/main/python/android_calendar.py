@@ -115,6 +115,370 @@ def original(state, game):
     return game - (state["loopStart"] - LAUNCH)
 
 
+HISTORY = Path(__file__).with_name("calendar_history.json")
+# An event chapter's later runs are copies of its row with these ids, so each
+# run opens in its own weeks: chapter + n * COPY_STEP for the nth later run.
+COPY_STEP = 10_000_000
+# Abyss Towers (EventQuestType 10) reran 2021-2023 before they stayed for good
+# (notice 1037): each run is its own copy, with the floors it had then
+# (tower_floors.json, from the weekly game data: 20, then 30, 40 and 50).
+TOWER_TYPE = 10
+TOWER_FLOORS = Path(__file__).with_name("tower_floors.json")
+
+
+def history():
+    try:
+        return json.loads(HISTORY.read_text())["tables"]
+    except FileNotFoundError:
+        return {}
+
+
+def runs(final, lost, keep_runs=False):
+    """The (start, end) ranges a row opens in a loop. One that ends up open for
+    good opens from its first run, unless keep_runs (an Abyss Tower, which
+    reran before it stayed); otherwise every run it had, in order."""
+    start, end = final
+    if keep_runs and lost:
+        return [tuple(run) for run in lost]
+    if EARLIEST <= start < FOREVER <= end:
+        return [(min([start] + [run[0] for run in lost]), end)]
+    return [tuple(run) for run in lost] or [final]
+
+
+def _rows(blob):
+    """The rows of a table blob as (array header, [cell bytes])."""
+    from patcher.patch_masterdata import read_array_len, skip_msgpack_value
+    count, pos = read_array_len(blob, 0)
+    for _ in range(count):
+        cells, p = read_array_len(blob, pos)
+        header, values = bytes(blob[pos:p]), []
+        for _ in range(cells):
+            q = skip_msgpack_value(blob, p)
+            values.append(bytes(blob[p:q]))
+            p = q
+        yield header, values
+        pos = p
+
+
+def _table(rows):
+    import msgpack
+    header = msgpack.packb(len(rows), use_bin_type=True)
+    return header + b"".join(rows)
+
+
+# Tables whose rows replay every run as copies, and the id columns a copy moves
+# by n * COPY_STEP: event chapters, and the Anecdotes (web panel missions: the
+# mission and its target sheet; the sheet's story pages stay shared).
+COPIED = {
+    "m_event_quest_chapter": (0,),
+    "m_webview_mission": (0, 3),
+    "m_webview_panel_mission": (0,),
+}
+
+
+# The game's Library (Card Stories) and the Missions screen list the web
+# missions of type 1, one row each; the live game had one row per Anecdote,
+# its dates changed for each run. An Anecdote with several runs lists its runs
+# as type 2 and gets one type-1 row for the lists at LIBRARY_SLOT * COPY_STEP,
+# from its first run's start to its last run's end, with a sheet of its own
+# (the game finds a mission's pages by its id) holding the first run's pages.
+LIBRARY_SLOT = 99
+MISSION_LISTED, MISSION_RUN = 1, 2
+
+
+def library_missions(blob):
+    """m_webview_mission with each Anecdote listed once (LIBRARY_SLOT)."""
+    import msgpack
+    rows = list(_rows(blob))
+    runs = {}
+    for _, cells in rows:
+        runs.setdefault(msgpack.unpackb(cells[0]) % COPY_STEP, []).append(cells)
+    out = []
+    for header, cells in rows:
+        cells = list(cells)
+        if len(runs[msgpack.unpackb(cells[0]) % COPY_STEP]) > 1:
+            cells[2] = msgpack.packb(MISSION_RUN)
+        out.append(header + b"".join(cells))
+    for base, group in sorted(runs.items()):
+        if len(group) < 2:
+            continue
+        first = min(group, key=lambda c: msgpack.unpackb(c[0]))
+        date = lambda c: b"\xd3" + struct.pack(">q", c)  # whole int64 cells, which the loop's date shift moves
+        listed = msgpack.packb(base + LIBRARY_SLOT * COPY_STEP)
+        cells = [listed, first[1], msgpack.packb(MISSION_LISTED), listed,
+                 date(min(msgpack.unpackb(c[4]) for c in group)), date(max(msgpack.unpackb(c[5]) for c in group))]
+        out.append(bytes([0x90 | len(cells)]) + b"".join(cells))
+    return _table(out)
+
+
+def library_sheets(blob):
+    """m_webview_panel_mission with the sheet of each library_missions row: the
+    first run's pages, dated across all the runs."""
+    import msgpack
+    rows = list(_rows(blob))
+    runs = {}
+    for _, cells in rows:
+        runs.setdefault(msgpack.unpackb(cells[0]) % COPY_STEP, {}).setdefault(msgpack.unpackb(cells[0]), []).append(cells)
+    out = [header + b"".join(cells) for header, cells in rows]
+    date = lambda c: b"\xd3" + struct.pack(">q", c)
+    for base, sheets in sorted(runs.items()):
+        if len(sheets) < 2:
+            continue
+        every = [c for pages in sheets.values() for c in pages]
+        start, end = min(msgpack.unpackb(c[3]) for c in every), max(msgpack.unpackb(c[4]) for c in every)
+        for page in sorted(sheets[min(sheets)], key=lambda c: msgpack.unpackb(c[1])):
+            cells = [msgpack.packb(base + LIBRARY_SLOT * COPY_STEP), page[1], page[2], date(start), date(end)]
+            out.append(bytes([0x90 | len(cells)]) + b"".join(cells))
+    return _table(out)
+
+
+def merge_overlaps(lost):
+    """Runs with overlapping windows as one, the first's (a run the history
+    recorded twice: Anecdote: Tower's April 2022 run, 6 hours apart)."""
+    out = []
+    for run in sorted(lost):
+        if out and run[0] < out[-1][-1]:
+            continue
+        out.append(run)
+    return out
+
+
+def restore_runs(blob, spec, copies=None, table_name="m_event_quest_chapter"):
+    """Gives the rows calendar_history.json lists their runs. With copies (a
+    dict), a row's later runs become copies of it (COPIED), recorded as
+    copies[id] = [copy ids]; otherwise a row keeps its first run."""
+    import msgpack
+    keys, (start_col, end_col), lost = spec["key"], spec["dates"], spec["rows"]
+    moved = COPIED.get(table_name, (0,))
+    out = []
+    for header, cells in _rows(blob):
+        known = lost.get("|".join(str(msgpack.unpackb(cells[i])) for i in keys)) if max(start_col, end_col) < len(cells) else None
+        if known is None:
+            out.append(header + b"".join(cells))
+            continue
+        tower = copies is not None and table_name == "m_event_quest_chapter" and len(cells) > 1 and msgpack.unpackb(cells[1]) == TOWER_TYPE
+        if table_name != "m_event_quest_chapter":
+            known = merge_overlaps(known)
+        ranges = runs((msgpack.unpackb(cells[start_col]), msgpack.unpackb(cells[end_col])), known, keep_runs=tower)
+        for n, (start, end) in enumerate(ranges if copies is not None else ranges[:1]):
+            row = list(cells)
+            # Whole int64 cells, which the loop's date shift moves (shift_table).
+            row[start_col], row[end_col] = b"\xd3" + struct.pack(">q", start), b"\xd3" + struct.pack(">q", end)
+            if n:
+                for col in moved:
+                    row[col] = msgpack.packb(msgpack.unpackb(cells[col]) + n * COPY_STEP)
+                first = msgpack.unpackb(cells[0])
+                copies.setdefault(first, []).append(first + n * COPY_STEP)
+            out.append(header + b"".join(row))
+    return _table(out)
+
+
+def tower_floors(chapters, groups, sequences, group_col, floors):
+    """Gives each tower run the floors it had: a run with fewer than all of them
+    gets a sequence of its first floors (sequence and group id: the tower's +
+    floors * COPY_STEP). floors: tower -> floor count per run, the base row's
+    run first. Returns the chapter, sequence group and sequence tables."""
+    import msgpack
+    first_seq = {}
+    for _, c in _rows(groups):
+        first_seq.setdefault(msgpack.unpackb(c[0]), msgpack.unpackb(c[2]))
+    quests = {}
+    for _, c in _rows(sequences):
+        quests.setdefault(msgpack.unpackb(c[0]), []).append((msgpack.unpackb(c[1]), c))
+    chapter_rows, new_groups, new_sequences, made = [], [], [], set()
+    for header, cells in _rows(chapters):
+        chapter = msgpack.unpackb(cells[0])
+        counts = floors.get(str(chapter % COPY_STEP))
+        n = chapter // COPY_STEP
+        group = msgpack.unpackb(cells[group_col])
+        seq = first_seq.get(group)
+        if counts and n < len(counts) and seq in quests and counts[n] < len(quests[seq]):
+            want = counts[n]
+            new_group, new_seq = group + want * COPY_STEP, seq + want * COPY_STEP
+            if new_group not in made:
+                made.add(new_group)
+                new_groups.append(bytes([0x93]) + msgpack.packb(new_group) + msgpack.packb(1) + msgpack.packb(new_seq))
+                for order, qc in sorted(quests[seq], key=lambda q: q[0])[:want]:
+                    new_sequences.append(bytes([0x90 | len(qc)]) + msgpack.packb(new_seq) + b"".join(qc[1:]))
+            cells = list(cells)
+            cells[group_col] = msgpack.packb(new_group)
+        chapter_rows.append(header + b"".join(cells))
+    keep = lambda blob: [h + b"".join(c) for h, c in _rows(blob)]
+    return _table(chapter_rows), _table(keep(groups) + new_groups), _table(keep(sequences) + new_sequences)
+
+
+def copy_chapter_rows(blob, copies):
+    """Adds a row for each chapter copy to a table keyed by event chapter (first column)."""
+    import msgpack
+    out = []
+    for header, cells in _rows(blob):
+        out.append(header + b"".join(cells))
+        for copy in copies.get(msgpack.unpackb(cells[0]), []) if cells else []:
+            out.append(header + msgpack.packb(copy) + b"".join(cells[1:]))
+    return _table(out)
+
+
+def restore_history(toc, blob, changed, schemas):
+    """Puts the runs the final game data lost back, before the loop's shift."""
+    from patcher import patch_masterdata as pm
+    copies, other = {}, {}
+    for table, spec in history().items():
+        kept = copies if table == "m_event_quest_chapter" else other if table in COPIED else None
+        pm.apply_to_table(toc, blob, changed, table, lambda b, s=spec, t=table, k=kept: restore_runs(b, s, k, table_name=t))
+    if copies:
+        for table, (_, columns) in schemas.items():
+            if table != "m_event_quest_chapter" and table in toc and any(index == 0 and name == "EventQuestChapterId" for index, _, name in columns):
+                pm.apply_to_table(toc, blob, changed, table, lambda b: copy_chapter_rows(b, copies))
+    if "m_webview_mission" in toc:
+        pm.apply_to_table(toc, blob, changed, "m_webview_mission", library_missions)
+        pm.apply_to_table(toc, blob, changed, "m_webview_panel_mission", library_sheets)
+    apply_tower_floors(toc, blob, changed, schemas)
+    return copies
+
+
+def apply_tower_floors(toc, blob, changed, schemas):
+    """Gives each Abyss Tower run its own floors (tower_floors)."""
+    from patcher import patch_masterdata as pm
+    try:
+        floors = json.loads(TOWER_FLOORS.read_text())["floors"]
+    except FileNotFoundError:
+        return
+    names = ("m_event_quest_chapter", "m_event_quest_sequence_group", "m_event_quest_sequence")
+    if not all(n in toc for n in names):
+        return
+    group_col = next(i for i, _, name in schemas["m_event_quest_chapter"][1] if name == "EventQuestSequenceGroupId")
+    tables = {}
+    for n in names:
+        pm.apply_to_table(toc, blob, changed, n, lambda b, n=n: tables.__setitem__(n, bytes(b)) or 0)
+    built = tower_floors(*(tables[n] for n in names), group_col=group_col, floors=floors)
+    for n, new in zip(names, built):
+        pm.apply_to_table(toc, blob, changed, n, lambda b, new=new: new)
+
+# An event's medal exchange and the items it gives. The final game data keeps
+# each event's last run only: its exchange (EventQuestLink) and the medals and
+# tickets its quests drop date from that run. A chapter whose other runs the
+# calendar restores opened without the exchange to spend its medals in
+# (chapter 510 from 2021, its shop 6064 from 2023), and with medals and tickets
+# not yet or no longer valid (chapter 300's tickets in 2023, its run in 2022).
+# The exchange and every item the chapter gives open when it first does and
+# stay until its last run ends.
+LINK_SHOP = 3            # EventQuestLink.DestinationDomainType: a shop
+CONSUMABLE_ITEM = 6      # PossessionType
+
+
+def exchange_dates(chapters, links, shops, cell_groups, cell_terms, items, item_terms, given):
+    """New (start, end) dates for the exchanges, their offers' terms and the
+    terms of the items the chapters give, by table and id; only rows that change.
+
+    chapters: (chapter, link, start, end); links: link -> (destination type,
+    destination id, possession type, possession id); shops: shop -> (cell group,
+    start, end); cell_groups: (cell group, cell term); cell_terms, item_terms:
+    term -> (start, end); items: consumable item -> its term; given: chapter ->
+    the consumable items its quests give."""
+    wanted, medals = {}, {}
+
+    def widen(found, key, start, end):
+        first, last = found.get(key, (start, end))
+        found[key] = (min(first, start), max(last, end))
+
+    for chapter, link, start, end in chapters:
+        if not EARLIEST <= start < FOREVER:
+            continue
+        kind, shop, possession, item = links.get(link, (0, 0, 0, 0))
+        for each in set(given.get(chapter, ())) | ({item} if possession == CONSUMABLE_ITEM else set()):
+            if each in items:
+                widen(medals, items[each], start, end)
+        if kind == LINK_SHOP and shop in shops:
+            widen(wanted, shop, start, end)
+    shop_dates = {}
+    for shop, (first, last) in wanted.items():
+        _, start, end = shops[shop]
+        dates = (min(start, first), max(end, last))
+        if dates != (start, end):
+            shop_dates[shop] = dates
+    # An offer's term opens with the exchange when no other shop uses it.
+    users = {}
+    group_shop = {group: shop for shop, (group, _, _) in shops.items()}
+    for group, term in cell_groups:
+        if term:
+            users.setdefault(term, set()).add(group_shop.get(group))
+    term_dates = {}
+    for term, owners in users.items():
+        if term in cell_terms and owners <= set(shop_dates):
+            start, end = cell_terms[term]
+            first = min(shop_dates[shop][0] for shop in owners)
+            if first < start:
+                term_dates[term] = (first, end)
+    medal_dates = {}
+    for term, (first, last) in medals.items():
+        if term in item_terms:
+            start, end = item_terms[term]
+            if first < start or last > end:
+                medal_dates[term] = (min(start, first), max(end, last))
+    return {"m_shop": shop_dates, "m_shop_item_cell_term": term_dates, "m_consumable_item_term": medal_dates}
+
+
+def set_dates(blob, columns, dates):
+    """Gives the rows keyed by their first cell the (start, end) in dates."""
+    import msgpack
+    out = []
+    for header, cells in _rows(blob):
+        new = dates.get(msgpack.unpackb(cells[0])) if cells else None
+        if new is not None:
+            cells = list(cells)
+            for column, value in zip(columns, new):
+                cells[column] = b"\xd3" + struct.pack(">q", value)
+        out.append(header + b"".join(cells))
+    return _table(out)
+
+
+def chapter_items(read):
+    """The consumable items each event chapter's quests give: first-clear
+    rewards and drops."""
+    def grouped(rows):
+        out = {}
+        for key, value in rows:
+            out.setdefault(key, []).append(value)
+        return out
+
+    sequences = grouped(read("m_event_quest_sequence_group", "EventQuestSequenceGroupId", "EventQuestSequenceId"))
+    quests = grouped(read("m_event_quest_sequence", "EventQuestSequenceId", "QuestId"))
+    rewards = {r[0]: r[1:] for r in read("m_quest", "QuestId", "QuestFirstClearRewardGroupId", "QuestPickupRewardGroupId")}
+    first_clear = grouped([(g, item) for g, kind, item in read("m_quest_first_clear_reward_group", "QuestFirstClearRewardGroupId", "PossessionType", "PossessionId") if kind == CONSUMABLE_ITEM])
+    drops = {d: item for d, kind, item in read("m_battle_drop_reward", "BattleDropRewardId", "PossessionType", "PossessionId") if kind == CONSUMABLE_ITEM}
+    pickup = grouped([(g, drops[d]) for g, d in read("m_quest_pickup_reward_group", "QuestPickupRewardGroupId", "BattleDropRewardId") if d in drops])
+    out = {}
+    for chapter, group in read("m_event_quest_chapter", "EventQuestChapterId", "EventQuestSequenceGroupId"):
+        items = set()
+        for quest in (q for sequence in sequences.get(group, []) for q in quests.get(sequence, [])):
+            first, pick = rewards.get(quest, (0, 0))
+            items.update(first_clear.get(first, []), pickup.get(pick, []))
+        out[chapter] = items
+    return out
+
+
+def open_exchanges(toc, blob, changed, schemas):
+    """Opens each event's medal exchange and items with its chapter (exchange_dates)."""
+    from patcher import patch_masterdata as pm
+    read = lambda table, *names: _read(toc, blob, changed, schemas, table, *names) if table in toc else []
+    rows = lambda table, *names: {r[0]: r[1:] for r in read(table, *names)}
+    found = exchange_dates(
+        read("m_event_quest_chapter", "EventQuestChapterId", "EventQuestLinkId", "StartDatetime", "EndDatetime"),
+        rows("m_event_quest_link", "EventQuestLinkId", "DestinationDomainType", "DestinationDomainId", "PossessionType", "PossessionId"),
+        rows("m_shop", "ShopId", "ShopItemCellGroupId", "StartDatetime", "EndDatetime"),
+        read("m_shop_item_cell_group", "ShopItemCellGroupId", "ShopItemCellTermId"),
+        rows("m_shop_item_cell_term", "ShopItemCellTermId", "StartDatetime", "EndDatetime"),
+        dict(read("m_consumable_item", "ConsumableItemId", "ConsumableItemTermId")),
+        rows("m_consumable_item_term", "ConsumableItemTermId", "StartDatetime", "EndDatetime"),
+        chapter_items(read))
+    for table, dates in found.items():
+        if dates:
+            index = {name: i for i, _, name in schemas[table][1]}
+            columns = (index["StartDatetime"], index["EndDatetime"])
+            pm.apply_to_table(toc, blob, changed, table, lambda b, c=columns, d=dates: set_dates(b, c, d))
+    return found
+
+
 # --- Game data ---------------------------------------------------------------
 
 def shift_table(blob, columns, offset):
@@ -137,24 +501,52 @@ def shift_table(blob, columns, offset):
     return moved
 
 
+def read_master(path):
+    """A master data file's table of contents and table blob."""
+    import msgpack
+    from Crypto.Cipher import AES
+    from Crypto.Util.Padding import unpad
+    from patcher import patch_masterdata as pm
+    key, iv = bytes.fromhex(pm.DEFAULT_KEY), bytes.fromhex(pm.DEFAULT_IV)
+    decoded = unpad(AES.new(key, AES.MODE_CBC, iv).decrypt(Path(path).read_bytes()), AES.block_size)
+    try:
+        msgpack.unpackb(decoded, raw=False, strict_map_key=False)
+        raise ValueError("Master data has no tables")
+    except msgpack.ExtraData as exc:
+        return exc.unpacked, exc.extra
+
+
+def _read(toc, blob, changed, schemas, table, *names):
+    """A table's rows as tuples of the named columns."""
+    import msgpack
+    from patcher import patch_masterdata as pm
+    index = {name: i for i, _, name in schemas[table][1]}
+    columns, out = [index[name] for name in names], []
+
+    def collect(b):
+        for _, cells in _rows(b):
+            if max(columns) < len(cells):
+                out.append(tuple(msgpack.unpackb(cells[i]) for i in columns))
+        return 0
+    pm.apply_to_table(toc, blob, changed, table, collect)
+    return out
+
+
 def build_master(origin, output, offset):
     """Writes origin's game data with rotating content moved forward by offset."""
     import msgpack
     from Crypto.Cipher import AES
-    from Crypto.Util.Padding import pad, unpad
+    from Crypto.Util.Padding import pad
     from patcher import patch_masterdata as pm
     from tools import dump_masterdata
     if offset % WEEK:
         raise ValueError("The calendar moves in whole weeks")
     key, iv = bytes.fromhex(pm.DEFAULT_KEY), bytes.fromhex(pm.DEFAULT_IV)
-    decoded = unpad(AES.new(key, AES.MODE_CBC, iv).decrypt(Path(origin).read_bytes()), AES.block_size)
-    try:
-        msgpack.unpackb(decoded, raw=False, strict_map_key=False)
-        raise ValueError("Master data has no tables")
-    except msgpack.ExtraData as exc:
-        toc, blob = exc.unpacked, exc.extra
+    toc, blob = read_master(origin)
     schemas = dump_masterdata.load_schemas()
     changed = {}
+    restore_history(toc, blob, changed, schemas)
+    open_exchanges(toc, blob, changed, schemas)
     moved = 0
     for table in ROTATING:
         if table not in toc or table not in schemas:

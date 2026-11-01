@@ -45,6 +45,12 @@ var stateKinds = map[string]bool{
 // Kinds whose progress is the best single value seen, not a sum.
 var bestKinds = map[string]bool{"rhythm_tap": true}
 
+// loginKinds count game logins. A daily mission of these clears just by being
+// in the game that day ("进入游戏即完成"): the per-request login counter never
+// moves on the day a save is created (the seed counts that login without a
+// Track), so waiting for its diff left the daily "Log in" tasks at 0/1.
+var loginKinds = map[string]bool{"login": true, "login_from_unlock": true}
+
 // Arena win streaks: a win adds one, a loss starts over.
 var streakKinds = map[string]bool{"pvp_streak": true, "pvp_streak_from_unlock": true}
 
@@ -614,14 +620,19 @@ func (cat *Catalog) Track(before, after *store.UserState, method string, req any
 			continue
 		}
 		rec, ok := after.Missions[m.MissionId]
-		if ok && m.Daily() && rec.StartDatetime < today {
-			// A new day: daily missions start over.
+		if ok && m.Daily() && startOfDay(rec.StartDatetime) != today {
+			// A new day — or a record stamped outside today (written under
+			// the real-time clock before the calendar's shift, or left
+			// behind by RewindLoop): daily missions start over.
 			rec = store.UserMissionState{MissionId: m.MissionId, StartDatetime: now, MissionProgressStatusType: StatusInProgress, LatestVersion: now}
 			after.Missions[m.MissionId] = rec
 		}
 		switch {
 		case stateKinds[m.Rule.Kind]:
 			set(after, m, cat.stateValue(m, after), now)
+		case m.Daily() && loginKinds[m.Rule.Kind]:
+			// Daily "Log in" missions clear on entering the game today.
+			set(after, m, 1, now)
 		case tracked < kindVersion[m.Rule.Kind] && !m.Daily():
 			// The backfill reads the save before this request; amountFor adds what the request did.
 			set(after, m, max(int64(rec.ProgressValue), cat.backfillValue(m, before))+cat.amountFor(m, c), now)
@@ -642,6 +653,7 @@ func (cat *Catalog) Track(before, after *store.UserState, method string, req any
 			}
 		}
 	}
+	cat.trackPanels(after, c, now)
 	cat.trackCompletion(after, now, today)
 	cat.recordHistory(before, after, c, method, req, tracked < 4)
 	if tracked < 1 {
@@ -673,13 +685,21 @@ func recordLastDeck(u *store.UserState, req any) {
 // recordLogin counts the day's first request as a login. Lunar Tear sets the
 // login counts when it creates the player and never again, so the daily
 // "Log in" missions would never clear after the first day.
+//
+// The "logged in today" test is game-day anchored, not `LastLoginDatetime >=
+// today`: a save written under the real-time clock (before the calendar's
+// shift, or left behind by RewindLoop) holds a LastLoginDatetime in the game
+// clock's future, and `>= today` then reads "already logged in today" forever.
+// The login counters froze and every "Log in" mission stayed at 0/1 on the
+// device (月票每日「登录」 and the 任务页 login tasks).
 func recordLogin(u *store.UserState, now, today int64) {
 	l := &u.Login
-	if l.LastLoginDatetime >= today {
+	prevDay := startOfDay(l.LastLoginDatetime)
+	if prevDay == today {
 		return
 	}
 	campaign.JoinComeback(u, l.LastLoginDatetime, now)
-	if l.LastLoginDatetime >= today-24*3600*1000 {
+	if prevDay == today-24*3600*1000 {
 		l.ContinualLoginCount++
 	} else {
 		l.ContinualLoginCount = 1
@@ -701,7 +721,7 @@ func (cat *Catalog) trackCompletion(u *store.UserState, now, today int64) {
 			cleared++
 		}
 		if m.Category == CategoryDaily && m.Rule.Kind != "all_daily" && cat.active(m, u, now) {
-			if !done || rec.StartDatetime < today {
+			if !done || startOfDay(rec.StartDatetime) != today {
 				dailyLeft[m.SubCategoryId]++
 			} else {
 				dailyLeft[m.SubCategoryId] += 0
@@ -717,7 +737,7 @@ func (cat *Catalog) trackCompletion(u *store.UserState, now, today int64) {
 		if !cat.active(m, u, now) {
 			continue
 		}
-		if rec, ok := u.Missions[m.MissionId]; ok && rec.StartDatetime < today {
+		if rec, ok := u.Missions[m.MissionId]; ok && startOfDay(rec.StartDatetime) != today {
 			u.Missions[m.MissionId] = store.UserMissionState{MissionId: m.MissionId, StartDatetime: now, MissionProgressStatusType: StatusInProgress, LatestVersion: now}
 		}
 		left, any := dailyLeft[m.SubCategoryId]

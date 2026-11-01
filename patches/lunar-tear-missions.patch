@@ -1,337 +1,46 @@
-diff --git a/server/cmd/lunar-tear/grpc.go b/server/cmd/lunar-tear/grpc.go
-index de24ef8..2d51b0a 100644
---- a/server/cmd/lunar-tear/grpc.go
-+++ b/server/cmd/lunar-tear/grpc.go
-@@ -49,10 +49,11 @@ func startGRPC(
- 
- 	diffInterceptor := interceptor.NewDiffInterceptor(userStore, userStore)
- 	grpcServer := grpc.NewServer(
--		grpc.ChainUnaryInterceptor(interceptor.Platform, interceptor.Logging, diffInterceptor, interceptor.TimeSync),
-+		grpc.ChainUnaryInterceptor(interceptor.Platform, interceptor.Logging, diffInterceptor, interceptor.NewMissionInterceptor(userStore, userStore), interceptor.TimeSync),
- 		grpc.UnknownServiceHandler(interceptor.UnknownService),
- 	)
- 
-+	service.InitBunker(holder)
- 	registerServices(grpcServer, publicAddr, octoURL, authURL, userStore, holder, noRegister)
- 
- 	reflection.Register(grpcServer)
-@@ -125,6 +126,5 @@ func registerServices(
- 	pb.RegisterBigHuntServiceServer(srv, service.NewBigHuntServiceServer(userStore, userStore, holder))
- 	pb.RegisterRewardServiceServer(srv, service.NewRewardServiceServer(userStore, userStore, holder))
- 	pb.RegisterLabyrinthServiceServer(srv, service.NewLabyrinthServiceServer(userStore, userStore, holder))
--	pb.RegisterIndividualpopServiceServer(srv, service.NewIndividualpopServiceServer())
--	pb.RegisterPvpServiceServer(srv, service.NewPvpServiceServer())
-+	pb.RegisterIndividualPopServiceServer(srv, service.NewIndividualPopServiceServer())
- }
-diff --git a/server/internal/service/gimmick.go b/server/internal/service/gimmick.go
-index 92f7bdc..0bd59f8 100644
---- a/server/internal/service/gimmick.go
-+++ b/server/internal/service/gimmick.go
-@@ -81,8 +81,8 @@ func (s *GimmickServiceServer) UpdateGimmickProgress(ctx context.Context, req *p
- 		//   * CageMemory (type 10, "Lost Archives")        — resolve an ImportantItem
- 		//     (type 4) from the gimmick's monitor texture and grant it. IsGimmickCleared
- 		//     stays false (matches original userdata; only ornament progress flips).
--		//   * CageTreasureHunt / CageIntervalDropItem*     — stub per-tap material so
--		//     the client's reward popup fires; real reward source still unmapped.
-+		//   * CageTreasureHunt / CageIntervalDropItem*     — a Cage ornament reward
-+		//     per tap (cageDrop); the real per-gimmick source is not in master data.
- 		switch cat.Gimmick.GimmickType(req.GimmickId) {
- 		case model.GimmickTypeReport:
- 			progress.IsGimmickCleared = true
-@@ -128,17 +128,13 @@ func (s *GimmickServiceServer) UpdateGimmickProgress(ctx context.Context, req *p
- 			//   * type 1 — "Fickle Black Birds" in the cage
- 			//   * type 2 — "Lost Items" in the cage
- 			//   * type 8 — Lost Items (map variant)
--			// Stub: grant 1 of Material 100004 (the most-common reward across
--			// m_cage_ornament_reward — 15 occurrences — likely a low-tier shard) per
--			// tap so the client's reward-popup path fires and the player accumulates
--			// something. Replace once a real per-gimmick mapping surfaces.
--			const stubMaterialId = int32(100004)
--			const stubMaterialCount = int32(1)
--			cat.QuestHandler.Granter.GrantFull(user, model.PossessionTypeMaterial, stubMaterialId, stubMaterialCount, nowMillis)
-+			// cageDrop draws from the Cage's ornament rewards instead.
-+			dropType, dropId, dropCount := cageDrop()
-+			cat.QuestHandler.Granter.GrantFull(user, dropType, dropId, dropCount, nowMillis)
- 			ornamentRewards = append(ornamentRewards, &pb.GimmickReward{
--				PossessionType: int32(model.PossessionTypeMaterial),
--				PossessionId:   stubMaterialId,
--				Count:          stubMaterialCount,
-+				PossessionType: int32(dropType),
-+				PossessionId:   dropId,
-+				Count:          dropCount,
- 			})
+diff --git a/server/internal/service/bunker_handlers.go b/server/internal/service/bunker_handlers.go
+index aa61c84..de61211 100644
+--- a/server/internal/service/bunker_handlers.go
++++ b/server/internal/service/bunker_handlers.go
+@@ -198,7 +198,6 @@ var dailyGroups = sync.OnceValue(func() dailyGroupTables {
+ // open one that started last.
+ func (s *QuestServiceServer) ReceiveDailyQuestGroupCompleteReward(ctx context.Context, _ *emptypb.Empty) (*pb.ReceiveDailyQuestGroupCompleteRewardResponse, error) {
+ 	now := gametime.NowMillis()
+-	today := gametime.StartOfDay(now)
+ 	var group *masterdata.EntityMEventQuestDailyGroup
+ 	for i, g := range dailyGroups().groups {
+ 		if g.StartDatetime <= now && now < g.EndDatetime && (group == nil || g.StartDatetime > group.StartDatetime) {
+@@ -213,7 +212,10 @@ func (s *QuestServiceServer) ReceiveDailyQuestGroupCompleteReward(ctx context.Co
+ 	userId := CurrentUserId(ctx, s.users, s.sessions)
+ 	paid := 0
+ 	if _, err := s.users.UpdateUser(userId, func(u *store.UserState) {
+-		if u.Ext.DailyGroupReward.LastRewardReceiveDatetime >= today {
++		// Once per game day: compare days, not >= today: a reward time in
++		// the game clock future (a real-time save or RewindLoop leftover)
++		// would otherwise block every later day.
++		if gametime.SameDay(u.Ext.DailyGroupReward.LastRewardReceiveDatetime, now) {
+ 			return
  		}
- 		user.Gimmick.Progress[progressKey] = progress
-diff --git a/server/internal/service/individualpop.go b/server/internal/service/individualpop.go
-deleted file mode 100644
-index 3eba3ce..0000000
---- a/server/internal/service/individualpop.go
-+++ /dev/null
-@@ -1,26 +0,0 @@
--package service
--
--import (
--	"context"
--	"log"
--
--	pb "lunar-tear/server/gen/proto"
--
--	"google.golang.org/protobuf/types/known/emptypb"
--)
--
--// IndividualpopServiceServer 返回"未读个性化弹窗"列表。
--// 私服不需要首页/活动弹窗，直接返回空列表即可：
--// 主要目的是避免客户端在启动流程里拿到 gRPC Unimplemented 错误。
--type IndividualpopServiceServer struct {
--	pb.UnimplementedIndividualpopServiceServer
--}
--
--func NewIndividualpopServiceServer() *IndividualpopServiceServer {
--	return &IndividualpopServiceServer{}
--}
--
--func (s *IndividualpopServiceServer) GetUnreadPop(ctx context.Context, _ *emptypb.Empty) (*pb.GetUnreadPopResponse, error) {
--	log.Printf("[IndividualpopService] GetUnreadPop -> empty stub")
--	return &pb.GetUnreadPopResponse{}, nil
--}
-diff --git a/server/internal/service/pvp.go b/server/internal/service/pvp.go
-deleted file mode 100644
-index 7d92da7..0000000
---- a/server/internal/service/pvp.go
-+++ /dev/null
-@@ -1,70 +0,0 @@
--package service
--
--import (
--	"context"
--	"log"
--
--	pb "lunar-tear/server/gen/proto"
--
--	"google.golang.org/protobuf/types/known/emptypb"
--)
--
--// PvpServiceServer 是竞技场的空实现（stub）。
--//
--// 全部接口返回空响应，目的是：
--//  1. 避免客户端在首页/竞技场入口请求时收到 gRPC Unimplemented 报错；
--//  2. 竞技场本身仍不可游玩（无匹配、无排名、无对战数据）。
--//
--// 如果不需要这个 stub，删除本文件与 grpc.go 里的注册即可。
--type PvpServiceServer struct {
--	pb.UnimplementedPvpServiceServer
--}
--
--func NewPvpServiceServer() *PvpServiceServer {
--	return &PvpServiceServer{}
--}
--
--func (s *PvpServiceServer) GetTopData(context.Context, *emptypb.Empty) (*pb.GetTopDataResponse, error) {
--	log.Printf("[PvpService] GetTopData -> empty stub")
--	return &pb.GetTopDataResponse{}, nil
--}
--
--func (s *PvpServiceServer) GetMatchingList(context.Context, *emptypb.Empty) (*pb.GetMatchingListResponse, error) {
--	log.Printf("[PvpService] GetMatchingList -> empty stub")
--	return &pb.GetMatchingListResponse{}, nil
--}
--
--func (s *PvpServiceServer) UpdateMatchingList(context.Context, *emptypb.Empty) (*pb.UpdateMatchingListResponse, error) {
--	log.Printf("[PvpService] UpdateMatchingList -> empty stub")
--	return &pb.UpdateMatchingListResponse{}, nil
--}
--
--func (s *PvpServiceServer) StartBattle(_ context.Context, _ *pb.StartBattleRequest) (*pb.StartBattleResponse, error) {
--	log.Printf("[PvpService] StartBattle -> empty stub")
--	return &pb.StartBattleResponse{}, nil
--}
--
--func (s *PvpServiceServer) FinishBattle(_ context.Context, _ *pb.FinishBattleRequest) (*pb.FinishBattleResponse, error) {
--	log.Printf("[PvpService] FinishBattle -> empty stub")
--	return &pb.FinishBattleResponse{}, nil
--}
--
--func (s *PvpServiceServer) GetRanking(_ context.Context, _ *pb.GetRankingRequest) (*pb.GetRankingResponse, error) {
--	log.Printf("[PvpService] GetRanking -> empty stub")
--	return &pb.GetRankingResponse{}, nil
--}
--
--func (s *PvpServiceServer) GetSeasonResult(context.Context, *emptypb.Empty) (*pb.GetSeasonResultResponse, error) {
--	log.Printf("[PvpService] GetSeasonResult -> empty stub")
--	return &pb.GetSeasonResultResponse{}, nil
--}
--
--func (s *PvpServiceServer) GetAttackLogList(context.Context, *emptypb.Empty) (*pb.GetAttackLogListResponse, error) {
--	log.Printf("[PvpService] GetAttackLogList -> empty stub")
--	return &pb.GetAttackLogListResponse{}, nil
--}
--
--func (s *PvpServiceServer) GetDefenseLogList(context.Context, *emptypb.Empty) (*pb.GetDefenseLogListResponse, error) {
--	log.Printf("[PvpService] GetDefenseLogList -> empty stub")
--	return &pb.GetDefenseLogListResponse{}, nil
--}
-diff --git a/server/internal/service/quest_main.go b/server/internal/service/quest_main.go
-index 8b1a871..49c3269 100644
---- a/server/internal/service/quest_main.go
-+++ b/server/internal/service/quest_main.go
-@@ -266,6 +266,14 @@ func (s *QuestServiceServer) SetRoute(ctx context.Context, req *pb.SetRouteReque
- func (s *QuestServiceServer) SetQuestSceneChoice(ctx context.Context, req *pb.SetQuestSceneChoiceRequest) (*pb.SetQuestSceneChoiceResponse, error) {
- 	log.Printf("[QuestService] SetQuestSceneChoice: questSceneId=%d choiceNumber=%d",
- 		req.QuestSceneId, req.ChoiceNumber)
-+	userId := CurrentUserId(ctx, s.users, s.sessions)
-+	if _, err := s.users.UpdateUser(userId, func(user *store.UserState) {
-+		if !recordSceneChoice(user, req.QuestSceneId, req.QuestFlowType, req.ChoiceNumber, gametime.NowMillis()) {
-+			log.Printf("[QuestService] SetQuestSceneChoice: scene %d has no choice %d", req.QuestSceneId, req.ChoiceNumber)
-+		}
-+	}); err != nil {
-+		return nil, err
-+	}
- 	return &pb.SetQuestSceneChoiceResponse{}, nil
- }
+ 		for _, r := range dailyGroups().rewards[group.EventQuestDailyGroupCompleteRewardId] {
+diff --git a/server/internal/service/bunker_login_bonus.go b/server/internal/service/bunker_login_bonus.go
+index ba59aa5..94f3b55 100644
+--- a/server/internal/service/bunker_login_bonus.go
++++ b/server/internal/service/bunker_login_bonus.go
+@@ -46,13 +46,15 @@ func openEventLoginBonuses(u *store.UserState, now int64) []masterdata.EntityMLo
  
-diff --git a/server/internal/service/reward.go b/server/internal/service/reward.go
-index 760a76b..890cfc3 100644
---- a/server/internal/service/reward.go
-+++ b/server/internal/service/reward.go
-@@ -146,17 +146,3 @@ func (s *RewardServiceServer) ReceivePvpReward(ctx context.Context, _ *emptypb.E
- 		DiffUserData: map[string]*pb.DiffData{},
- 	}, nil
- }
--
--func (s *RewardServiceServer) ReceiveLabyrinthSeasonReward(ctx context.Context, _ *emptypb.Empty) (*pb.ReceiveLabyrinthSeasonRewardResponse, error) {
--	log.Printf("[RewardService] ReceiveLabyrinthSeasonReward (stub)")
--	return &pb.ReceiveLabyrinthSeasonRewardResponse{
--		DiffUserData: map[string]*pb.DiffData{},
--	}, nil
--}
--
--func (s *RewardServiceServer) ReceiveMissionPassRemainingReward(ctx context.Context, _ *emptypb.Empty) (*pb.ReceiveMissionPassRemainingRewardResponse, error) {
--	log.Printf("[RewardService] ReceiveMissionPassRemainingReward (stub)")
--	return &pb.ReceiveMissionPassRemainingRewardResponse{
--		DiffUserData: map[string]*pb.DiffData{},
--	}, nil
--}
-diff --git a/server/internal/store/clone.go b/server/internal/store/clone.go
-index 87966e5..64e26b2 100644
---- a/server/internal/store/clone.go
-+++ b/server/internal/store/clone.go
-@@ -19,6 +19,7 @@ func CloneUserState(u UserState) UserState {
- 	out.QuestMissions = maps.Clone(u.QuestMissions)
- 	out.WeaponStories = maps.Clone(u.WeaponStories)
- 	out.Missions = maps.Clone(u.Missions)
-+	out.Ext = u.Ext.Clone()
- 	out.Gimmick = GimmickState{
- 		Progress:         maps.Clone(u.Gimmick.Progress),
- 		OrnamentProgress: maps.Clone(u.Gimmick.OrnamentProgress),
-diff --git a/server/internal/store/sqlite/load.go b/server/internal/store/sqlite/load.go
-index 1e0bd5a..10b1d70 100644
---- a/server/internal/store/sqlite/load.go
-+++ b/server/internal/store/sqlite/load.go
-@@ -31,6 +31,7 @@ func (s *SQLiteStore) LoadUser(userId int64) (store.UserState, error) {
- 
- 	load1to1(s.db, userId, &u)
- 	loadMapTables(s.db, userId, &u)
-+	loadExt(s.db, userId, &u)
- 
- 	return u, nil
- }
-diff --git a/server/internal/store/sqlite/save.go b/server/internal/store/sqlite/save.go
-index 37bee58..764d64b 100644
---- a/server/internal/store/sqlite/save.go
-+++ b/server/internal/store/sqlite/save.go
-@@ -551,6 +551,9 @@ func writeUserState(tx *sql.Tx, uid int64, u *store.UserState) error {
- 			return err
+ // stampEventLoginBonuses stamps each open dated card once for the game day.
+ func stampEventLoginBonuses(catalog *masterdata.LoginBonusCatalog, u *store.UserState, now int64) {
+-	today := gametime.StartOfDay(now)
+ 	for _, b := range openEventLoginBonuses(u, now) {
+ 		st, ok := u.Ext.EventLoginBonuses[b.LoginBonusId]
+ 		if !ok {
+ 			st = store.UserLoginBonusState{LoginBonusId: b.LoginBonusId, CurrentPageNumber: 1}
  		}
- 	}
-+	if err := saveExt(tx, uid, u.Ext); err != nil {
-+		return err
-+	}
- 
- 	return nil
- }
-@@ -1147,6 +1150,11 @@ func diffAndSave(tx *sql.Tx, uid int64, before, after *store.UserState) error {
- 			exec(`DELETE FROM user_big_hunt_weekly_statuses WHERE user_id=? AND big_hunt_weekly_version=?`, uid, ver)
+-		if st.LatestRewardReceiveDatetime >= today {
++		// One stamp per game day: compare days, not >= today: a stamp time
++		// in the game clock future (a real-time save or RewindLoop leftover)
++		// would otherwise block every later day.
++		if gametime.SameDay(st.LatestRewardReceiveDatetime, now) {
+ 			continue
  		}
- 	}
-+	if !before.Ext.Equal(after.Ext) {
-+		if err := saveExt(tx, uid, after.Ext); err != nil {
-+			return err
-+		}
-+	}
- 
- 	return nil
- }
-diff --git a/server/internal/store/sqlite/user.go b/server/internal/store/sqlite/user.go
-index c1ceb2a..0a904e1 100644
---- a/server/internal/store/sqlite/user.go
-+++ b/server/internal/store/sqlite/user.go
-@@ -79,6 +79,7 @@ func (s *SQLiteStore) ImportUser(u *store.UserState) error {
- 
- 	// Child tables in reverse-dependency order (matches schema's goose Down).
- 	childTables := []string{
-+		"user_bunker_ext",
- 		"user_event_quest_labyrinth_stages",
- 		"user_event_quest_labyrinth_seasons",
- 		"user_event_quest_tower_accumulation_rewards",
-diff --git a/server/internal/store/types.go b/server/internal/store/types.go
-index fadf082..4b404b2 100644
---- a/server/internal/store/types.go
-+++ b/server/internal/store/types.go
-@@ -120,9 +120,12 @@ type UserState struct {
- 	AutoSaleSettings            map[int32]AutoSaleSettingState
- 	CharacterRebirths           map[int32]CharacterRebirthState
- 	QuestAutoOrbit              QuestAutoOrbitState
-+
-+	Ext ExtState
- }
- 
- func (u *UserState) EnsureMaps() {
-+	u.Ext.EnsureMaps()
- 	if u.Tutorials == nil {
- 		u.Tutorials = make(map[int32]TutorialProgressState)
- 	}
-diff --git a/server/internal/userdata/changed_tables.go b/server/internal/userdata/changed_tables.go
-index 4028de2..5f64725 100644
---- a/server/internal/userdata/changed_tables.go
-+++ b/server/internal/userdata/changed_tables.go
-@@ -307,6 +307,7 @@ func ChangedTables(before, after *store.UserState) []string {
- 			add("IUserGimmickUnlock")
- 		}
- 	}
-+	changed = append(changed, bunkerChangedTables(before, after)...)
- 
- 	return changed
- }
-@@ -482,6 +483,6 @@ func keyFieldsForTable(table string) []string {
- 	case "IUserQuestAutoOrbit":
- 		return []string{"userId"}
- 	default:
--		return nil
-+		return bunkerKeyFields(table)
- 	}
- }
-diff --git a/server/internal/userdata/state_projection.go b/server/internal/userdata/state_projection.go
-index 66c5aac..2bb15e8 100644
---- a/server/internal/userdata/state_projection.go
-+++ b/server/internal/userdata/state_projection.go
-@@ -25,6 +25,7 @@ func FullClientTableMap(user store.UserState) map[string]string {
- 		"IUserLogin":                              projectTable("IUserLogin", user),
- 		"IUserLoginBonus":                         projectTable("IUserLoginBonus", user),
- 		"IUserMission":                            projectTable("IUserMission", user),
-+		"IUserMissionPassPoint":                   projectTable("IUserMissionPassPoint", user),
- 		"IUserMainQuestFlowStatus":                projectTable("IUserMainQuestFlowStatus", user),
- 		"IUserMainQuestMainFlowStatus":            projectTable("IUserMainQuestMainFlowStatus", user),
- 		"IUserMainQuestProgressStatus":            projectTable("IUserMainQuestProgressStatus", user),
-diff --git a/server/proto/individualpop.proto b/server/proto/individualpop.proto
-index 8b5d8e6..90d992e 100644
---- a/server/proto/individualpop.proto
-+++ b/server/proto/individualpop.proto
-@@ -7,7 +7,7 @@ import "proto/data.proto";
- 
- package apb.api.individualpop;
- 
--service IndividualpopService {
-+service IndividualPopService {
- 	rpc GetUnreadPop (google.protobuf.Empty) returns (GetUnreadPopResponse);
- }
- 
+ 		page, stamp, reward, err := resolveNextStamp(catalog, st)
