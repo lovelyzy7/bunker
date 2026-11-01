@@ -6,9 +6,13 @@ let expected = null;   // { name, size } of the finished product, for the downlo
 let building = false;  // One build at a time, however fast the button is pressed.
 
 // The Bunker version this site builds (version.json, written by build_site.py).
+let projectVersion = null;
 fetch("version.json").then((r) => r.ok ? r.json() : null).then((v) => {
   if (v && v.version) {
-    $("bunker-version").textContent = tr("BUILDS BUNKER " + v.version);
+    projectVersion = v.version;
+    // The product's identity is the game's release with this project's version
+    // after it: 3.7.1-{1.4.8} — the tail is the variable one.
+    $("bunker-version").textContent = tr("BUILDS BUNKER " + `3.7.1-{${v.version}}`);
     keepOffline(v.build ? `${v.version}-${v.build}` : v.version);
   }
 }).catch(() => {});
@@ -483,7 +487,7 @@ function regionName(info) {
 
 function fillResult(value) {
   const info = value.info || {};
-  $("built-version").textContent = info.version || "—";
+  $("built-version").textContent = projectVersion ? `3.7.1-{${projectVersion}}` : (info.version || "—");
   $("built-region").textContent = regionName(info);
   $("built-menu").textContent = info.modMenu ? tr("included") : tr("not included");
   $("built-size").textContent = `${(value.blob.size / 1048576).toFixed(0)} MB`;
