@@ -2,6 +2,7 @@
 const $ = (id) => document.getElementById(id);
 let worker = new Worker("worker.js");
 let url = null;
+let expected = null;   // { name, size } of the finished product, for the download self-check
 let building = false;  // One build at a time, however fast the button is pressed.
 
 // The Bunker version this site builds (version.json, written by build_site.py).
@@ -517,6 +518,26 @@ function warmUp() {
 
 $("game").addEventListener("change", update);
 $("master").addEventListener("change", update);
+
+// The download self-check: a download that died halfway leaves a "pending"
+// MediaStore item, and the installer answers “There was a problem parsing the
+// package” for it. Picking the saved file back compares its size with the
+// product's, so “corrupt” becomes “incomplete — download again” in one step.
+const verifyFile = $("verify-file");
+if (verifyFile) verifyFile.addEventListener("change", async () => {
+  const file = verifyFile.files[0], out = $("verify-result");
+  if (!file || !expected) return;
+  if (file.size !== expected.size) {
+    out.textContent = `\u2717 ${tr("Incomplete download")} (${file.size} / ${expected.size} B) \u00b7 ${tr("Please download again.")}`;
+    return;
+  }
+  out.textContent = `\u2713 ${tr("Size matches")} (${file.size} B)`;
+  try {
+    const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+    const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    out.textContent += ` \u00b7 ${hex.slice(0, 16)}\u2026`;
+  } catch (error) { /* out of memory on a phone: the size check already passed */ }
+});
 $("proxy-url").addEventListener("input", () => { syncSource(); warmUp(); });
 for (const radio of document.querySelectorAll('input[name="launcher-source"]')) {
   radio.addEventListener("change", () => { syncSource(); warmUp(); });
@@ -570,11 +591,31 @@ worker.onmessage = ({ data }) => {
   }
   if (data.type === "done") {
     const { name, blob, info } = data.value;
+    expected = { name, size: blob.size };
+    // Deliver through the service worker: a plain Blob anchor download dies
+    // halfway on phones and leaves a "pending" MediaStore item that the
+    // installer then calls a corrupt package. A worker-served response carries
+    // a length, so the download manager can finish and finalise it. The Blob
+    // URL stays as the fallback until the worker acknowledges.
     url = URL.createObjectURL(blob);
     $("download").href = url;
     $("download").download = name;
     $("download").textContent = tr(`Download ${name} (${Math.round(blob.size / 1048576)} MB)`);
+    const token = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+      const onReady = (event) => {
+        if (event.data && event.data.type === "bunker-product-ready" && event.data.token === token) {
+          navigator.serviceWorker.removeEventListener("message", onReady);
+          $("download").href = `__dl/${token}?n=${encodeURIComponent(name)}`;
+          $("download").removeAttribute("download");  // the response names the file
+        }
+      };
+      navigator.serviceWorker.addEventListener("message", onReady);
+      navigator.serviceWorker.controller.postMessage({ type: "bunker-product", token, name, blob });
+    }
     fillResult(data.value);
+    const verifyBox = $("verify-box");
+    if (verifyBox) verifyBox.hidden = false;
 
     $("result").style.display = "block";
     building = false;
@@ -714,6 +755,10 @@ const ZH = {
   "Checking the checksum…": "正在校验 SHA-256……",
   "Not the original 3.7.1 release": "不是原版 3.7.1（SHA-256 不匹配）",
   "The file differs from the original 3.7.1 releases": "此文件与原版 3.7.1 不同；下方为本文件与原版的尺寸/摘要对照",
+  "Verify the downloaded file:": "校验已下载的成品：",
+  "Incomplete download": "下载不完整",
+  "Please download again.": "请重新下载。",
+  "Size matches": "尺寸一致",
   "Choose the game .apk file.": "请选择游戏的 .apk 文件。",
   "Takes a few minutes and needs about 2 GB of free memory. A desktop browser works best.":
     "需要几分钟，并占用约 2 GB 内存。建议使用桌面浏览器。",

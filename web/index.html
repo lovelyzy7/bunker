@@ -356,6 +356,11 @@
           <dt>SOURCE</dt><dd id="built-source">—</dd>
         </dl>
         <a id="download" download>Download</a>
+        <p class="note" id="verify-box" hidden>
+          <label for="verify-file">Verify the downloaded file:</label>
+          <input type="file" id="verify-file" accept=".apk">
+          <span id="verify-result"></span>
+        </p>
         <p class="note" id="sign-android">The APK is signed and ready to install. Every APK built on this page is signed
           with the same public Bunker key, so a newer build installs over an older one and keeps your saves.
           <a href="bunker-key.p12" download>Download the key</a> (<code>bunker-key.p12</code>, password

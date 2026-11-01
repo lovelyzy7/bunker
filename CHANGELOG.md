@@ -4,6 +4,24 @@ What changed in Bunker, newest first. Each day lists its changes by area.
 Commit ids are in brackets. Each release's heading sits above the dated
 sections it contains; its notes run down to the previous release.
 
+## 1.4.7 (2026-11-02)
+
+A finished APK now reaches the phone: the download runs as a sized response
+the download manager can complete, and the page can check the saved file.
+
+## 2026-11-02 (after 1.4.6)
+
+### Web builder
+- The finished APK is delivered through the service worker as a response with
+  a length instead of a page-held Blob link. The Blob link died halfway on
+  phones and left a pending download item, which the installer reported as a
+  corrupt package ("There was a problem parsing the package (11)") although
+  the build itself was fine. [sw.js] [app.js]
+- The result panel offers "Verify the downloaded file": pick the saved APK
+  back and the page compares its size with the product's, so an interrupted
+  download says "incomplete — download again" instead of "corrupt". [app.js]
+  [index.html]
+
 ## 1.4.6 (2026-11-01)
 
 The web builder explains why a file is not the original and warns what

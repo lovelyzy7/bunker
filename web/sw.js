@@ -31,6 +31,23 @@ self.addEventListener("activate", (event) => {
 const KEEP = /\/(bundles|py|pyodide)\//;   // the bundles, the sources and Python: fetched once
 const CDN = /(^|\.)jsdelivr\.net$/;  // Pyodide's wasm and wheels
 
+// ---- Finished-product delivery -------------------------------------------------
+// A large Blob saved through an anchor (URL.createObjectURL) dies halfway on
+// phones: the MediaStore item stays "pending" and the installer answers “There
+// was a problem parsing the package” although the build itself was fine. The
+// page hands the finished APK here instead, and the download runs as a normal
+// response with a length, which the download manager can finish and finalise.
+const PRODUCTS = new Map();  // token -> { blob, name }
+
+self.addEventListener("message", (event) => {
+  const data = event.data;
+  if (data && data.type === "bunker-product") {
+    for (const key of [...PRODUCTS.keys()]) PRODUCTS.delete(key);
+    PRODUCTS.set(data.token, { blob: data.blob, name: data.name || "bunker.apk" });
+    if (event.source) event.source.postMessage({ type: "bunker-product-ready", token: data.token });
+  }
+});
+
 /** Cache first, fill from the network on the first visit. */
 async function fromCache(request) {
   const cache = await caches.open(CACHE);
@@ -64,6 +81,21 @@ self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
   const url = new URL(request.url);
+  const dl = /(?:^|\/)__dl\/([A-Za-z0-9_-]+)$/.exec(url.pathname);
+  if (dl) {
+    event.respondWith((async () => {
+      const entry = PRODUCTS.get(dl[1]);
+      if (!entry) return new Response("expired", { status: 410 });
+      return new Response(entry.blob, {
+        headers: {
+          "Content-Type": "application/vnd.android.package-archive",
+          "Content-Length": String(entry.blob.size),
+          "Content-Disposition": `attachment; filename="${entry.name.replace(/["\\]/g, "_")}"`,
+        },
+      });
+    })());
+    return;
+  }
   if (KEEP.test(url.pathname) || CDN.test(url.hostname)) {
     event.respondWith(fromCache(request));
     return;
