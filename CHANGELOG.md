@@ -4,6 +4,20 @@ What changed in Bunker, newest first. Each day lists its changes by area.
 Commit ids are in brackets. Each release's heading sits above the dated
 sections it contains; its notes run down to the previous release.
 
+## 1.4.10 (2026-11-02)
+
+The save starts the moment a build finishes, before a phone reclaims the
+hundreds of megabytes the page is holding.
+
+## 2026-11-02 (after 1.4.9)
+
+### Web builder
+- The download starts automatically when the build completes. A finished APK
+  is hundreds of megabytes held by the page, and on a phone that memory is
+  reclaimed within minutes: a save started late died halfway, the installer
+  found a pending download and reported the package as corrupt. The link, the
+  share sheet and the size check remain for a retry. [app.js]
+
 ## 1.4.9 (2026-11-02)
 
 The page labels every product with the game's release and this project's
