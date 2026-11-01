@@ -1,6 +1,6 @@
 {
   "lunar-tear": "3a8c5f1c8c9f6a987de32b03b5a940d12e7ded5f",
-  "lunar-base": "ea6bcaef27c25abda6fe841a7a43eeb87fb3b8f3",
+  "lunar-base": "2aa1574553b0ecc10133f6f3874abc60e94dd640",
   "bunker-modmenu": "4b72e3a4050c649ae476a39cf120c45dec5f015c",
   "lunar-tear-masterdata-patcher": "9b6cd167b51dd3b84be200faf92877b4408c1901",
   "lunar-scripts-zh": {
@@ -28,9 +28,9 @@
         "shared/schemas.json",
         "shared/verify_gate.py"
       ],
-      "sha256": "a718c621bb6434db0407e84be740743df26c4a315ee81c8fa80e1fc0bec9cb6d"
+      "sha256": "e020f0e068961e166bf38421e9c3b377fe37d62152812d0f109a69884831f1a3"
     },
     "note": "转正 submodule（双钉：gitlink commit pin + 契约摘要 pin，prepare 两者皆验）。本地开发位可用目录联接，联接目标 HEAD 须等于 commit。",
-    "commit": "b20db6efa4e6a8c909a0d0f699e6f6b964dbcf6f"
+    "commit": "b989186fe21b57ec0887c1eed7090e62b561f30a"
   }
 }
