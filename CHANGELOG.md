@@ -4,6 +4,21 @@ What changed in Bunker, newest first. Each day lists its changes by area.
 Commit ids are in brackets. Each release's heading sits above the dated
 sections it contains; its notes run down to the previous release.
 
+## 1.4.8 (2026-11-02)
+
+The build can hand the finished APK to the share sheet, which reaches the
+installer or a file manager without the download manager at all — the chain
+that stalls in Incognito and on some phones.
+
+## 2026-11-02 (after 1.4.7)
+
+### Web builder
+- The result panel gains "Share / send to…": the finished APK goes to the
+  Android share sheet (save to files, or straight to the installer), a second
+  delivery channel beside the download. Builds made in Incognito, where the
+  download manager is the weakest link, no longer depend on it alone. [app.js]
+  [index.html]
+
 ## 1.4.7 (2026-11-02)
 
 A finished APK now reaches the phone: the download runs as a sized response
