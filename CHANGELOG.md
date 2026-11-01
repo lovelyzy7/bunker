@@ -4,6 +4,18 @@ What changed in Bunker, newest first. Each day lists its changes by area.
 Commit ids are in brackets. Each release's heading sits above the dated
 sections it contains; its notes run down to the previous release.
 
+## 1.4.9 (2026-11-02)
+
+The page labels every product with the game's release and this project's
+version after it: 3.7.1-{1.4.9}.
+
+## 2026-11-02 (after 1.4.8)
+
+### Web builder
+- The version shown in the header and in the result panel's VERSION row is the
+  game's release followed by this project's version from version.json, e.g.
+  3.7.1-{1.4.9}; the tail is the variable one. [app.js]
+
 ## 1.4.8 (2026-11-02)
 
 The build can hand the finished APK to the share sheet, which reaches the
