@@ -4,6 +4,18 @@ What changed in Bunker, newest first. Each day lists its changes by area.
 Commit ids are in brackets. Each release's heading sits above the dated
 sections it contains; its notes run down to the previous release.
 
+## 1.4.11 (2026-11-02)
+
+The installed APK names itself: the installer's version line reads
+3.7.1-1.4.11 instead of 3.7.1, so a product says which build it is.
+
+## 2026-11-02 (after 1.4.10)
+
+### Build
+- android:versionName carries the game's release with this project's version
+  after it (3.7.1-1.4.11): the installer's version line names the build. The
+  page's own version text is unchanged. [assemble_apk.py] [app.js]
+
 ## 1.4.10 (2026-11-02)
 
 The save starts the moment a build finishes, before a phone reclaims the

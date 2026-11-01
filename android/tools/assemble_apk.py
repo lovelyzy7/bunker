@@ -86,6 +86,7 @@ NETWORK_CONFIG = "assets/bin/Data/deace60a64f3d4398a2db0f3d1a41195"
 # Android attribute resource IDs (stable across platform versions).
 NAME, VALUE, THEME, AUTHORITIES = 0x01010003, 0x01010024, 0x01010000, 0x01010018
 MIN_SDK, EXTRACT_NATIVE, CLEARTEXT, PAGE_SIZE_COMPAT = 0x0101020C, 0x010104EA, 0x010104EC, 0x010106AB
+VERSION_NAME = 0x0101021C  # android.R$attr.versionName — the installer's “version” line
 APP_CATEGORY, APP_CATEGORY_GAME = 0x01010545, 0
 THEME_MATERIAL_LIGHT_NO_ACTION_BAR = 0x01030241
 # Attributes the Mod Menu's service needs, as resource ids (aapt writes these;
@@ -196,11 +197,25 @@ def patch_master(original):
         return target.read_bytes()
 
 
-def patch_manifest(game_manifest, companion_manifest, port_offset=0, menu=False, release="en"):
+def patch_manifest(game_manifest, companion_manifest, port_offset=0, menu=False, release="en",
+                   project_version=None):
     doc = axml.parse(game_manifest)
     companion = axml.parse(companion_manifest).root
     manifest = doc.root
     package = manifest.get("package", ns=None).raw
+    if project_version is None:
+        # The launcher's own manifest carries the project version, computed by
+        # scripts/version.py when Gradle built it (fresh), unlike the static
+        # assets/lunar/bunker-version.txt which only refreshes in build_native.
+        got = companion.get("versionName")
+        project_version = got.raw if got is not None else None
+    if project_version:
+        # The installer's version line names the product: the game's release
+        # with this project's version after it (3.7.1-1.4.11), so the APK says
+        # which build it is. No braces: the tail is just the variable part.
+        current = manifest.get("versionName")
+        base = current.raw if current is not None else "3.7.1"
+        manifest.set(Attr.string("versionName", f"{base}-{project_version}", VERSION_NAME))
     app = manifest.find_all("application")[0]
     for sdk in manifest.find_all("uses-sdk"):
         sdk.set(Attr.integer("minSdkVersion", 28, MIN_SDK))
