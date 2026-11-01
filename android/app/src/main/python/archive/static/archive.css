@@ -1,4 +1,4 @@
-/* The Archive's additions to the Pod Programs look (automata.css): same tokens, light and dark. */
+﻿/* The Archive's additions to the Pod Programs look (podbase.css): same tokens, light and dark. */
 
 .crumb { margin: 16px 0 0; font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-mid); }
 .crumb a { color: var(--fg-mid); }
@@ -210,7 +210,7 @@ body:has(footer.player-bar[hidden]) { padding-bottom: 16px; }
 a.sched-row:hover { background: var(--bg-cream-dark); color: var(--fg-dark); }
 .seg.tight a { letter-spacing: 0.04em; }
 
-/* 语言开关：位于顶部操作区（.terminal-bar .right），样式由 automata.css 的
+/* 语言开关：位于顶部操作区（.terminal-bar .right），样式由 podbase.css 的
    .lang-toggle 提供；这里只保证触控高度与不换行。 */
 .terminal-bar .right .lang-toggle { white-space: nowrap; min-height: 32px; }
 
