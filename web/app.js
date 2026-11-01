@@ -613,6 +613,19 @@ worker.onmessage = ({ data }) => {
       navigator.serviceWorker.addEventListener("message", onReady);
       navigator.serviceWorker.controller.postMessage({ type: "bunker-product", token, name, blob });
     }
+    // Second channel: the share sheet. The download manager is the weakest link
+    // on phones (and in Incognito it is weaker still — a stalled download leaves
+    // a "pending" item the installer calls a corrupt package). Handing the file
+    // to the share sheet reaches "save to files" or the installer directly.
+    const share = $("share");
+    if (share) {
+      const file = new File([blob], name, { type: "application/vnd.android.package-archive" });
+      const usable = !!(navigator.share && navigator.canShare && navigator.canShare({ files: [file] }));
+      share.hidden = !usable;
+      share.onclick = usable ? () => {
+        navigator.share({ files: [file], title: name }).catch(() => {});
+      } : null;
+    }
     fillResult(data.value);
     const verifyBox = $("verify-box");
     if (verifyBox) verifyBox.hidden = false;
@@ -756,6 +769,7 @@ const ZH = {
   "Not the original 3.7.1 release": "不是原版 3.7.1（SHA-256 不匹配）",
   "The file differs from the original 3.7.1 releases": "此文件与原版 3.7.1 不同；下方为本文件与原版的尺寸/摘要对照",
   "Verify the downloaded file:": "校验已下载的成品：",
+  "Share / send to\u2026": "分享 / 发送到\u2026",
   "Incomplete download": "下载不完整",
   "Please download again.": "请重新下载。",
   "Size matches": "尺寸一致",
