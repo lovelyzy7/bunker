@@ -4,6 +4,30 @@ What changed in Bunker, newest first. Each day lists its changes by area.
 Commit ids are in brackets. Each release's heading sits above the dated
 sections it contains; its notes run down to the previous release.
 
+## 1.4.5 (2026-11-01)
+
+Pod Programs opens with cleaner navigation that is always in reach: five
+buttons with sliding entry strips and a merged event manager. The game's
+special button glyphs render again.
+
+## 2026-11-01 (after 1.4.4)
+
+### Pod Programs
+- Navigation: five always-visible buttons (Status, Players, Edit, Tools,
+  Manage) replace the dropdowns; each opens a sliding strip of boxed
+  entries, one strip at a time and none until asked. Manage carries the
+  merged Event Manager and Settings entries. [2aa1574] [e6f9a8a]
+- The Event Manager page lists the schedule of events, shops, gacha and
+  quests. [9eff325]
+- The panel's grid stays tidy at every screen width, and the Archive's
+  stylesheet no longer overrides the panel's. [ea6bcae] [40208d6]
+- Dropdown option rows draw with an opaque background again. [b88ffa2]
+
+### Fonts
+- The font payloads carry the original glyph outlines again, so the battle
+  AUTO and speed buttons and other special characters no longer show empty
+  boxes. [b989186]
+
 ## 1.4.4 (2026-10-31)
 
 Flying Mama plays at its normal speed above 30 fps, and the Dark Memory
