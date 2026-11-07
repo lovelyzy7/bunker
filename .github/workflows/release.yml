@@ -28,7 +28,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: python3 -m pip install pycryptodome msgpack lz4 -r scripts/requirements-notices.txt
+      - run: python3 -m pip install pycryptodome msgpack lz4 fastapi jinja2 -r scripts/requirements-notices.txt
       - name: Materialise lunar-scripts-zh
         # upstream-local 是目录挂载（Windows junction）；CI 无本地挂载时从 GitHub
         # 取实体。内容正确性由 prepare 的 contract-digest 预检（upstream.lock pin）。
