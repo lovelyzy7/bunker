@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.1 (2026-11-07)
+
+Web builder: the share sheet button and the downloaded-file verifier are gone
+(「分享/发送到」按钮与「校验已下载的成品」框删除，含处理代码与文案). The site
+sources now carry the JP telemetry table, so the in-page build starts again.
+The style hints that ran with every tag are silent.
+
+
 What changed in Bunker, newest first. Each day lists its changes by area.
 Commit ids are in brackets. Each release's heading sits above the dated
 sections it contains; its notes run down to the previous release.

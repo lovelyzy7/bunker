@@ -747,11 +747,6 @@ const ZH = {
   "Checking the checksum…": "正在校验 SHA-256……",
   "Not the original 3.7.1 release": "不是原版 3.7.1（SHA-256 不匹配）",
   "The file differs from the original 3.7.1 releases": "此文件与原版 3.7.1 不同；下方为本文件与原版的尺寸/摘要对照",
-  "Verify the downloaded file:": "校验已下载的成品：",
-  "Share / send to\u2026": "分享 / 发送到\u2026",
-  "Incomplete download": "下载不完整",
-  "Please download again.": "请重新下载。",
-  "Size matches": "尺寸一致",
   "Choose the game .apk file.": "请选择游戏的 .apk 文件。",
   "Takes a few minutes and needs about 2 GB of free memory. A desktop browser works best.":
     "需要几分钟，并占用约 2 GB 内存。建议使用桌面浏览器。",
