@@ -7,7 +7,6 @@ The earlier 125-repair candidate and default packs are preserved.
 import argparse
 import copy
 import csv
-import hashlib
 import io
 import json
 import re

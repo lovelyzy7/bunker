@@ -127,7 +127,7 @@ def main():
     s('step_up_516001',1).update(price=1500,cur='gems',draws=10)
     for step in [2,4]:s('step_up_510001',step).update(price=1500,cur='gems',draws=10)
     s('step_up_524001',1).update(price=0,cur='free',draws=10)
-    for key,value in assets.items():
+    for _key,value in assets.items():
         # Keep only supported mechanical facts; panel artwork itself remains
         # untouched and all OCR observations remain available for re-review.
         value['features']=list(dict.fromkeys(value['features']))

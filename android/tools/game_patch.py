@@ -114,7 +114,7 @@ def patch_library(lib, profile, port_offset=0):
     overrides = (struct.pack("<II", 0x52800000 | port << 5, 0xD65F03C0),
                  struct.pack("<I", 0x52800002 | port << 5),
                  struct.pack("<I", 0x52800014 | port << 5))
-    for i, ((_, replacement), rva) in enumerate(zip(PATCHES, PROFILES[profile]["rvas"])):
+    for i, ((_, replacement), rva) in enumerate(zip(PATCHES, PROFILES[profile]["rvas"], strict=False)):
         code = overrides[i - 10] if 10 <= i <= 12 else bytes.fromhex(replacement)
         offset = elf_offset(data, rva, len(code))
         data[offset:offset + len(code)] = code
@@ -141,7 +141,7 @@ def patch_library_file(path, profile, port_offset=0):
         port = 8003 + port_offset
         overrides = (struct.pack("<II", 0x52800000 | port << 5, 0xD65F03C0),
                      struct.pack("<I", 0x52800002 | port << 5), struct.pack("<I", 0x52800014 | port << 5))
-        for i, ((_, replacement), rva) in enumerate(zip(PATCHES, PROFILES[profile]["rvas"])):
+        for i, ((_, replacement), rva) in enumerate(zip(PATCHES, PROFILES[profile]["rvas"], strict=False)):
             code = overrides[i - 10] if 10 <= i <= 12 else bytes.fromhex(replacement)
             offset = None
             for segment in range(count):

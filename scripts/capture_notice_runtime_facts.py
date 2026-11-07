@@ -12,27 +12,25 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(ROOT/'.build/notice-audit/python'),str(ROOT/'scripts')]
 import grpc
 from google.protobuf import descriptor_pb2,descriptor_pool,message_factory,json_format
-import google.protobuf.timestamp_pb2
 from rich_notice_content import soup
-import build_notice_templates as templates
 
 
 def messages():
     fd=descriptor_pb2.FileDescriptorProto(name='notice_fidelity_probe.proto',package='noticefidelity',syntax='proto3')
     fd.dependency.append('google/protobuf/timestamp.proto')
-    I,S,M=5,9,11
+    INT32,_S,M=5,9,11
     def msg(name,fields):
         m=fd.message_type.add(name=name)
         for number,name,kind,target,repeated in fields:
             f=m.field.add(number=number,name=name,type=kind,label=3 if repeated else 1)
             if target:f.type_name=target
         return m
-    msg('Bonus',[(1,'type',I,'',False),(2,'id',I,'',False),(3,'count',I,'',False)])
-    msg('Fixed',[(1,'rarity',I,'',False),(2,'count',I,'',False)])
-    msg('Phase',[(1,'id',I,'',False),(3,'limit',I,'',False),(5,'priceType',I,'',False),(6,'priceId',I,'',False),(7,'price',I,'',False),(9,'draws',I,'',False),(11,'bonuses',M,'.noticefidelity.Bonus',True),(12,'fixed',M,'.noticefidelity.Fixed',False)])
-    msg('Gacha',[(1,'id',I,'',False),(4,'mode',I,'',False),(5,'resetType',I,'',False),(6,'resetPeriod',I,'',False),(10,'phases',M,'.noticefidelity.Phase',True),(13,'start',M,'.google.protobuf.Timestamp',False),(14,'end',M,'.google.protobuf.Timestamp',False),(22,'medal',I,'',False)])
-    msg('Request',[(1,'ids',I,'',True)])
-    entry=msg('Entry',[(1,'key',I,'',False),(2,'value',M,'.noticefidelity.Gacha',False)]);entry.options.map_entry=True
+    msg('Bonus',[(1,'type',INT32,'',False),(2,'id',INT32,'',False),(3,'count',INT32,'',False)])
+    msg('Fixed',[(1,'rarity',INT32,'',False),(2,'count',INT32,'',False)])
+    msg('Phase',[(1,'id',INT32,'',False),(3,'limit',INT32,'',False),(5,'priceType',INT32,'',False),(6,'priceId',INT32,'',False),(7,'price',INT32,'',False),(9,'draws',INT32,'',False),(11,'bonuses',M,'.noticefidelity.Bonus',True),(12,'fixed',M,'.noticefidelity.Fixed',False)])
+    msg('Gacha',[(1,'id',INT32,'',False),(4,'mode',INT32,'',False),(5,'resetType',INT32,'',False),(6,'resetPeriod',INT32,'',False),(10,'phases',M,'.noticefidelity.Phase',True),(13,'start',M,'.google.protobuf.Timestamp',False),(14,'end',M,'.google.protobuf.Timestamp',False),(22,'medal',INT32,'',False)])
+    msg('Request',[(1,'ids',INT32,'',True)])
+    entry=msg('Entry',[(1,'key',INT32,'',False),(2,'value',M,'.noticefidelity.Gacha',False)]);entry.options.map_entry=True
     msg('Response',[(1,'gacha',M,'.noticefidelity.Entry',True)])
     pool=descriptor_pool.Default();pool.Add(fd)
     return tuple(message_factory.GetMessageClass(pool.FindMessageTypeByName('noticefidelity.'+n)) for n in ['Request','Response'])

@@ -187,7 +187,7 @@ class UpdateTests(unittest.TestCase):
 
     def test_update_keeps_the_installed_notices(self):
         out = self.work / "out.apk"
-        info = assemble_apk.update(self.installed(notices="abc"), self.companion(), out, log=lambda m: None)
+        assemble_apk.update(self.installed(notices="abc"), self.companion(), out, log=lambda m: None)
         with zipfile.ZipFile(out) as z:
             self.assertEqual(z.read("assets/lunar/LUNAR_TEAR_LICENSE.txt"), b"license")
 

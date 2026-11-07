@@ -226,7 +226,7 @@ class TowersInTheGameData(unittest.TestCase):
         for seq, _ in read("m_event_quest_sequence", "EventQuestSequenceId", "QuestId"):
             count[seq] = count.get(seq, 0) + 1
         for tower, counts in floors.items():
-            for n, (want, (start, end)) in enumerate(zip(counts, runs[tower])):
+            for n, (want, (start, end)) in enumerate(zip(counts, runs[tower], strict=False)):
                 group, s, e = chapters[int(tower) + n * cal.COPY_STEP]
                 end = cal.NEVER if end >= cal.FOREVER else end  # the build writes "never" as 2099-12-31
                 self.assertEqual((s, e), (start, end), f"tower {tower} run {n}")

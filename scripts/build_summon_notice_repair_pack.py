@@ -29,7 +29,7 @@ def medal_fields(row):
     """2021 lacks trailing ConversionRate, not CeilingCount."""
     if len(row) not in (5, 6):
         raise ValueError('Unsupported historical medal schema')
-    return dict(zip(('id', 'ceiling', 'currency', 'gacha', 'conversion', 'rate'), row))
+    return dict(zip(('id', 'ceiling', 'currency', 'gacha', 'conversion', 'rate'), row, strict=False))
 
 
 def validate_history(target):

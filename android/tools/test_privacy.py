@@ -62,7 +62,7 @@ class PrivacyTests(unittest.TestCase):
     def test_japanese_guards_and_idempotence(self):
         data, offsets = elf(privacy.JP_SITES)
         patched = privacy.patch_library(data, profile="jp")
-        for site, offset in zip(privacy.JP_SITES, offsets):
+        for site, offset in zip(privacy.JP_SITES, offsets, strict=False):
             replacement = bytes.fromhex(site["replacement"])
             self.assertEqual(patched[offset:offset + len(replacement)], replacement)
         self.assertEqual(privacy.patch_library(patched, profile="jp"), patched)
@@ -114,11 +114,11 @@ class PrivacyTests(unittest.TestCase):
         patched = privacy.patch_library(source)
         self.assertEqual(bytes(source), original)
         allowed = set()
-        for site, offset in zip(privacy.SITES, offsets):
+        for site, offset in zip(privacy.SITES, offsets, strict=False):
             replacement = bytes.fromhex(site["replacement"])
             self.assertEqual(patched[offset:offset + len(replacement)], replacement)
             allowed.update(range(offset, offset + len(replacement)))
-        self.assertTrue(all(a == b or index in allowed for index, (a, b) in enumerate(zip(original, patched))))
+        self.assertTrue(all(a == b or index in allowed for index, (a, b) in enumerate(zip(original, patched, strict=False))))
         self.assertEqual(privacy.patch_library(patched), patched)
 
     def test_unknown_instruction_fails_before_mutating_input(self):

@@ -62,7 +62,7 @@ class Fidelity(unittest.TestCase):
         for m in added:
             g=m['gacha_id'];actual=m['rich_content']['configured_phase_facts'];source=self.runtime[str(g)]['cost_rows']
             self.assertEqual(len(actual),len(source),g)
-            for a,s in zip(actual,source):
+            for a,s in zip(actual,source, strict=False):
                 self.assertEqual(a['draws'],s['draws'],g)
                 self.assertNotEqual(a.get('limit'),999)
                 if s['price_text'].endswith('paid gems'):self.assertEqual(a['cur'],'paid')

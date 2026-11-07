@@ -114,11 +114,11 @@ def upstream_maps(zh: Path, release: str) -> dict:
                 "patch_metadata": jp.patch_metadata}
     en = _load("fix3_zh_en", zh / "en-client" / "patch_fix3_en.py")
     ko = _load("fix3_zh_ko", zh / "en-client" / "patch_fix3_ko.py")
-    l = _load("fix3_zh_l", zh / "en-client" / "patch_fix3l.py")
+    fix3l = _load("fix3_zh_l", zh / "en-client" / "patch_fix3l.py")
     return {"en_key": en.key_map(entries),
             "ko_key": ko.key_map(entries),
-            "fix3l_en": {k: v["en"] for k, v in l.FIX3L_KEYS.items()},
-            "fix3l_ko": {k: v["ko"] for k, v in l.FIX3L_KEYS.items()},
+            "fix3l_en": {k: v["en"] for k, v in fix3l.FIX3L_KEYS.items()},
+            "fix3l_ko": {k: v["ko"] for k, v in fix3l.FIX3L_KEYS.items()},
             "meta_repl": en.meta_repl(entries),
             "ta_en": dict(EN_TS), "ta_ko": dict(KO_TS),
             "patch_metadata": en.patch_metadata}
@@ -387,7 +387,7 @@ def apply_fix3_workdir(release: str, work: Path, zh: Path) -> dict:
                   ("fix4-en", dict(EN_TS), "key", maps["fix4_orig_en"], False),
                   ("fix4-ko", dict(FIX4_KO_NT_TS), "key", maps["fix4_ko_nt"], True)]
     for stage, entries, mode, repl, enforce in stages:
-        for entry, label in entries.items():
+        for entry, _label in entries.items():
             p = work / entry
             if not p.is_file():
                 report["files"][entry] = {"missing": True, "stage": stage}

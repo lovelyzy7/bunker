@@ -162,7 +162,7 @@ class RichNotices:
         x=self.exchange(r) if r.get('exchange') or r.get('medal') else None
         shard_icon=self.item_icon(x['shard_id']) if x else None
         rows=[];notes=[];facts=[]
-        for i,s in enumerate(steps,1):
+        for _i,s in enumerate(steps,1):
             cur={'paid':'paid gems','gems':'gems','free':'Free','ticket':s.get('ticket_name','Summon ticket')}[s['cur']]
             price='Free' if s['cur']=='free' else f"{s.get('price',0):,} {esc(cur)}"
             if s['cur'] in ['paid','gems'] and GEM in self.source_members:price=self.img(GEM,'gem_icon','16px')+price
@@ -371,7 +371,7 @@ class RichNotices:
                 prizes=[p for level in r['event']['main_prizes'] for p in level]
                 rows=section.select('tbody tr')
                 if len(rows)==len(prizes):
-                    for tr,p in zip(rows,prizes):
+                    for tr,p in zip(rows,prizes, strict=False):
                         cells=tr.find_all('td')
                         if len(cells)>=2:
                             icon=self.weapon(p['id'])[0] if p['type']==2 else self.item_icon(p['id'],True) if p['type']==5 else None

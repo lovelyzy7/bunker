@@ -4,7 +4,7 @@ Section order and generic Notes come from the base. Native title graphics,
 promotional panels and item icons come from each target's own assets. Detailed
 summon rules and exchanges use target-specific configuration and run evidence.
 """
-import argparse, copy, csv, hashlib, json, re, sys, zipfile
+import argparse, copy, csv, json, re, sys, zipfile
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
@@ -34,7 +34,7 @@ def date_pairs(value,year):
         month=MONTHS[mon[:3].lower()]
         y=year+(1 if dates and month<dates[0].month-6 else 0)
         dates.append(datetime(y,month,int(day),int(hour),int(minute),tzinfo=common.PST))
-    return [(int(a.timestamp()*1000),int(b.timestamp()*1000)) for a,b in zip(dates[::2],dates[1::2])]
+    return [(int(a.timestamp()*1000),int(b.timestamp()*1000)) for a,b in zip(dates[::2],dates[1::2], strict=False)]
 
 
 def payment(title,r=None):
@@ -304,7 +304,7 @@ def adapt(n,entry,base,mapping):
         if option_heading:
             rows=option_heading.find_next('table').select('tbody tr')
             assert len(rows)==len(steps)
-            for row,step in zip(rows,steps):
+            for row,step in zip(rows,steps, strict=False):
                 if step['cur']=='ticket':
                     cell=row.find_all('td')[2];correct=step.get('ticket_name','Premium Summon Ticket')
                     previous=cell.get_text(' ',strip=True)

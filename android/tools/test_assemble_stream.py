@@ -73,8 +73,8 @@ class StreamTests(unittest.TestCase):
             for compress in (True, False):
                 with self.subTest(compress=compress):
                     from_bytes, from_file = io.BytesIO(), io.BytesIO()
-                    for out, add in ((from_bytes, lambda w: w.add("lib/arm64-v8a/libx.so", data, compress)),
-                                     (from_file, lambda w: w.add_file("lib/arm64-v8a/libx.so", path, compress))):
+                    for out, add in ((from_bytes, lambda w, _c=compress: w.add("lib/arm64-v8a/libx.so", data, _c)),
+                                     (from_file, lambda w, _c=compress: w.add_file("lib/arm64-v8a/libx.so", path, _c))):
                         writer = assemble_apk.ApkWriter(out)
                         writer.add("a.txt", b"first")
                         add(writer)

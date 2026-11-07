@@ -261,7 +261,7 @@ class SummonRatesForm(unittest.TestCase):
         s = dict(android_gacha.DEFAULTS)
         page = env.get_template("gacha.html").render(request=None, active="gacha", settings=s, presets=android_gacha.PRESETS,
                                                      two_star=round(100 - s["fourStarPercent"] - s["threeStarPercent"], 3),
-                                                     message="", error="", roulette=list(zip(android_gacha.ROULETTE_GEMS, android_gacha.ROULETTE_DEFAULTS)))
+                                                     message="", error="", roulette=list(zip(android_gacha.ROULETTE_GEMS, android_gacha.ROULETTE_DEFAULTS, strict=False)))
         fields = re.findall(r'<input type="number"[^>]*>', page)
         self.assertTrue(fields)
         for field in fields:

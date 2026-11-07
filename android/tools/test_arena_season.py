@@ -46,7 +46,7 @@ class Turns(unittest.TestCase):
 
     def in_force(self, rows, now):
         changed, dates = self.turns(rows, now)
-        ids = [r[0] for r, (s, e) in zip(rows, dates) if (s, e) != (r[1], r[2]) and s <= now < e]
+        ids = [r[0] for r, (s, e) in zip(rows, dates, strict=False) if (s, e) != (r[1], r[2]) and s <= now < e]
         return changed, dates, ids
 
     def test_same_turns_as_the_server(self):

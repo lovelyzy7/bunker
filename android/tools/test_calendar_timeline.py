@@ -121,7 +121,7 @@ class Timeline(unittest.TestCase):
         moved = cal.timeline(dict(self.state, originalDates=True), self.items(), self.now)
         self.assertEqual((moved["now"], moved["from"], moved["to"]), (plain["now"] - shift, plain["from"] - shift, plain["to"] - shift))
         for a, b in zip([i for r in plain["rows"] for i in r["items"]] + plain["soon"],
-                        [i for r in moved["rows"] for i in r["items"]] + moved["soon"]):
+                        [i for r in moved["rows"] for i in r["items"]] + moved["soon"], strict=False):
             self.assertEqual((b["start"], b["end"]), (a["start"] - shift, a["end"] - shift))
 
     def test_no_end_after_the_loop(self):

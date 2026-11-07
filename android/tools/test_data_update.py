@@ -12,7 +12,11 @@ PYTHON = root / "android/app/src/main/python/android_patcher.py"
 
 @unittest.skipUnless(shutil.which("javac") and shutil.which("java"), "needs a JDK")
 class Android(unittest.TestCase):
-    def needed(self, saves={}, tools={}):
+    def needed(self, saves=None, tools=None):
+        if tools is None:
+            tools = {}
+        if saves is None:
+            saves = {}
         with tempfile.TemporaryDirectory() as tmp:
             for folder, files in (("saves", saves), ("tools", tools)):
                 for name, text in files.items():

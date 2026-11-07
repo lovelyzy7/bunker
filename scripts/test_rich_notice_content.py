@@ -1,5 +1,5 @@
 """Check restored presentation against native assets and target-run evidence."""
-import hashlib,io,json,re,unittest,zipfile
+import hashlib,io,json,unittest,zipfile
 from pathlib import Path
 from PIL import Image
 from rich_notice_content import soup

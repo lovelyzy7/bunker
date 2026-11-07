@@ -18,7 +18,6 @@ install reaches the story on its own anonymous account.
 """
 import argparse
 import contextlib
-import hashlib
 import importlib.util
 import io
 import json

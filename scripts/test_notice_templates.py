@@ -1,5 +1,5 @@
 """Validate base selection without carrying over unrelated run facts."""
-import copy,json,unittest,zipfile
+import json,unittest,zipfile
 from pathlib import Path
 try:
     import build_notice_templates as templates
