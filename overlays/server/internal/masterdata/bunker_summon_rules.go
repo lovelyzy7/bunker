@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -12,10 +13,11 @@ import (
 	"lunar-tear/server/internal/gametime"
 	"lunar-tear/server/internal/model"
 	"lunar-tear/server/internal/store"
+	"lunar-tear/server/internal/utils"
 )
 
 // summon_rules.json holds each summon's rules as the official notices (or,
-// for 2021–22, outside sources: tweets, in-game screenshots, guides) state
+// for 2021–22, outside sources: social posts, in-game screenshots, guides) state
 // them: per draw or step its price, gem type, use limit, guarantee, ★4 rate
 // and bonus items. It is compiled from the summon ledger outside this
 // repository and carries facts only.
@@ -71,6 +73,15 @@ type summonRule struct {
 	// dates by its home banner, which showed for 3 days of a longer run.
 	Start int64 `json:"start"`
 	End   int64 `json:"end"`
+	// W4Ability: every ★4 weapon the summon gives has this ability (a
+	// barrier weapon summon's rank 4 barrier skill); they are its ★4 weapons.
+	W4Ability int32 `json:"w4ability"`
+	// W4: the ★4 weapons the summon gives, a listed selection (the Healer &
+	// Support summons: their exchange's weapons of their elements).
+	W4 []int32 `json:"w4"`
+	// Notice: the summon's notice, over the notice pack's link (twins the
+	// pack links the other way round).
+	Notice int32 `json:"notice"`
 }
 
 type ruleFeatured struct {
@@ -85,6 +96,16 @@ type ruleFeatured struct {
 
 // onlyLineups are the summons whose ★4 characters are their lineup only.
 var onlyLineups = map[int32]bool{}
+
+// weaponLineup is a summon's ★4 weapons: those with an ability, or a list.
+type weaponLineup struct {
+	Ability int32
+	Ids     []int32
+}
+
+// weaponLineups are the summons whose ★4 weapons are a lineup
+// (summon_rules.json w4ability, w4).
+var weaponLineups = map[int32]weaponLineup{}
 
 // newSummon is a summon the game data lacks but its notice and banner art
 // recover: the paid-only twins. Its window is the notice's (original game
@@ -102,6 +123,9 @@ type newSummon struct {
 	Plain  bool       `json:"plain"`  // its art has no appeal/ panel: drawn in the normal (not festival) style
 	Lineup int32      `json:"lineup"` // an earlier summon it reran: that summon's shards and lineup, its own dates
 	Cards  []int32    `json:"cards"`  // the costumes its banner art shows, for its panel's cards
+	Event  int32      `json:"event"`  // the event chapter its To Quests opens (a prize box: the daily quest that gave its tickets)
+	// W4Ability: as summonRule's, for an added summon.
+	W4Ability int32 `json:"w4ability"`
 }
 
 // Prize is one prize of a prize box (Mama's Dream): what it gives and how
@@ -123,6 +147,20 @@ var plainSummons = map[int32]bool{}
 // bannerCards are the costumes a plain summon's banner art shows.
 var bannerCards = map[int32][]int32{}
 
+// summonTitles are summon titles by banner asset (summon_rules.json titles),
+// where the game text has none, has Japanese only, or names another summon
+// (limited_416 and limited_417's are swapped; limited_428's names the summon
+// a month later). archive/schedule.py keeps the same list for game-data summons.
+var summonTitles = map[string]string{}
+
+// SummonTitle is a summon's title from that list, or "".
+func SummonTitle(asset string) string { return summonTitles[asset] }
+
+// artCards are the costumes (or, for a weapon summon, the weapons) the game
+// data's summons' appeal art shows, for the summons with no promotion cards
+// (summon_rules.json art_cards).
+var artCards = map[int32][]int32{}
+
 // panelCards is how many promotion cards a plain summon's panel shows.
 const panelCostumeCards, panelWeaponCards = 3, 2
 
@@ -134,6 +172,7 @@ const panelCostumeCards, panelWeaponCards = 3, 2
 // ApplyRuleFeatured, which runs first.
 func ApplyPanelPromotions(entries []store.GachaCatalogEntry, pool *GachaCatalog) {
 	pool.applyOnlyLineups()
+	pool.applyWeaponLineups(weaponLineups, weaponAbilities())
 	// Released items: those some summon featured. The data also holds
 	// costumes that never came out, with placeholder names.
 	released := map[int32]bool{}
@@ -193,6 +232,30 @@ func ApplyPanelPromotions(entries []store.GachaCatalogEntry, pool *GachaCatalog)
 		}
 		entries[i].PromotionItems = cards
 	}
+	applyArtCards(entries, artCards, pool)
+}
+
+// applyArtCards gives the summons with no promotion cards the characters
+// their appeal art shows, in its order, with their weapons. Without a card the
+// panel has one page (the appeal image), which the client's arrows turn onto
+// itself and leave empty. They are not featured: the draws keep their odds.
+func applyArtCards(entries []store.GachaCatalogEntry, cards map[int32][]int32, pool *GachaCatalog) {
+	for i, e := range entries {
+		if len(e.PromotionItems) > 0 {
+			continue
+		}
+		for _, id := range cards[e.GachaId] {
+			item, ok := pool.CostumeById[id]
+			if !ok {
+				item, ok = pool.WeaponById[id] // a weapon summon's art shows weapons
+			}
+			if ok {
+				card := toPromoItemWithBonus(item, pool)
+				card.IsTarget = false
+				entries[i].PromotionItems = append(entries[i].PromotionItems, card)
+			}
+		}
+	}
 }
 
 // applyOnlyLineups makes a summon's ★4 characters its lineup only (onlyLineups),
@@ -216,6 +279,76 @@ func (pool *GachaCatalog) applyOnlyLineups() {
 	}
 }
 
+// newWeaponLineups are the summons' weapon lineups: the rules' w4ability and
+// w4, and an added summon's w4ability (only when the game data lacks that
+// summon, so the entry is added; entries are the game data's summons).
+func newWeaponLineups(file summonRulesFile, entries []store.GachaCatalogEntry) map[int32]weaponLineup {
+	inData := map[int32]bool{}
+	for _, e := range entries {
+		inData[e.GachaId] = true
+	}
+	out := map[int32]weaponLineup{}
+	for id, r := range file.Rules {
+		if r.W4Ability != 0 || len(r.W4) > 0 {
+			out[id] = weaponLineup{Ability: r.W4Ability, Ids: r.W4}
+		}
+	}
+	for _, n := range file.New {
+		if n.W4Ability != 0 && !inData[n.Id] {
+			out[n.Id] = weaponLineup{Ability: n.W4Ability}
+		}
+	}
+	return out
+}
+
+// applyWeaponLineups makes a summon's ★4 weapons its lineup: the ★4 weapons
+// with its ability, or its listed ones, once BuildBannerPools has given it the
+// standard pool. abilities is each weapon's abilities. Characters and ★3
+// weapons stay.
+func (pool *GachaCatalog) applyWeaponLineups(lineups map[int32]weaponLineup, abilities map[int32][]int32) {
+	for id, l := range lineups {
+		bp := pool.BannerPools[id]
+		if bp == nil {
+			continue
+		}
+		var lineup []GachaPoolItem
+		// The pool's ★4 weapons: weapons kept out of every pool (restricted) stay out.
+		for _, w := range pool.WeaponsByRarity[model.RaritySSRare] {
+			if (l.Ability != 0 && slices.Contains(abilities[w.PossessionId], l.Ability)) || slices.Contains(l.Ids, w.PossessionId) {
+				lineup = append(lineup, w)
+			}
+		}
+		sort.Slice(lineup, func(a, b int) bool { return lineup[a].PossessionId < lineup[b].PossessionId })
+		if len(lineup) > 0 {
+			bp.WeaponsByRarity[model.RaritySSRare] = lineup
+		}
+	}
+}
+
+// weaponAbilities is each weapon's abilities, from the game data.
+func weaponAbilities() map[int32][]int32 {
+	out := map[int32][]int32{}
+	if len(weaponLineups) == 0 {
+		return out
+	}
+	groups, err := utils.ReadTable[EntityMWeaponAbilityGroup]("m_weapon_ability_group")
+	if err != nil {
+		return out
+	}
+	weapons, err := utils.ReadTable[EntityMWeapon]("m_weapon")
+	if err != nil {
+		return out
+	}
+	byGroup := map[int32][]int32{}
+	for _, g := range groups {
+		byGroup[g.WeaponAbilityGroupId] = append(byGroup[g.WeaponAbilityGroupId], g.AbilityId)
+	}
+	for _, w := range weapons {
+		out[w.WeaponId] = byGroup[w.WeaponAbilityGroupId]
+	}
+	return out
+}
+
 // PrizeBoxFor is a prize box summon's prizes, if the summon is one.
 func PrizeBoxFor(gachaId int32) ([]Prize, bool) {
 	p, ok := prizeBoxes[gachaId]
@@ -223,19 +356,30 @@ func PrizeBoxFor(gachaId int32) ([]Prize, bool) {
 }
 
 type summonRulesFile struct {
-	Rules map[int32]summonRule
-	New   []newSummon
+	Rules    map[int32]summonRule
+	New      []newSummon
+	ArtCards map[int32][]int32
 }
 
 func loadSummonRulesFile() (summonRulesFile, error) {
 	var raw struct {
-		Rules map[string]summonRule `json:"rules"`
-		New   []newSummon           `json:"new"`
+		Rules    map[string]summonRule `json:"rules"`
+		New      []newSummon           `json:"new"`
+		ArtCards map[string][]int32    `json:"art_cards"`
+		Titles   map[string]string     `json:"titles"`
 	}
 	if err := json.Unmarshal(summonRulesJSON, &raw); err != nil {
 		return summonRulesFile{}, fmt.Errorf("summon_rules.json: %w", err)
 	}
-	file := summonRulesFile{Rules: make(map[int32]summonRule, len(raw.Rules)), New: raw.New}
+	summonTitles = raw.Titles
+	file := summonRulesFile{Rules: make(map[int32]summonRule, len(raw.Rules)), New: raw.New, ArtCards: map[int32][]int32{}}
+	for k, ids := range raw.ArtCards {
+		id, err := strconv.Atoi(k)
+		if err != nil {
+			return summonRulesFile{}, fmt.Errorf("summon_rules.json: art_cards summon id %q", k)
+		}
+		file.ArtCards[int32(id)] = ids
+	}
 	for k, r := range raw.Rules {
 		id, err := strconv.Atoi(k)
 		if err != nil {
@@ -260,6 +404,13 @@ func ApplySummonRules(entries []store.GachaCatalogEntry) []store.GachaCatalogEnt
 		return entries
 	}
 	entries = applySummonRules(entries, file.Rules)
+	artCards = file.ArtCards
+	weaponLineups = newWeaponLineups(file, entries)
+	if windows, err := loadMedalShopWindows(); err == nil {
+		medalShopOpen = medalShopOpenFrom(windows)
+	} else {
+		log.Printf("summon rules: medal shops: %v", err)
+	}
 	calendarOn := gametime.CurrentCalendar() != nil
 	entries = applyNoticeWindows(entries, file.Rules, gametime.CalendarOffset(), calendarOn)
 	entries = addNewSummonsFor(entries, file, gametime.CalendarOffset(), calendarOn)
@@ -338,8 +489,15 @@ func addNewSummonsFor(entries []store.GachaCatalogEntry, file summonRulesFile, o
 			// the prizes' stock) on the Event tab, which it unlocks.
 			e.GachaLabelType, e.GachaModeType = model.GachaLabelEvent, model.GachaModeBox
 		}
+		// The Event tab shows To Quests; event chapter 0 opened the plain Event Quests list.
+		e.RelatedEventQuestChapterId = n.Event
 		if src, ok := byId[n.Lineup]; ok && n.Lineup != 0 {
-			e.GachaMedalId, e.MedalConsumableItemId, e.CeilingCount = src.GachaMedalId, src.MedalConsumableItemId, src.CeilingCount
+			e.CeilingCount = src.CeilingCount
+			// Its medal only while that medal's exchange is open for this
+			// run: the client's Exchange otherwise opened an exchange with no shop.
+			if medalShopOpen == nil || medalShopOpen(src.MedalConsumableItemId, n.Start+offset, n.End+offset) {
+				e.GachaMedalId, e.MedalConsumableItemId = src.GachaMedalId, src.MedalConsumableItemId
+			}
 		}
 		pair, paired := byId[n.Pair]
 		if paired {
@@ -361,7 +519,7 @@ func addNewSummonsFor(entries []store.GachaCatalogEntry, file summonRulesFile, o
 			e.GachaModeType = model.GachaModeStepup
 			e.GachaDecorationType = model.GachaDecorationFestival
 		}
-		rules[n.Id] = summonRule{Src: n.Src, Steps: n.Steps}
+		rules[n.Id] = summonRule{Src: n.Src, Steps: n.Steps, Notice: file.Rules[n.Id].Notice}
 		if len(n.Prizes) > 0 {
 			prizeBoxes[n.Id] = n.Prizes
 		}
@@ -402,6 +560,9 @@ func applySummonRules(entries []store.GachaCatalogEntry, rules map[int32]summonR
 	for i := range entries {
 		e := &entries[i]
 		rule, ok := rules[e.GachaId]
+		if ok && rule.Notice != 0 {
+			e.InformationId = rule.Notice
+		}
 		if !ok || len(rule.Steps) == 0 {
 			continue
 		}
@@ -548,4 +709,69 @@ func (pool *GachaCatalog) applyRuleFeatured(rules map[int32]summonRule) {
 		applied++
 	}
 	log.Printf("summon rules: %d summons featured as their notices list", applied)
+}
+
+// medalShopOpen is whether an exchange shop taking a medal is open for a whole
+// run (game data dates); nil: always. ApplySummonRules sets it.
+var medalShopOpen func(item int32, start, end int64) bool
+
+func medalShopOpenFrom(windows map[int32][][2]int64) func(int32, int64, int64) bool {
+	return func(item int32, start, end int64) bool {
+		for _, w := range windows[item] {
+			if w[0] <= start && end <= w[1] {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+// loadMedalShopWindows is when each shop selling for an item is open, by the
+// item it takes (the client's CalculatorShop.GetShopIdByConsumableItemId looks
+// for an open shop this way).
+func loadMedalShopWindows() (map[int32][][2]int64, error) {
+	shops, err := utils.ReadTable[EntityMShop]("m_shop")
+	if err != nil {
+		return nil, err
+	}
+	groups, err := utils.ReadTable[EntityMShopItemCellGroup]("m_shop_item_cell_group")
+	if err != nil {
+		return nil, err
+	}
+	cells, err := utils.ReadTable[EntityMShopItemCell]("m_shop_item_cell")
+	if err != nil {
+		return nil, err
+	}
+	items, err := utils.ReadTable[EntityMShopItem]("m_shop_item")
+	if err != nil {
+		return nil, err
+	}
+	price := make(map[int32]int32, len(items))
+	for _, it := range items {
+		if it.PriceType == model.PriceTypeConsumableItem {
+			price[it.ShopItemId] = it.PriceId
+		}
+	}
+	cellPrices := map[int32][]int32{}
+	for _, c := range cells {
+		if p, ok := price[c.ShopItemId]; ok {
+			cellPrices[c.ShopItemCellId] = append(cellPrices[c.ShopItemCellId], p)
+		}
+	}
+	groupPrices := map[int32]map[int32]bool{}
+	for _, g := range groups {
+		for _, p := range cellPrices[g.ShopItemCellId] {
+			if groupPrices[g.ShopItemCellGroupId] == nil {
+				groupPrices[g.ShopItemCellGroupId] = map[int32]bool{}
+			}
+			groupPrices[g.ShopItemCellGroupId][p] = true
+		}
+	}
+	out := map[int32][][2]int64{}
+	for _, s := range shops {
+		for p := range groupPrices[s.ShopItemCellGroupId] {
+			out[p] = append(out[p], [2]int64{s.StartDatetime, s.EndDatetime})
+		}
+	}
+	return out, nil
 }

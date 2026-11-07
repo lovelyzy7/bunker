@@ -131,7 +131,8 @@ def _utf8_console():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--apk", type=Path, required=True, help="Original ARM64 game 3.7.1 APK (日服 or 全球服)")
-    parser.add_argument("--master", type=Path, required=True, help="Original 20240404193219.bin.e")
+    parser.add_argument("--master", type=Path, required=True,
+                        help="Original master data: 20240404193219.bin.e (全球服) or 20240405123139.bin.e (日服)")
     parser.add_argument("--keystore", type=Path, default=None,
                         help="Android signing key (default: the detected client's lunar-scripts-zh key, "
                              "jp→nier-jp.keystore / en→nier-en.keystore; §8.2)")
@@ -155,6 +156,16 @@ def main():
     if args.keystore is None:
         args.keystore = Path(profile["keystore"])   # key auto-select (§8.2)
     master = args.master.resolve(strict=True)
+    # The contents decide which master data this is, not the name (a browser
+    # names a second download "20240405123139.bin (1).e"): the Japanese APK
+    # takes the Japanese master data, 20240405123139.bin.e.
+    edition = region.master_edition(master)
+    if edition is None:
+        parser.error("That file isn't NieR Re[in]carnation master data. "
+                     f"Choose {region.MASTERS['en']['name']} (Global) or {region.MASTERS['jp']['name']} (Japanese).")
+    if edition != release:
+        parser.error(f"The master data is the {region.MASTERS[edition]['name']} file, but the game APK is "
+                     f"the {region.REGIONS[release]['name']} one. Choose {region.MASTERS[release]['name']}.")
     env = os.environ.copy()
     if env.get("JAVA_HOME"):
         env["PATH"] = str(Path(env["JAVA_HOME"]) / "bin") + os.pathsep + env["PATH"]

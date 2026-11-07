@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  {# Apply the saved language BEFORE first paint. The templates are authored in
+     English, so without this a Chinese session briefly paints the English page
+     on every navigation and only then switches. Hiding the body until i18n.js
+     has translated (it removes .i18n-loading in applyI18n) removes the flash;
+     a timeout in i18n.js reveals the page even if translation ever fails. #}
+  <script>
+  (function () {
+    try {
+      if (localStorage.getItem("lb_lang") !== "en") {   // 默认中文
+        var el = document.documentElement;
+        el.lang = "zh-CN";
+        el.className += " lang-zh i18n-loading";
+      }
+    } catch (e) {}
+  })();
+  </script>
+  <style>html.i18n-loading body { visibility: hidden; }</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Lunar Base{% endblock %}</title>
+  {# Site icon: 512x512 master -> favicon.ico (16/24/32/48/64/256) +
+     16/32 PNG + 180 apple-touch-icon (opaque, flattened onto the dark panel
+     colour because iOS renders transparent icons on black). #}
+  <link rel="icon" href="/favicon.ico?v={{ request.state.static_version }}" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/img/favicon-32x32.png?v={{ request.state.static_version }}">
+  <link rel="icon" type="image/png" sizes="16x16" href="/static/img/favicon-16x16.png?v={{ request.state.static_version }}">
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/img/apple-touch-icon.png?v={{ request.state.static_version }}">
+  <link rel="stylesheet" href="/static/css/automata.css?v={{ request.state.static_version }}">
+  <script src="/static/js/i18n.js?v={{ request.state.static_version }}"></script>
+  {% if request.state.pod_extras | default(false) %}
+  {# Only the on-device build has these pages; their copy lives in this table. #}
+  <script src="/static/js/bunker-i18n.js?v={{ request.state.static_version }}"></script>
+  {% endif %}
+</head>
+<body>
+  {# No login: this panel is the only user of the device it runs on. #}
+  {% set role = 'admin' %}
+  {# Prefer the user this page is about (from the URL) over the global cookie,
+     so each browser tab keeps its own user; fall back to the last selection
+     on pages with no user context (home, the picker). #}
+  {% set sel = request.state.current_user_id or request.cookies.get('lb_user') %}
+  {# Editors jump straight to the remembered user, so switching menus never
+     re-prompts. #}
+  {# key, path with a user, path without one, i18n key, label #}
+  {% set editors = [
+       ('items',    '/edit/items',    '/items',    'nav.items',    'Item Editor'),
+       ('costumes', '/edit/costumes', '/costumes', 'nav.costumes', 'Costume Editor'),
+       ('weapons',  '/edit/weapons',  '/weapons',  'nav.weapons',  'Weapon Editor'),
+       ('upgrades', '/upgrades',      '/upgrades', 'nav.upgrades', 'Upgrade Manager'),
+       ('memoirs',  '/memoirs',       '/memoirs',  'nav.memoirs',  'Memoir Editor'),
+       ('missions', '/edit/missions', '/missions', 'nav.missions', 'Mission Editor'),
+       ('quests',   '/edit/quests',   '/quests',   'nav.quests',   'Quest Editor')] %}
+  {# Pages that only the on-device build has (they need the launcher's tools). #}
+  {% set extras = request.state.pod_extras | default(false) %}
+  <div class="top-sticky" id="top-sticky">
+  <div class="terminal-bar">
+    {# The release this build targets, from the launcher's cookie: EN or JP. #}
+    {% set region = request.cookies.get("lunar_region", "") if request else "" %}
+    <div class="left">
+      <span class="bar-sys">YoRHa</span>
+      <span class="bar-sys">Bunker Terminal</span>
+      <span>Pod Programs</span>
+      {% if region %}<span class="region-badge {{ region }}">{{ region|upper }}</span>{% endif %}
+    </div>
+    {# The language control lives here, outside the wrapping nav: a control inside
+       the nav could land on a wrapped line and overlap the links. #}
+    <div class="right">
+      <button type="button" id="lang-toggle" class="lang-toggle" aria-label="Switch language">中文</button>
+      {% if sel %}<span class="user-pill">USER #{{ sel }} &middot; <a href="/users" data-i18n="bar.change">change</a></span>{% endif %}
+      <span class="bar-page">{% block bar_right %}{% endblock %}</span>
+    </div>
+  </div>
+  {# 一级钮行：状态=链接；其余=二级条开关（浮层横向滑动条，互斥展开，默认全收）。
+     裁定：无「菜单」汉堡/抽屉——一级钮行任何视口常显横排。 #}
+  <nav class="primary" id="primary-nav">
+    <a href="/" {% if active == "home" %}class="active"{% endif %} data-i18n="nav.status">Status</a>
+    <button type="button" class="lv1 nav-strip-btn" data-strip="players" data-i18n="nav.players">Players</button>
+    <button type="button" class="lv1 nav-strip-btn" data-strip="edit" data-i18n="nav.edit">Edit</button>
+    <button type="button" class="lv1 nav-strip-btn" data-strip="tools" data-i18n="nav.tools">Tools</button>
+    <button type="button" class="lv1 nav-strip-btn" data-strip="manage" data-i18n="nav.manage">Manage</button>
+  </nav>
+  {# 二级条浮层：贴一级钮行下方悬浮（不入流、不顶内容，--header-h 不受扰）。
+     放在 top-sticky 内部，滚动后浮层仍贴着常驻顶栏。 #}
+  <div class="nav-strips" id="nav-strips">
+    <div class="nav-strip" data-strip="players">
+      <a class="chip {{ 'on' if active == 'users' }}" href="/users" data-i18n="nav.users">Users</a>
+      <span class="sep"></span>
+      <a class="chip {{ 'on' if active == 'profile' }}" href="{{ '/users/' ~ sel ~ '/profile' if sel else '/profile' }}" data-i18n="nav.profile">Profile</a>
+    </div>
+    <div class="nav-strip" data-strip="edit">
+      {% for key, with_user, without_user, label, fallback in editors %}
+      <a class="chip {{ 'on' if active == key }}" href="{{ '/users/' ~ sel ~ with_user if sel else without_user }}" data-i18n="{{ label }}">{{ fallback }}</a>
+      {% if not loop.last %}<span class="sep"></span>{% endif %}
+      {% endfor %}
+    </div>
+    <div class="nav-strip" data-strip="tools">
+      {% if extras %}
+      <a class="chip {{ 'on' if active == 'patcher' }}" href="/patcher" data-i18n="nav.patcher">Content</a>
+      <span class="sep"></span>
+      <a class="chip {{ 'on' if active == 'display' }}" href="/display" data-i18n="nav.display">Display</a>
+      <span class="sep"></span>
+      <a class="chip {{ 'on' if active == 'rates' }}" href="/rates" data-i18n="nav.rates">Rates</a>
+      <span class="sep"></span>
+      <a class="chip {{ 'on' if active == 'mods' }}" href="/mods" data-i18n="nav.mods">Mods</a>
+      <span class="sep"></span>
+      <a class="chip {{ 'on' if active == 'calendar' }}" href="/patcher/calendar/jump" data-i18n="nav.calendar">Calendar</a>
+      <span class="sep"></span>
+      {% endif %}
+      <a class="chip {{ 'on' if active == 'backups' }}" href="/backups" data-i18n="nav.backups">Save Data</a>
+    </div>
+    <div class="nav-strip" data-strip="manage">
+      {# 管理与活动管理合并：原 Admin 事件入口 /admin/events 已 307→/events。 #}
+      <a class="chip {{ 'on' if active == 'events' }}" href="/events" data-i18n="nav.events">Event Manager</a>
+      <span class="sep"></span>
+      <a class="chip {{ 'on' if active == 'settings' }}" href="/settings" data-i18n="nav.settings">Settings</a>
+    </div>
+  </div>
+  </div>
+  <script>
+  (function () {
+    var btns = document.querySelectorAll(".nav-strip-btn");
+    var strips = document.querySelectorAll(".nav-strip");
+    function closeAll() {
+      strips.forEach(function (s) { s.classList.remove("open"); });
+      btns.forEach(function (b) { b.classList.remove("on"); });
+    }
+    function openStrip(id) {
+      closeAll();
+      var strip = document.querySelector('.nav-strip[data-strip="' + id + '"]');
+      var btn = document.querySelector('.nav-strip-btn[data-strip="' + id + '"]');
+      if (strip && btn) { strip.classList.add("open"); btn.classList.add("on"); }
+    }
+    btns.forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var id = btn.getAttribute("data-strip");
+        var wasOpen = document.querySelector('.nav-strip[data-strip="' + id + '"]').classList.contains("open");
+        if (wasOpen) {
+          closeAll();
+          if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+        } else {
+          openStrip(id);
+          history.replaceState(null, "", "#strip-" + id);
+        }
+      });
+    });
+    document.addEventListener("click", function (e) {
+      if (!e.target.closest || !e.target.closest(".nav-strips")) closeAll();
+    });
+    // 深链：#strip-edit 等直达展开对应条（可分享/刷新保持）。
+    var m = /^#strip-(\w+)$/.exec(location.hash || "");
+    if (m) openStrip(m[1]);
+  })();
+  </script>
+  <main>
+    <div id="bunker-live" class="banner" hidden>&gt; The game is still running. After a change to your save or the game's data, it returns to its title screen to load it.</div>
+    {% if message %}<div class="banner success">&gt; {{ message }}</div>{% endif %}
+    {% if error %}<div class="banner error">&gt; ERROR :: {{ error }}</div>{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+  <footer data-i18n="footer.line">End of transmission // Glory to mankind</footer>
+
+  {# Back-to-top button (bottom-right, every page) #}
+  <button type="button" id="back-to-top" class="back-to-top" hidden
+          aria-label="Back to top" data-i18n-title="common.top"></button>
+
+  <script>
+  (function() {
+    // 顶部导航常驻：量出高度供页面内其它 sticky 元素（如 /admin 应用栏）让位
+    var hdr = document.getElementById("top-sticky");
+    if (hdr) {
+      var setH = function () {
+        document.documentElement.style.setProperty("--header-h", hdr.offsetHeight + "px");
+      };
+      setH();
+      window.addEventListener("resize", setH);
+      window.addEventListener("load", setH);
+      // Language switches / nav wrapping / font changes also change the
+      // height: observe the element so --header-h never goes stale.
+      if (window.ResizeObserver) {
+        try { new ResizeObserver(setH).observe(hdr); } catch (e) {}
+      }
+    }
+    // 回到顶部
+    var top = document.getElementById("back-to-top");
+    if (top) {
+      window.addEventListener("scroll", function () {
+        top.hidden = (window.scrollY || document.documentElement.scrollTop) < 320;
+      }, { passive: true });
+      top.addEventListener("click", function () {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+    }
+  })();
+  </script>
+
+  {# Shared in-page confirm modal — replaces the native browser confirm on every page. #}
+  <div id="app-modal-overlay" class="app-modal-overlay" hidden>
+    <div class="app-modal-box" role="dialog" aria-modal="true" aria-labelledby="app-modal-text">
+      <p id="app-modal-text"></p>
+      <div class="app-modal-actions">
+        <button type="button" id="app-modal-cancel" class="grant-chosen-btn" data-i18n="modal.cancel">CANCEL</button>
+        <button type="button" id="app-modal-ok" class="max-all-btn" data-i18n="modal.ok">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="bunker-close" class="panel bunker-close" hidden role="dialog" aria-modal="true" aria-labelledby="bunker-close-title">
+    <p id="bunker-close-title"><strong>&gt; Close the game?</strong></p>
+    <p>The game reads this change only as it launches, so it closes first. When you are done, close Pod Programs and tap Deploy.</p>
+    <p class="banner error" data-error hidden></p>
+    <p><button type="button" class="danger" data-choice="close">Close the game</button> <button type="button" data-choice="cancel">Cancel</button></p>
+  </div>
+  <style>.bunker-close{position:fixed;left:16px;right:16px;bottom:16px;max-width:560px;margin:0 auto;z-index:1000;box-shadow:0 4px 24px rgba(0,0,0,.45)}</style>
+  <script>
+  // Pod Programs opens while the game keeps running. Most changes go ahead at
+  // once and send the game back to its title screen (android_runtime). A
+  // change the game reads only as it launches (/bunker/state's closes list)
+  // asks first, closes the game, then goes ahead as it was made.
+  (() => {
+    const send = window.fetch.bind(window);
+    let state = send("/bunker/state").then(r => r.json()).catch(() => ({live: false, safe: [], closes: []}));
+    state.then(s => { document.getElementById("bunker-live").hidden = !s.live; });
+    let known = null;  // the state once it has arrived, for submits that need no closing
+    state.then(s => { known = s; });
+    const panel = document.getElementById("bunker-close"), error = panel.querySelector("[data-error]");
+    const closes = (s, method, url) => {
+      if (!method || /^(GET|HEAD)$/i.test(method)) return false;
+      const path = new URL(url, location.href).pathname;
+      return s.live && (s.closes || []).includes(path);
+    };
+    const needsClose = async (method, url) => closes(await state, method, url);
+    const ask = () => new Promise(done => {
+      error.hidden = true;
+      panel.hidden = false;
+      panel.querySelector('[data-choice="close"]').focus();
+      panel.onclick = async e => {
+        const choice = e.target.dataset && e.target.dataset.choice;
+        if (choice === "cancel") { panel.hidden = true; done(false); }
+        if (choice !== "close") return;
+        const button = e.target, label = button.textContent;
+        button.disabled = true;
+        button.textContent = "Closing the game…";
+        try {
+          const r = await send("/bunker/close-game", {method: "POST"}), j = await r.json();
+          if (!j.ok) throw new Error(j.error || "The game could not be closed");
+          const s = await state;
+          known = {...s, live: false};
+          state = Promise.resolve(known);
+          document.getElementById("bunker-live").hidden = true;
+          panel.hidden = true;
+          done(true);
+        } catch (err) {
+          error.textContent = "> ERROR :: " + err.message;
+          error.hidden = false;
+        } finally {
+          button.disabled = false;
+          button.textContent = label;
+        }
+      };
+    });
+    window.fetch = async (input, init = {}) => {
+      const url = typeof input === "string" ? input : input.url;
+      const method = init.method || (typeof input === "string" ? "GET" : input.method);
+      if (await needsClose(method, url) && !(await ask())) throw new Error("Cancelled: the game is still running.");
+      return send(input, init);
+    };
+    document.addEventListener("submit", async e => {
+      const form = e.target, by = e.submitter;
+      if (form.dataset.gameClosed) return;
+      const method = (by && by.getAttribute("formmethod")) || form.getAttribute("method") || "get";
+      // The attribute: a control named "action" (Summon Rates' buttons) hides the form's own property.
+      const action = (by && by.getAttribute("formaction")) || form.getAttribute("action") || location.href;
+      if (/^get$/i.test(method)) return;
+      // Nothing to close: the form submits as it always did.
+      if (known && !closes(known, method, action)) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (await needsClose(method, action) && !(await ask())) return;
+      // On a later task: while the browser is still delivering this submit
+      // event (a real tap), it ignores requestSubmit.
+      setTimeout(() => {
+        form.dataset.gameClosed = "1";
+        try { form.requestSubmit(by && by.form === form ? by : undefined); } finally { delete form.dataset.gameClosed; }
+      }, 0);
+    }, true);
+  })();
+  </script>
+</body>
+</html>

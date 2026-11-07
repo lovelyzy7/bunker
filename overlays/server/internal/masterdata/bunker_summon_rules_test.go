@@ -2,6 +2,7 @@ package masterdata
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"testing"
 
@@ -103,7 +104,8 @@ func TestEmbeddedSummonRulesAreValid(t *testing.T) {
 		t.Fatalf("only %d summon rules", len(rules))
 	}
 	for id, r := range rules {
-		if (len(r.Steps) == 0 && r.Featured == nil) || len(r.Steps) > 9 {
+		lineup := r.Featured != nil || r.W4Ability != 0 || len(r.W4) > 0
+		if (len(r.Steps) == 0 && !lineup) || len(r.Steps) > 9 {
 			t.Fatalf("summon %d: %d steps, featured %v", id, len(r.Steps), r.Featured)
 		}
 		stepped := len(r.Steps) > 0 && r.Steps[0].Step > 0
@@ -274,7 +276,7 @@ func TestOutsideSourceLineupKeepsTheFeaturedWeapons(t *testing.T) {
 	w2 := pool.WeaponById[2002]
 	pool.FeaturedByGacha[5] = FeaturedSet{Costumes: []GachaPoolItem{pool.CostumeById[1002]}, Weapons: []GachaPoolItem{w2}}
 	// Outside sources name characters only: the weapons stay.
-	pool.applyRuleFeatured(map[int32]summonRule{5: {Featured: &ruleFeatured{Costumes: []int32{1001}, Src: "web: tweet"}}})
+	pool.applyRuleFeatured(map[int32]summonRule{5: {Featured: &ruleFeatured{Costumes: []int32{1001}, Src: "web: social post"}}})
 	if fs := pool.FeaturedByGacha[5]; len(fs.Costumes) != 1 || fs.Costumes[0].PossessionId != 1001 || len(fs.Weapons) != 1 || fs.Weapons[0].PossessionId != 2002 {
 		t.Fatalf("outside source: %+v", fs)
 	}
@@ -566,7 +568,9 @@ func TestPlainSummonPanelShowsItsBannerCharacters(t *testing.T) {
 	defer SetElementsForTest(nil, nil)
 	SetElementsForTest(nil, map[int32]int32{1001: 2, 1002: 2, 1003: 2})
 	ss := model.RaritySSRare
-	c := func(id int32) GachaPoolItem { return GachaPoolItem{PossessionType: int32(model.PossessionTypeCostume), PossessionId: id, RarityType: ss} }
+	c := func(id int32) GachaPoolItem {
+		return GachaPoolItem{PossessionType: int32(model.PossessionTypeCostume), PossessionId: id, RarityType: ss}
+	}
 	pool := &GachaCatalog{
 		StandardCostumesByRarity: map[int32][]GachaPoolItem{ss: {c(1001)}},
 		CostumesByRarity:         map[int32][]GachaPoolItem{ss: {c(1001), c(1002), c(1003)}},
@@ -584,5 +588,168 @@ func TestPlainSummonPanelShowsItsBannerCharacters(t *testing.T) {
 	}
 	if fmt.Sprint(got) != "[1003 1001 1002]" || entries[0].PromotionItems[0].BonusPossessionId != 2003 {
 		t.Fatalf("banner characters: %v %+v", got, entries[0].PromotionItems)
+	}
+}
+
+// The Mama's Dream prize boxes are on the Event tab, which shows To Quests;
+// it goes to the daily quest that gave their tickets (event chapter 0 opened
+// the plain Event Quests list).
+func TestPrizeBoxSummonsLinkToTheirTicketQuest(t *testing.T) {
+	file, err := loadSummonRulesFile()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[int32]int32{200001: 11, 200002: 400062, 200003: 400063}
+	for _, e := range addNewSummonsFor(nil, file, 0, false) {
+		if chapter, ok := want[e.GachaId]; ok {
+			if e.RelatedEventQuestChapterId != chapter {
+				t.Errorf("summon %d links to event chapter %d, want %d", e.GachaId, e.RelatedEventQuestChapterId, chapter)
+			}
+			delete(want, e.GachaId)
+		}
+	}
+	if len(want) != 0 {
+		t.Fatalf("summons not added: %v", want)
+	}
+}
+
+// A rerun borrows its lineup's medal only if that medal's exchange shop is
+// open for the rerun: 10107 and 10108 reran in May 2023 with medals whose
+// shops ran in March, and their Exchange opened the exchange with no shop.
+func TestRerunBorrowsAMedalOnlyWithItsShopOpen(t *testing.T) {
+	defer func() { medalShopOpen = nil }()
+	src := store.GachaCatalogEntry{GachaId: 10094, GachaMedalId: 94, MedalConsumableItemId: 8578, CeilingCount: 200}
+	file := summonRulesFile{New: []newSummon{{Id: 10107, Lineup: 10094, Start: 5_000, End: 6_000,
+		Steps: []ruleStep{{Cur: "gems", Draws: 1, Price: 300}}}}}
+	rerun := func() store.GachaCatalogEntry {
+		for _, e := range addNewSummonsFor([]store.GachaCatalogEntry{src}, file, 100, true) {
+			if e.GachaId == 10107 {
+				return e
+			}
+		}
+		t.Fatal("rerun not added")
+		return store.GachaCatalogEntry{}
+	}
+	medalShopOpen = func(item int32, start, end int64) bool { return item == 8578 && start == 5_100 && end == 6_100 }
+	if e := rerun(); e.GachaMedalId != 94 || e.MedalConsumableItemId != 8578 {
+		t.Fatalf("shop open: medal %d/%d", e.GachaMedalId, e.MedalConsumableItemId)
+	}
+	medalShopOpen = func(int32, int64, int64) bool { return false }
+	if e := rerun(); e.GachaMedalId != 0 || e.MedalConsumableItemId != 0 {
+		t.Fatalf("shop closed: medal %d/%d, want none", e.GachaMedalId, e.MedalConsumableItemId)
+	}
+}
+
+func TestMedalShopWindowsCoverARun(t *testing.T) {
+	open := medalShopOpenFrom(map[int32][][2]int64{8578: {{1_000, 2_000}, {5_000, 9_000}}})
+	if !open(8578, 5_500, 8_000) || open(8578, 1_500, 5_500) || open(8579, 5_500, 8_000) {
+		t.Fatal("wrong coverage")
+	}
+}
+
+// A summon with no promotion cards shows the characters its appeal art shows
+// (art_cards): otherwise its panel has one page, which the client's arrows
+// turn onto itself and leave empty. Summons with cards keep theirs.
+func TestArtCardsFillSummonsWithoutCards(t *testing.T) {
+	ss := model.RaritySSRare
+	c := func(id int32) GachaPoolItem {
+		return GachaPoolItem{PossessionType: int32(model.PossessionTypeCostume), PossessionId: id, RarityType: ss}
+	}
+	pool := &GachaCatalog{
+		CostumeById:      map[int32]GachaPoolItem{1001: c(1001), 1002: c(1002)},
+		CostumeWeaponMap: map[int32]int32{1002: 2002},
+		WeaponById:       map[int32]GachaPoolItem{3001: {PossessionType: int32(model.PossessionTypeWeapon), PossessionId: 3001, RarityType: ss}},
+	}
+	entries := []store.GachaCatalogEntry{
+		{GachaId: 554},
+		{GachaId: 557, PromotionItems: []store.GachaPromotionItem{{PossessionType: 1, PossessionId: 9}}},
+		{GachaId: 600},
+		{GachaId: 468},
+	}
+	applyArtCards(entries, map[int32][]int32{554: {1002, 1001, 7777}, 557: {1001}, 468: {3001}}, pool)
+	if w := entries[3].PromotionItems; len(w) != 1 || w[0].PossessionId != 3001 || w[0].PossessionType != int32(model.PossessionTypeWeapon) {
+		t.Fatalf("weapon art card: %+v", w)
+	}
+	var got []int32
+	for _, p := range entries[0].PromotionItems {
+		got = append(got, p.PossessionId)
+	}
+	if fmt.Sprint(got) != "[1002 1001]" || entries[0].PromotionItems[0].BonusPossessionId != 2002 || entries[0].PromotionItems[0].IsTarget {
+		t.Fatalf("art cards: %v %+v", got, entries[0].PromotionItems)
+	}
+	if len(entries[1].PromotionItems) != 1 || entries[1].PromotionItems[0].PossessionId != 9 || len(entries[2].PromotionItems) != 0 {
+		t.Fatalf("others changed: %+v %+v", entries[1].PromotionItems, entries[2].PromotionItems)
+	}
+}
+
+// A barrier weapon summon's ★4 weapons are those with its barrier skill
+// (w4ability: every ★4 weapon it gives has it); its characters and ★3
+// weapons stay as the standard pool has them.
+func TestWeaponAbilityLineup(t *testing.T) {
+	ss, s := model.RaritySSRare, model.RaritySRare
+	w := func(id, r int32) GachaPoolItem {
+		return GachaPoolItem{PossessionType: int32(model.PossessionTypeWeapon), PossessionId: id, RarityType: r}
+	}
+	pool := &GachaCatalog{
+		WeaponById:      map[int32]GachaPoolItem{1: w(1, ss), 2: w(2, ss), 3: w(3, ss), 4: w(4, s), 5: w(5, ss)},
+		WeaponsByRarity: map[int32][]GachaPoolItem{ss: {w(1, ss), w(2, ss), w(3, ss)}, s: {w(4, s)}}, // 5: restricted, in no pool
+		BannerPools: map[int32]*BannerPool{468: {
+			WeaponsByRarity:  map[int32][]GachaPoolItem{ss: {w(1, ss), w(3, ss)}, s: {w(4, s)}},
+			CostumesByRarity: map[int32][]GachaPoolItem{ss: {{PossessionId: 99, RarityType: ss}}},
+		}},
+	}
+	abilities := map[int32][]int32{1: {2000003, 9150004}, 2: {2000111, 9150004}, 3: {2000111, 9150014}, 4: {9150002}, 5: {9150004}}
+	pool.applyWeaponLineups(map[int32]weaponLineup{468: {Ability: 9150004}}, abilities)
+	bp := pool.BannerPools[468]
+	var got []int32
+	for _, it := range bp.WeaponsByRarity[ss] {
+		got = append(got, it.PossessionId)
+	}
+	sort.Slice(got, func(i, j int) bool { return got[i] < got[j] })
+	if fmt.Sprint(got) != "[1 2]" || len(bp.WeaponsByRarity[s]) != 1 || len(bp.CostumesByRarity[ss]) != 1 {
+		t.Fatalf("lineup: %v ★3 %v ★4 chars %v", got, bp.WeaponsByRarity[s], bp.CostumesByRarity[ss])
+	}
+}
+
+// A summon whose ★4 weapons are a listed selection (w4: the Healer & Support
+// summons, the exchange's weapons of their elements) gives only those.
+func TestListedWeaponLineup(t *testing.T) {
+	ss := model.RaritySSRare
+	w := func(id int32) GachaPoolItem {
+		return GachaPoolItem{PossessionType: int32(model.PossessionTypeWeapon), PossessionId: id, RarityType: ss}
+	}
+	pool := &GachaCatalog{
+		WeaponById:      map[int32]GachaPoolItem{1: w(1), 2: w(2), 3: w(3)},
+		WeaponsByRarity: map[int32][]GachaPoolItem{ss: {w(1), w(2), w(3)}},
+		BannerPools:     map[int32]*BannerPool{9505061: {WeaponsByRarity: map[int32][]GachaPoolItem{ss: {w(1)}}}},
+	}
+	pool.applyWeaponLineups(map[int32]weaponLineup{9505061: {Ids: []int32{3, 2, 404}}}, nil)
+	var got []int32
+	for _, it := range pool.BannerPools[9505061].WeaponsByRarity[ss] {
+		got = append(got, it.PossessionId)
+	}
+	if fmt.Sprint(got) != "[2 3]" {
+		t.Fatalf("listed lineup: %v", got)
+	}
+}
+
+// An added summon's rules entry can name its notice too; an added summon's
+// w4ability is ignored when the game data already has that summon.
+func TestRuleNoticeOnAddedSummonAndLineupOnlyWhenAdded(t *testing.T) {
+	file := summonRulesFile{
+		Rules: map[int32]summonRule{970050: {Src: "x", Notice: 4242}},
+		New: []newSummon{
+			{Id: 970050, Asset: "limited_970050", Start: 1, End: 2, Notice: 1, Steps: []ruleStep{{Draws: 10, Price: 3000, Cur: "paid"}}},
+			{Id: 71, Asset: "limited_71", Start: 1, End: 2, W4Ability: 9150004, Steps: []ruleStep{{Draws: 10, Price: 3000, Cur: "paid"}}},
+		},
+	}
+	entries := addNewSummons([]store.GachaCatalogEntry{{GachaId: 71}}, file, 0)
+	for _, e := range entries {
+		if e.GachaId == 970050 && e.InformationId != 4242 {
+			t.Errorf("added summon notice %d", e.InformationId)
+		}
+	}
+	if _, ok := newWeaponLineups(file, []store.GachaCatalogEntry{{GachaId: 71}})[71]; ok {
+		t.Error("w4ability applied to the game data's summon 71")
 	}
 }

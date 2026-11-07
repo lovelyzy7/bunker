@@ -10,13 +10,16 @@ import (
 // stored as one JSON document per user (table user_bunker_ext), so new fields
 // need no migration.
 type ExtState struct {
-	MissionsVersion     int32                           `json:"missionsVersion,omitempty"`
-	TimeKeysVersion     int32                           `json:"timeKeysVersion,omitempty"` // 1: daily timestamps moved to the GMT-8 day
-	CalendarLoop        int32                           `json:"calendarLoop,omitempty"`    // Original calendar loop the rotating progress belongs to
-	ChapterGachaIds     int32                           `json:"chapterGachaIds,omitempty"` // 1: chapter summon progress moved to model.ChapterGachaIdBase
+	MissionsVersion int32 `json:"missionsVersion,omitempty"`
+	// Rules differing from the legacy Global ID-only mission rules. This
+	// prevents stale regional completions from paying after an update/import.
+	MissionRuleRevisions map[int32]string `json:"missionRuleRevisions,omitempty"`
+	TimeKeysVersion      int32            `json:"timeKeysVersion,omitempty"` // 1: daily timestamps moved to the GMT-8 day
+	CalendarLoop         int32            `json:"calendarLoop,omitempty"`    // Original calendar loop the rotating progress belongs to
+	ChapterGachaIds      int32            `json:"chapterGachaIds,omitempty"` // 1: chapter summon progress moved to model.ChapterGachaIdBase
 	// GachaExec counts draws of summon price options that have a limit
 	// (free once a day, one-time guaranteed): GachaPricePhaseId -> count.
-	GachaExec map[int32]GachaExecState `json:"gachaExec,omitempty"`
+	GachaExec           map[int32]GachaExecState        `json:"gachaExec,omitempty"`
 	MissionPass         map[int32]MissionPassPointState `json:"missionPass,omitempty"`
 	DailyGroupReward    DailyGroupRewardState           `json:"dailyGroupReward"`
 	SceneChoices        map[int32]SceneChoiceState      `json:"sceneChoices,omitempty"`        // by QuestSceneChoiceGroupingId
@@ -72,7 +75,9 @@ type PvpState struct {
 	RewardWeekVersion  int64             `json:"rewardWeekVersion,omitempty"` // weekly rewards paid up to this week
 	RewardSeasonId     int32             `json:"rewardSeasonId,omitempty"`
 	SeasonResult       *PvpWeeklyResult  `json:"seasonResult,omitempty"` // an ended season whose rank reward is not paid yet
-	LatestVersion      int64             `json:"latestVersion,omitempty"`
+	// Seasons that ended before SeasonResult's and are not paid yet either, oldest first.
+	EarlierSeasonResults []PvpWeeklyResult `json:"earlierSeasonResults,omitempty"`
+	LatestVersion        int64             `json:"latestVersion,omitempty"`
 }
 
 type PvpLog struct {
@@ -142,22 +147,6 @@ type SceneChoiceState struct {
 	LatestVersion              int64 `json:"latestVersion"`
 }
 
-// PanelMissionState is one Anecdote run's sheets. Panels are keyed page*100 +
-// their place on the page; PageDone is when a page's sheet was completed.
-type PanelMissionState struct {
-	Progress map[int32]int64 `json:"progress,omitempty"`
-	Claimed  map[int32]bool  `json:"claimed,omitempty"`
-	PageDone map[int32]int64 `json:"pageDone,omitempty"`
-}
-
-func (p PanelMissionState) clone() PanelMissionState {
-	return PanelMissionState{Progress: maps.Clone(p.Progress), Claimed: maps.Clone(p.Claimed), PageDone: maps.Clone(p.PageDone)}
-}
-
-func (p PanelMissionState) equal(o PanelMissionState) bool {
-	return maps.Equal(p.Progress, o.Progress) && maps.Equal(p.Claimed, o.Claimed) && maps.Equal(p.PageDone, o.PageDone)
-}
-
 func (e *ExtState) EnsureMaps() {
 	if e.MissionPass == nil {
 		e.MissionPass = make(map[int32]MissionPassPointState)
@@ -179,8 +168,25 @@ func (e *ExtState) EnsureMaps() {
 	}
 }
 
+// PanelMissionState is one Anecdote run's sheets. Panels are keyed page*100 +
+// their place on the page; PageDone is when a page's sheet was completed.
+type PanelMissionState struct {
+	Progress map[int32]int64 `json:"progress,omitempty"`
+	Claimed  map[int32]bool  `json:"claimed,omitempty"`
+	PageDone map[int32]int64 `json:"pageDone,omitempty"`
+}
+
+func (p PanelMissionState) clone() PanelMissionState {
+	return PanelMissionState{Progress: maps.Clone(p.Progress), Claimed: maps.Clone(p.Claimed), PageDone: maps.Clone(p.PageDone)}
+}
+
+func (p PanelMissionState) equal(o PanelMissionState) bool {
+	return maps.Equal(p.Progress, o.Progress) && maps.Equal(p.Claimed, o.Claimed) && maps.Equal(p.PageDone, o.PageDone)
+}
+
 func (e ExtState) Clone() ExtState {
 	out := e
+	out.MissionRuleRevisions = maps.Clone(e.MissionRuleRevisions)
 	out.MissionPass = maps.Clone(e.MissionPass)
 	out.GachaExec = maps.Clone(e.GachaExec)
 	out.SceneChoices = maps.Clone(e.SceneChoices)
@@ -206,6 +212,7 @@ func (e ExtState) Clone() ExtState {
 func (e ExtState) Equal(o ExtState) bool {
 	return e.MissionsVersion == o.MissionsVersion && e.TimeKeysVersion == o.TimeKeysVersion && e.CalendarLoop == o.CalendarLoop && e.ChapterGachaIds == o.ChapterGachaIds && e.DailyGroupReward == o.DailyGroupReward &&
 		maps.Equal(e.MissionPass, o.MissionPass) && maps.Equal(e.GachaExec, o.GachaExec) &&
+		maps.Equal(e.MissionRuleRevisions, o.MissionRuleRevisions) &&
 		maps.Equal(e.SceneChoices, o.SceneChoices) &&
 		maps.Equal(e.SceneChoiceHistory, o.SceneChoiceHistory) &&
 		maps.Equal(e.LevelBonusConfirmed, o.LevelBonusConfirmed) &&

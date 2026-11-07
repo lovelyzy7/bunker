@@ -3,6 +3,8 @@ package org.veritr1x.bunker;
 import android.app.Activity;
 import android.app.Application;
 import android.content.Context;
+import android.os.PowerManager;
+import android.os.Build;
 import android.hardware.display.DisplayManager;
 import android.os.Bundle;
 import android.view.ActionMode;
@@ -41,6 +43,9 @@ final class DisplayPatch {
         File status = new File(tools, "display.status");
         int fps = 0, size = 0;
         boolean full = true;  // the game's own setting leaves a black bar beside the camera
+        boolean idle = true, heat = true;  // above 30 fps: draw less while idle or hot (render_pace.c)
+        int effectsOff = 0;  // render_effects.c: 1 shadows, 2 reflections, 4 bloom
+        int upscale = 0;  // render_scale.c: 1 FSR 1, 2 SGSR
         try {
             for (String line : Files.readAllLines(new File(tools, "display.conf").toPath(), StandardCharsets.UTF_8)) {
                 String[] pair = line.split("=", 2);
@@ -49,6 +54,10 @@ final class DisplayPatch {
                 if (pair[0].trim().equals("fps")) fps = frameRate(value, maxMode(context));
                 if (pair[0].trim().equals("resolution")) size = size(value);
                 if (pair[0].trim().equals("screen")) full = !value.equals("safe");
+                if (pair[0].trim().equals("idle")) idle = !value.equals("off");
+                if (pair[0].trim().equals("heat")) heat = !value.equals("off");
+                if (value.equals("off")) effectsOff |= effectBit(pair[0].trim());
+                if (pair[0].trim().equals("upscale")) upscale = upscaler(value);
             }
         } catch (Exception missing) {
             // Never chosen: the game's own settings.
@@ -57,11 +66,13 @@ final class DisplayPatch {
         String result;
         try {
             System.loadLibrary("bunkerdisplay");
+            titleMarker(new File(context.getFilesDir(), "saves/title.now").getPath());  // FilesStore.data: Lunar Tear writes it
             // The region declaration and the package name let the native side
             // cross-check which client's RVA table belongs to this game
             // (region-consistency detection, display_patch.c); a contradiction
             // refuses the patch instead of mixing tables.
-            result = apply(fps, size, Region.declared(context), context.getPackageName());
+            result = apply(fps, size, Region.declared(context), context.getPackageName(), idle, heat, effectsOff, upscale);
+            if (result.isEmpty() && fps > 30 && heat) followHeat(context);
         } catch (Throwable error) {
             result = String.valueOf(error);
         }
@@ -231,5 +242,43 @@ final class DisplayPatch {
         @Override public void onPointerCaptureChanged(boolean captured) { base.onPointerCaptureChanged(captured); }
     }
 
-    private static native String apply(int fps, int size, String region, String packageName);
+    private static native String apply(int fps, int size, String region, String packageName,
+                                       boolean idle, boolean heat, int effectsOff, int upscale);
+
+    /** render_scale.h's upscaler for display.conf's upscale value; 0 is plain stretching. */
+    static int upscaler(String value) {
+        switch (value) {
+            case "fsr": return 1;
+            case "sgsr": return 2;
+            default: return 0;
+        }
+    }
+
+    /** render_effects.h's bit for an effect switch in display.conf, or 0. */
+    static int effectBit(String name) {
+        switch (name) {
+            case "shadows": return 1;
+            case "reflections": return 2;
+            case "bloom": return 4;
+            default: return 0;
+        }
+    }
+
+    private static native void thermal(int level);
+    /** title_now.c: the marker Lunar Tear writes when the game should go back to its title screen. */
+    private static native void titleMarker(String path);
+
+    /** Hands the device's heat to render_pace.c as it changes (Android 10 and later). */
+    private static void followHeat(Application context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return;
+        PowerManager power = context.getSystemService(PowerManager.class);
+        if (power == null) return;
+        thermal(thermalLevel(power.getCurrentThermalStatus()));
+        power.addThermalStatusListener(context.getMainExecutor(), status -> thermal(thermalLevel(status)));
+    }
+
+    /** PowerManager's thermal status as render_pace.c's levels: 0 none, 1 light, 2 moderate, 3 severe or worse. */
+    static int thermalLevel(int status) {
+        return Math.max(0, Math.min(status, 3));
+    }
 }

@@ -12,6 +12,7 @@ Detection reads the compiled manifest with axml.py, so it runs before anything
 is unpacked, needs no SDK, and works in the browser builder too.
 """
 import zipfile
+from pathlib import Path
 
 import axml
 
@@ -75,6 +76,35 @@ MASTER = "20240404193219.bin.e"
 MASTER_SIZE = 7801104
 MASTER_SHA256 = "60555788242de9a0580b0d86f6d109d67bd9cabd16d7bcda9b9a99745f270778"
 
+# Each release's master data, named after its release date. The Japanese APK
+# takes the Japanese master data, 20240405123139.bin.e. The name says nothing
+# (a browser names a second download "20240405123139.bin (1).e"): the contents
+# decide (master_edition). The build embeds either one as MASTER, unchanged
+# (assemble_apk; the L6 gate's filename invariant).
+MASTERS = {
+    "en": {"name": MASTER, "size": MASTER_SIZE, "sha256": MASTER_SHA256},
+    "jp": {"name": "20240405123139.bin.e"},
+}
+
+# Far above the master data's 7.5 MB: a resource dump picked by mistake is
+# refused without reading it. Below 1 MB it is not master data either.
+MAX_MASTER_SIZE = 64 << 20
+MIN_MASTER_SIZE = 1_000_000
+
+# The master data's AES-CBC key and IV (the game's, the same for both
+# releases; also patch_masterdata_zh's built-in BUILTIN_KEY/IV).
+MASTER_KEY = bytes.fromhex("36436230313332314545356536624265")
+MASTER_IV = bytes.fromhex("45666341656634434165356536446141")
+
+# Mission conditions only the checked 20240405123139 Japanese master has
+# (scripts/gen_mission_rules.py regional_rules: the shifted costume/weapon
+# skills, the Flying Mama score and a Japanese-only stamina quest). The Global
+# master's neighbouring counters are 197/199 and 200/202, never 198/201.
+JP_ONLY_MISSIONS = {(10, 198, 0), (6, 201, 0), (29, 7, 0), (1, 101030801, 0)}
+
+# m_mission's columns (lunar-scripts-zh/shared/schemas.json), read by position.
+MISSION_TYPE, MISSION_OPTION, MISSION_DETAIL = 7, 10, 15
+
 CHUNK = 1 << 20
 
 
@@ -90,6 +120,67 @@ def file_digest(path, digest=None):
 
 def sha256_of(path):
     return file_digest(path).hexdigest()
+
+
+def master_edition(path):
+    """Which release's master data a file holds ("en"/"jp"), from its contents;
+    None when it is not master data at all.
+
+    The contents decide, not the name: a browser names a second download
+    "20240405123139.bin (1).e". A file larger than a master ever gets is
+    refused unread (the resource dump picked by mistake). The Japanese
+    master is recognized by the mission conditions only it has; a sound
+    master without them is the Global one.
+    """
+    import lz4.block
+    import msgpack
+    from Crypto.Cipher import AES
+    from Crypto.Util.Padding import unpad
+    size = Path(path).stat().st_size
+    if not MIN_MASTER_SIZE < size < MAX_MASTER_SIZE:
+        return None
+    if size == MASTERS["en"]["size"] and sha256_of(path) == MASTERS["en"]["sha256"]:
+        return "en"
+    raw = Path(path).read_bytes()
+    try:
+        decoded = unpad(AES.new(MASTER_KEY, AES.MODE_CBC, MASTER_IV).decrypt(raw), AES.block_size)
+        toc, blob = None, None
+        try:
+            msgpack.unpackb(decoded, raw=False, strict_map_key=False)
+        except msgpack.ExtraData as exc:
+            toc, blob = exc.unpacked, exc.extra
+        if not isinstance(toc, dict) or not blob:
+            return None
+        for name in ("m_costume", "m_weapon", "m_event_quest_chapter", "m_shop", "m_mom_banner", "m_mission"):
+            if name not in toc:
+                return None
+        for offset, length in toc.values():
+            if offset < 0 or length <= 0 or offset + length > len(blob):
+                return None
+        offset, length = toc["m_mission"]
+        obj = msgpack.unpackb(bytes(blob[offset:offset + length]), raw=False, strict_map_key=False)
+        if isinstance(obj, msgpack.ExtType) and obj.code == 99:
+            # LZ4 ext header (dump_masterdata.read_lz4_ext_header): int32/uint32
+            # big-endian size, or a literal small tag.
+            tag = obj.data[0]
+            if tag == 0xd2:
+                ulen, packed = int.from_bytes(obj.data[1:5], "big", signed=True), obj.data[5:]
+            elif tag == 0xce:
+                ulen, packed = int.from_bytes(obj.data[1:5], "big"), obj.data[5:]
+            elif tag <= 0x7f:
+                ulen, packed = tag, obj.data[1:]
+            else:
+                return None
+            rows = msgpack.unpackb(lz4.block.decompress(packed, uncompressed_size=ulen), raw=False, strict_map_key=False)
+        else:
+            rows = obj if isinstance(obj, list) else [obj]
+        for row in rows:
+            if isinstance(row, list) and len(row) > MISSION_DETAIL and \
+                    (row[MISSION_TYPE], row[MISSION_OPTION], row[MISSION_DETAIL]) in JP_ONLY_MISSIONS:
+                return "jp"
+        return "en"
+    except Exception:
+        return None
 
 
 def region_for_package(package):

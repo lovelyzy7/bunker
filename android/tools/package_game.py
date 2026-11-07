@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Merge the locally built launcher/server into a user-supplied decoded game.
 
-Run the upstream lunar-scripts patcher on the decoded directory first. This tool
+Run game_patch.py on the decoded directory first. This tool
 does not download or distribute game files. It never edits the source APK.
 """
 import argparse
@@ -187,7 +187,6 @@ def main():
     # The original Unity libraries use 4 KB ELF pages. Request Android's
     # compatibility loader explicitly, including after an APK update.
     app.set(attr("pageSizeCompat"),"enabled")
-    # Keep the game's own name ("NieR"), as the iOS build does.
     companion=ET.parse(root/"android/app/src/main/AndroidManifest.xml").getroot()
     permissions={x.get(attr("name")) for x in doc.findall("uses-permission")}
     for permission in companion.findall("uses-permission"):

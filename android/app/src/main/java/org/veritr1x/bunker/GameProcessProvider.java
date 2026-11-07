@@ -18,8 +18,11 @@ import java.net.URL;
 /**
  * Runs in the game's own process before the game starts (providers are created
  * at process start). It serves no data. It:
+ * - lets the game start without Google Play services (see NoPlayServices);
  * - applies the frame rate and resolution chosen in Pod Programs (see DisplayPatch);
  * - sends the game's loopback requests past any phone proxy (see LoopbackProxy);
+ * - clears the game's day markers when "Show original dates" changes (see ClientDays);
+ * - opens the launcher from the game's own Bunker button (openBunker, bunker_button.c);
  * - makes sure the local server is running when the game opens. The launcher
  *   starts the server before the game, but Android can also reopen the game
  *   directly, for example from Recent apps after an update or after the server
@@ -27,12 +30,16 @@ import java.net.URL;
  *   case the launcher is opened instead: it starts the server and the game.
  */
 public final class GameProcessProvider extends ContentProvider {
+    private static Application app;
+
     @Override public boolean onCreate() {
         LoopbackProxy.install();
         Application app = (Application) getContext().getApplicationContext();
+        GameProcessProvider.app = app;
         DisplayPatch.apply(app);
         refreshGameCodeAfterUpdate(app);
         forgetListOnPortChange(app);
+        forgetClientDaysOnDatesChange(app);
         dropEmptyCachedAssets(app);
         String game = gameActivity(app);
         if (game != null) app.registerActivityLifecycleCallbacks(new ServerCheck(game, Ports.assets(app)));
@@ -71,6 +78,26 @@ public final class GameProcessProvider extends ContentProvider {
         if (prefs.getInt("offset", 0) == offset) return;
         delete(new java.io.File(app.getFilesDir(), "octo/pdb"));
         prefs.edit().putInt("offset", offset).commit();
+    }
+
+    /**
+     * "Show original dates" moves the game's clock by years; the game's own day
+     * markers (see ClientDays) are cleared when it changes. Opening Pod Programs
+     * closes the game, so the next start runs this.
+     */
+    private static void forgetClientDaysOnDatesChange(Application app) {
+        android.content.SharedPreferences prefs = app.getSharedPreferences("lunar_ports", android.content.Context.MODE_PRIVATE);
+        String calendar = null;
+        try {
+            calendar = new String(java.nio.file.Files.readAllBytes(new java.io.File(FilesStore.data(app), "calendar.json").toPath()), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (java.io.IOException ignored) {}  // No file: the calendar is off.
+        boolean on = ClientDays.originalDates(calendar);
+        if (prefs.getBoolean("originalDates", false) == on) return;
+        android.content.SharedPreferences.Editor game = app.getSharedPreferences(app.getPackageName() + ".v2.playerprefs", android.content.Context.MODE_PRIVATE).edit();
+        for (String key : ClientDays.KEYS) game.remove(key);
+        game.commit();
+        prefs.edit().putBoolean("originalDates", on).commit();
+        android.util.Log.i("Bunker", "original dates " + (on ? "on" : "off") + ": cleared the game's day markers");
     }
 
     /**
@@ -130,6 +157,17 @@ public final class GameProcessProvider extends ContentProvider {
         java.io.File[] children = file.listFiles();
         if (children != null) for (java.io.File child : children) delete(child);
         file.delete();
+    }
+
+    /**
+     * The game's top-row Bunker button (bunker_button.c, from Unity's thread):
+     * the launcher comes forward as from the app icon's "Bunker" shortcut,
+     * without starting the game again (manage).
+     */
+    static void openBunker() {
+        if (app == null) return;
+        app.startActivity(new Intent(app, MainActivity.class).setAction(Intent.ACTION_VIEW).putExtra("manage", true)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));
     }
 
     private static String gameActivity(Application app) {

@@ -24,6 +24,8 @@ public final class ArchiveActivity extends Activity {
     private Look look;
     private int dp(int n){return look.dp(n);}
     private static final int SAVE=1;
+    /** The page to open instead of the home page (from Pod Programs' timeline, ArchiveLinks). */
+    static final String PATH="path";
     private byte[] pending;
 
     @Override public void onCreate(Bundle state){
@@ -99,6 +101,7 @@ public final class ArchiveActivity extends Activity {
             }
         },"archive-start").start();
     }
+    private String start(){String path=ArchiveLinks.path("bunker-archive:"+getIntent().getStringExtra(PATH));return path==null?"/":path;}
     private void show(String text){message.setText(text);message.setVisibility(View.VISIBLE);web.setVisibility(View.GONE);}
     private boolean local(String url){return !origin.isEmpty()&&(url.equals(origin)||url.startsWith(origin+"/"));}
     private void leaveFullscreen(){

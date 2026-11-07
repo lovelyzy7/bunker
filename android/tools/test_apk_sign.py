@@ -24,6 +24,8 @@ from assemble_apk import ApkWriter  # noqa: E402
 ROOT = Path(__file__).resolve().parents[2]
 SDK = Path(os.environ.get("ANDROID_HOME", Path.home() / "Library/Android/sdk"))
 APKSIGNER = SDK / "build-tools/36.0.0/apksigner"
+if not APKSIGNER.exists() and (SDK / "build-tools/36.0.0/apksigner.bat").exists():
+    APKSIGNER = SDK / "build-tools/36.0.0/apksigner.bat"  # the Windows SDK ships a .bat wrapper
 SOURCE = ROOT / "android/app/build/outputs/apk/debug/app-debug.apk"
 
 

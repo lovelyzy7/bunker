@@ -6,6 +6,45 @@
 
 # Validation
 
+## Upstream 1.9.0 content port — 2026-11-07
+
+- Server (lunar-tear/server run source): `go build ./internal/... ./cmd/...`
+  exits 0. `go test ./internal/...` passes in bunkercache (new), gametime,
+  database, interceptor (new title-screen tests), masterdata, mods (new),
+  pvp, runtime (new mods tests), store/sqlite; the new store and questflow
+  mods/medals/level tests pass inside their packages. Pre-existing failures
+  stay as they were: gacha and service test builds fail on symbols the run
+  source does not carry (applyOwnedRules/awakenGranted in the overlay-only
+  bunker_owned.go; NewDataServiceServerWithMasterPath is patch-carried),
+  and missions/questflow/store/userdata keep their fixture failures
+  (login-mission timing, scene-grant and story-reward fixtures, memoir
+  sub-status, panel/tower master tables).
+- Patch chain: patches/lunar-tear-zz-{level,mods,reload,medals}.patch added
+  from upstream 1.9.0 (zz-mods' handler.go and shop.go hunks rebased onto
+  this fork's draw and shop flow); lunar-tear-vanilla.patch is now empty
+  (its RewindLoop is merged in the pinned lunar-tear). All 14 patches apply
+  to the build output in order.
+- Pod Programs > Mods: android/tools/test_mods.py covers mods.json
+  read/write, both presets, the invalid-file fallback and that KEYS match
+  internal/mods' json tags; the page renders every mod and credits the
+  Comfort Mod. mods.json lives beside the save (game.db's folder), where
+  the server's internal/mods reads it; /mods and /mods/preset are in
+  LIVE_SAFE, so a change applies beside the running game.
+- The game returns to its title screen at once after a change
+  (saves/title.now + title_now.c's ErrorHandlingInterceptor.MoveTitleError
+  dialog; interceptor/bunker_title.go's ReturnToTitle fails the first call
+  per marker). Refused/errored/unchanged responses (X-Bunker-Unchanged)
+  restart Lunar Tear without the title screen; a failed backup whose
+  restart also fails closes the game (ServerService.pauseForTools).
+  Not checked on a device in this port: the title dialog during a battle
+  (it should wait for the battle to end), and the landscape layouts on
+  phones/tablets.
+- Launcher web: the Mods page lands in the build overlay
+  (overlays/python/web/): templates/mods.html, routes/mods.py, the Mods
+  nav entry and status tile, the game-guard banner/dialog (closes-list
+  semantics), the landscape tab column, and the zh strings for the new
+  copy. android_mods.py re-exports the route for create_app and the tests.
+
 ## Cancel, stamped scripts, source racing and a vendored runtime — 2026-10-18
 
 - **Stop**: the button appears during a build; clicking it hid the progress,

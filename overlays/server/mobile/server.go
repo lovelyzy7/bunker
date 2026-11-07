@@ -26,6 +26,7 @@ import (
 	"lunar-tear/server/internal/gacha"
 	"lunar-tear/server/internal/gametime"
 	"lunar-tear/server/internal/interceptor"
+	"lunar-tear/server/internal/mods"
 	"lunar-tear/server/internal/runtime"
 	"lunar-tear/server/internal/service"
 	"lunar-tear/server/internal/store/sqlite"
@@ -183,6 +184,9 @@ func Start(dataRoot, assetRoot string) (err error) {
 		log.Printf("calendar: move to the first summons: %v", e)
 	}
 	gametime.SetCalendar(calendar)
+	// A start in the same process after a change (Pod Programs beside the
+	// running game) builds every table derived from the master data again:
+	// NewHolder's Reload invalidates them once the new master data is loaded.
 	holder, e := runtime.NewHolder(filepath.Join(assetRoot, "assets", "release", MasterName))
 	if e != nil {
 		return fmt.Errorf("load master data: %w", e)
@@ -223,6 +227,7 @@ func Start(dataRoot, assetRoot string) (err error) {
 	go links.Sweep()
 	// The game's Notices screen, from the notice pack the launcher copies in.
 	notices := service.NewNotices(service.NoticePackPath(assetRoot), gametime.NowMillis)
+	notices.UseCalendar(gametime.CalendarOffset, gametime.ViewOffset)
 	service.SetNotices(notices)
 	service.SetPanelWeb(notices) // the Anecdotes' official page, from the pack's web app
 	octo := links.Wrap(cdn.Handler())
@@ -253,7 +258,7 @@ func Start(dataRoot, assetRoot string) (err error) {
 	s.grpc = grpc.NewServer(
 		// Accept keepalive pings down to 1s apart, also between calls, instead of closing the connection (gRPC default: 5 min).
 		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{MinTime: time.Second, PermitWithoutStream: true}),
-		grpc.ChainUnaryInterceptor(interceptor.Recover, interceptor.Platform, interceptor.Logging, interceptor.NewDiffInterceptor(store, store), interceptor.NewMissionInterceptor(store, store), interceptor.TimeSync), grpc.UnknownServiceHandler(interceptor.UnknownService))
+		grpc.ChainUnaryInterceptor(interceptor.Recover, interceptor.Platform, interceptor.Logging, interceptor.ReturnToTitle, interceptor.NewDiffInterceptor(store, store), interceptor.NewMissionInterceptor(store, store), interceptor.ViewTimes, interceptor.TimeSync), grpc.UnknownServiceHandler(interceptor.UnknownService))
 	service.InitBunker(holder)
 	summonNotices := map[int32]int32{}
 	for _, e := range holder.Get().GachaEntries {
@@ -265,6 +270,8 @@ func Start(dataRoot, assetRoot string) (err error) {
 	service.SetArchiveRoot(dataRoot)
 	gacha.SetRatesPath(filepath.Join(dataRoot, "gacha_rates.json"))
 	gacha.SetRouletteRatesPath(filepath.Join(dataRoot, "roulette_rates.json"))
+	mods.SetPath(filepath.Join(dataRoot, "mods.json")) // Pod Programs > Mods
+	interceptor.SetTitleMarker(filepath.Join(dataRoot, "title.now")) // title_now.c
 	registerServices(s.grpc, local(8003), cdnURL, "http://"+local(3000), filepath.Join(assetRoot, "assets", "release", MasterName), store, holder, false)
 	healthServer := health.NewServer()
 	healthServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
@@ -285,6 +292,8 @@ func Start(dataRoot, assetRoot string) (err error) {
 	go func() { serveError(s.grpc.Serve(s.listeners[0])) }()
 	go func() { serveError(cdnHTTP.Serve(s.listeners[1])) }()
 	go func() { serveError(authHTTP.Serve(s.listeners[2])) }()
+	// Loading the catalogs and the asset index allocated about twice what they keep.
+	releaseMemory()
 	setStatus("running", "")
 	log.Printf("Local server ready: game %d, assets %d, accounts %d", 8003+offset(), 8080+offset(), 3000+offset())
 	return nil
@@ -298,6 +307,7 @@ func Stop() {
 		s := active
 		active = nil
 		s.close()
+		releaseMemory()
 	}
 	setStatus("stopped", "")
 	log.Print("Server stopped; saves flushed")
@@ -353,6 +363,11 @@ func CheckDatabase(root string) string {
 	}
 	return ""
 }
+
+// RequestTitle sends the running game back to its title screen on its next
+// call, so it signs in again and loads a change made beside it (its save, the
+// master data, the calendar). See interceptor.ReturnToTitle.
+func RequestTitle() { interceptor.RequestTitle() }
 
 // PrepareBackup recovers and checkpoints WAL files left by an Android process
 // kill before Java copies the databases. The server must be stopped.

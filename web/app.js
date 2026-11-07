@@ -270,6 +270,12 @@ for (const id of ["skip-check", "mod-menu", "port-offset"]) {
 function update() {
   $("game-help").textContent = tr("The original 3.7.1 ARM64 game APK (JP or global).");
   $("game").accept = ".apk";
+  // The Japanese APK takes the Japanese master data, 20240405123139.bin.e;
+  // the contents decide which one a file is, not its name (a second download
+  // is "20240405123139.bin (1).e").
+  $("master-help").innerHTML = tr("The original master data: ") +
+    "<code>20240404193219.bin.e</code>" + tr(" for the Global APK, ") +
+    "<code>20240405123139.bin.e</code>" + tr(" for the Japanese APK.");
   // Without an accept, Chrome on Android opens the photo picker and a .bin.e
   // cannot be chosen at all; a non-media type gets the file browser instead.
   $("master").accept = "application/octet-stream";
@@ -426,9 +432,9 @@ const FAILURES = [
   [/SHA-256 does not match.*game|The game APK is not the original/,
     ["这不是原版 3.7.1 游戏包", "请使用官方 3.7.1 的日服或全球服 APK。若你确信文件正确（例如从已安装应用导出的拆分包），可在「进阶选项」里勾选「忽略文件校验」。注意：用不同构建的字节强建会把补丁偏移写到错误位置，成品 APK 可能已损坏、无法安装。"],
     ["This is not the original 3.7.1 game", "Use the official 3.7.1 JP or global APK. If you are sure the file is right (a split APK exported from an installed app, for example), tick \"Build even if the files do not match\" under advanced options. Building with bytes from a different build applies its patch offsets to the wrong places, and the finished APK may be corrupt and refuse to install."]],
-  [/The master data is not the original/,
-    ["主数据不是原版文件", "请使用 20240404193219.bin.e 原文件（约 7.4 MB），未被内容修补器改过的那个。"],
-    ["The master data is not the original", "Use the untouched 20240404193219.bin.e (about 7.4 MB), not one a content patcher has rewritten."]],
+  [/The master data is not the original|isn't NieR Re\[in\]carnation master data|The master data is the /,
+    ["主数据不对", "请选择原版主数据：全球服 20240404193219.bin.e，日服 20240405123139.bin.e（认内容不认文件名，二次下载叫「…bin (1).e」也能用）。请使用未被内容修补器改过的原文件。"],
+    ["The master data is not the right one", "Choose the untouched original master data: 20240404193219.bin.e (Global) or 20240405123139.bin.e (Japanese). The contents decide which one a file is, not its name — a second download named \"…bin (1).e\" works too. Do not use one a content patcher has rewritten."]],
   [/Not the ARM64 game APK/,
     ["这个 APK 不是游戏本体", "请选择 64 位（arm64-v8a）的游戏原始 APK，而不是启动器、补丁包或存档。"],
     ["This APK is not the game itself", "Choose the original arm64-v8a game APK, not a launcher, patch or save file."]],
@@ -722,7 +728,9 @@ const ZH = {
   "Include the Mod Menu (experimental)": "包含 Mod 菜单（实验性）",
   "ADVANCED": "进阶选项",
   "Bunker · Lunar Tear builder": "Bunker · Lunar Tear 构建器",
-  "The original master data,": "原版主数据，",
+  "The original master data: ": "原版主数据：全球服用 ",
+  " for the Global APK, ": "，日服用 ",
+  " for the Japanese APK.": "。",
   "NOT CHOSEN": "未选择",
   "The game talks to its server on this device through ports 8003, 8080 and 3000. If another app already uses one of them, the launcher tells you. An offset moves all three. For example, 30000 gives 38003, 38080 and 33000. Leave it at 0 unless you need it, and use the same offset for updates.": "游戏在本机通过 8003、8080、3000 三个端口连接服务器。如果其中某个端口已被其他应用占用，启动器会提示。设置偏移可一次性移动这三个端口，例如 30000 会得到 38003、38080、33000。除非确有需要，请保持 0，并在更新时沿用同一偏移。",
   " password and alias ": "，密码与别名 ",

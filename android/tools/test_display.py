@@ -16,7 +16,7 @@ client is detected from its file size, per-client).
 """
 from pathlib import Path
 import importlib.util
-import json, os, re, struct, subprocess, sys, tempfile, unittest
+import json, os, re, shutil, struct, subprocess, sys, tempfile, unittest
 
 root = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(root / "android/app/src/main/python"))
@@ -37,20 +37,23 @@ class Settings(unittest.TestCase):
         self.dir.cleanup()
 
     def test_missing_file_keeps_the_game_defaults(self):
-        self.assertEqual(self.display.read_settings(self.conf), {"fps": "30", "resolution": "default"})
+        self.assertEqual(self.display.read_settings(self.conf), self.display.DEFAULTS)
 
     def test_saved_choices_are_read_back(self):
         self.display.write_settings("60", "native", self.conf)
-        self.assertEqual(self.conf.read_text(), "fps=60\nresolution=native\n")
-        self.assertEqual(self.display.read_settings(self.conf), {"fps": "60", "resolution": "native"})
+        self.assertIn("fps=60\n", self.conf.read_text())
+        self.assertIn("resolution=native\n", self.conf.read_text())
+        self.assertEqual(self.display.read_settings(self.conf),
+                         {**self.display.DEFAULTS, "fps": "60", "resolution": "native"})
         self.display.write_settings("max", "1440", self.conf)
-        self.assertEqual(self.display.read_settings(self.conf), {"fps": "max", "resolution": "1440"})
+        self.assertEqual(self.display.read_settings(self.conf),
+                         {**self.display.DEFAULTS, "fps": "max", "resolution": "1440"})
 
     def test_unknown_values_are_refused_and_ignored(self):
         with self.assertRaises(ValueError):
             self.display.write_settings("240", "native", self.conf)
         self.conf.write_text("fps=240\nresolution=8k\nnoise\n")
-        self.assertEqual(self.display.read_settings(self.conf), {"fps": "30", "resolution": "default"})
+        self.assertEqual(self.display.read_settings(self.conf), self.display.DEFAULTS)
 
 
 # ---------------------------------------------------------------------------
@@ -114,6 +117,7 @@ class TableConsistency(unittest.TestCase):
             self.assertEqual(region.REGIONS[region_key]["libil2cpp_size"], facts[region_key]["lib_size"])
 
 
+@unittest.skipUnless(shutil.which("cc"), "needs a C compiler (cc)")
 class FlyingMom(unittest.TestCase):
     """flying_mom.c's step clock and internal-call decoding, built for this computer."""
 
@@ -206,6 +210,52 @@ int main(int argc, char **argv) {
         # Flying Mama's OnUpdateFreeFall: the adrp is followed by ldrb, not a pointer load.
         words = [0xfc1c0fea, 0x6d0123e9, 0xa9024ff4, 0xa9037bfd, 0x9100c3fd, 0xf0028354, 0x396d7288, 0xaa0003f3]
         self.assertEqual(self.slot(0x291d5c4, words), 0)
+
+
+@unittest.skipUnless(shutil.which("cc"), "needs cc (a C compiler) to build the badge_pace harness")
+class BadgePace(unittest.TestCase):
+    """badge_pace.c's choice of when a campaign badge updates, built for this computer."""
+
+    def run_calls(self, calls):
+        """calls: (badge, label, second); returns 1 or 0 for each."""
+        with tempfile.TemporaryDirectory() as temp:
+            harness = Path(temp) / "harness.c"
+            harness.write_text(r"""
+#include <stdio.h>
+#include <stdint.h>
+#include "badge_pace.h"
+static BadgePace pace;
+int main(void) {
+    unsigned long self, label; long long second;
+    while (scanf("%lx %lx %lld", &self, &label, &second) == 3) printf("%d\n", badge_pace_due(&pace, (void *)self, (void *)label, second));
+    return 0;
+}
+""")
+            binary = Path(temp) / "harness"
+            cpp = root / "android/app/src/main/cpp"
+            subprocess.run(["cc", "-Wall", "-Wextra", "-Werror", "-I", str(cpp), "-o", str(binary),
+                            str(harness), str(cpp / "badge_pace.c")], check=True)
+            text = "".join(f"{badge:x} {label:x} {second}\n" for badge, label, second in calls)
+            return [int(x) for x in subprocess.run([str(binary)], input=text, capture_output=True, text=True, check=True).stdout.split()]
+
+    def test_once_a_second_per_badge(self):
+        # Two badges, 120 frames each second for three seconds.
+        calls = [(badge, badge + 8, second) for second in (100, 101, 102) for _ in range(120) for badge in (0x1000, 0x2000)]
+        out = self.run_calls(calls)
+        self.assertEqual(sum(out), 6)
+        self.assertEqual(out[:2], [1, 1])  # each badge's first frame
+
+    def test_a_new_badge_updates_at_once(self):
+        self.assertEqual(self.run_calls([(0x1000, 0x10, 5), (0x1000, 0x10, 5), (0x3000, 0x30, 5)]), [1, 0, 1])
+
+    def test_a_new_badge_where_a_destroyed_one_was_updates_at_once(self):
+        # Same address, same second, but a new label: a new badge.
+        self.assertEqual(self.run_calls([(0x1000, 0x10, 5), (0x1000, 0x10, 5), (0x1000, 0x20, 5), (0x1000, 0x20, 5)]), [1, 0, 1, 0])
+
+    def test_many_badges_in_one_slot_still_update(self):
+        # Badges whose addresses share a slot: each still updates on its first frame.
+        calls = [(0x10 * 256 * n, n, 7) for n in range(1, 12)]
+        self.assertEqual(self.run_calls(calls), [1] * 11)
 
 
 @unittest.skipUnless(os.environ.get("BUNKER_GAME_LIB"), "set BUNKER_GAME_LIB to a 3.7.1 libil2cpp.so")

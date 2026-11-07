@@ -78,6 +78,8 @@ def patch_unity_connect(settings):
 
 MASTER = "20240404193219.bin.e"
 LIB, METADATA = "lib/arm64-v8a/libil2cpp.so", "assets/bin/Data/Managed/Metadata/global-metadata.dat"
+# The game's own package, kept by the build (also what tools/tests refer to).
+PACKAGE = "com.square_enix.android_googleplay.nierspww"
 SETTINGS = "assets/bin/Data/globalgamemanagers"
 # 日服 keeps its API host and port in a small Unity asset. The metadata strings
 # only carry the host name, so the port has to be written here.
@@ -257,6 +259,8 @@ def patch_manifest(game_manifest, companion_manifest, port_offset=0, menu=False,
                     if a.get("name") and a.get("name").raw == game_activity)
     if game_activity.startswith("."):
         game_activity = package + game_activity
+    elif "." not in game_activity:
+        game_activity = package + "." + game_activity
     for provider in app.find_all("provider"):
         if provider.get("name") and provider.get("name").raw in SDK_PROVIDERS:
             app.children.remove(provider)
@@ -412,7 +416,7 @@ class ApkWriter:
 
 
 def assemble(apk, master, companion_apk, output, log=print, port_offset=0, menu=None,
-             strict_detection=True, profile=None):
+             strict_detection=True, profile=None, notices=None):
     """Build the APK. menu=(dex files, libniermenu.so) adds the Mod Menu.
 
     strict_detection=True runs the full client dispatch gate (package + triple
@@ -433,6 +437,9 @@ def assemble(apk, master, companion_apk, output, log=print, port_offset=0, menu=
     # 内嵌 master 文件名不变 + 文本表结构。断言定义与报告口径 = lunar-scripts-zh
     # shared/gate_defs.py（nier-verify-gate/v1）；失败 fail-fast。
     import verify_gate_zh
+    if profile is None:
+        import zh_client
+        profile = zh_client.dispatch(Path(apk), strict=strict_detection)
     gate = verify_gate_zh.product_gate(Path(output), bin_e=None,
                                        client=profile["region"],
                                        product_class="pre-sign",
@@ -643,9 +650,10 @@ def main():
     p.add_argument("--companion-apk", type=Path, required=True, help="Built launcher APK (android/app)")
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--port-offset", type=int, default=0, help="Move the game's ports 8003/8080/3000 by this amount")
+    p.add_argument("--notices", type=Path, default=ROOT / "inputs/bunker-notices.zip", help="Pinned notice pack (scripts/notices.py)")
     args = p.parse_args()
     game_activity = assemble(args.apk.resolve(strict=True), args.master.resolve(strict=True), args.companion_apk.resolve(strict=True),
-                             args.output.resolve(), port_offset=args.port_offset)
+                             args.output.resolve(), port_offset=args.port_offset, notices=args.notices.resolve(strict=True))
     print(f"Unsigned APK: {args.output}\nGame activity: {game_activity}\nSign it before installing.")
 
 

@@ -39,6 +39,9 @@ class Builder:
         return (not self.state["running"] and self.db_path.exists()
                 and index.is_current(self.db_path, self.revision, self.master, self.lang))
 
+    def status(self) -> dict:
+        return {**self.state, "ready": self.ready()}
+
     def start(self):
         with self.lock:
             if self.state["running"]:
@@ -56,6 +59,23 @@ class Builder:
         threading.Thread(target=run, name="archive-index", daemon=True).start()
 
 
+# One builder per index, so a build the launcher starts before the game is the
+# one the Archive's setup page shows when it opens meanwhile.
+_builders: dict = {}
+_builders_lock = threading.Lock()
+
+
+def shared_builder(revision: Path, master: Path, db_path: Path, scenario=None, lang="en") -> Builder:
+    with _builders_lock:
+        key = Path(db_path).resolve()
+        builder = _builders.get(key)
+        if builder is None or (builder.revision, builder.master) != (revision, master) and not builder.state["running"]:
+            builder = _builders[key] = Builder(revision, master, db_path, scenario, lang)
+        elif scenario is not None and builder.scenario is None:
+            builder.scenario = scenario
+        return builder
+
+
 def create_app(revision: Path, master: Path, data_dir: Path, static_dir: Path, decode=None, sound=None, model=None,
                motion=None, scenario=None, original=True, lang="en") -> FastAPI:
     """decode(bundle, target_png, max_side), sound(bundle, target_ogg) and model(actor_folder, target_glb) return
@@ -64,7 +84,7 @@ def create_app(revision: Path, master: Path, data_dir: Path, static_dir: Path, d
     master is the game's own master data; patched master data moves the Schedule's dates."""
     data_dir.mkdir(parents=True, exist_ok=True)
     db_path = data_dir / "archive.db"
-    builder = Builder(revision, master, db_path, scenario, lang)
+    builder = shared_builder(revision, master, db_path, scenario, lang)
     archive = Archive(db_path, revision)
     textures = Textures(revision / "assetbundle", data_dir / "images", decode)
     sounds = Sounds(revision / "assetbundle", data_dir / "sounds", sound)
@@ -372,9 +392,12 @@ def create_app(revision: Path, master: Path, data_dir: Path, static_dir: Path, d
     def schedule_entry(request: Request, kind: str, ident: int):
         need_index(request)
         tabs = {"summon": "summons", "event": "events", "shop": "shops"}
-        found = archive.schedule().find(tabs[kind], ident) if kind in tabs else None
-        if not found:
+        if kind not in tabs:
             raise HTTPException(404)
+        found = archive.schedule().find(tabs[kind], ident)
+        if not found:
+            # Pod Programs' timeline links by id; one the Archive doesn't list opens its tab.
+            return RedirectResponse(f"/schedule?tab={tabs[kind]}")
         return page(request, f"schedule_{kind}.html", "schedule", item=found, tabs=dict(SCHEDULE_TABS), tab=tabs[kind])
 
     @app.get("/search")

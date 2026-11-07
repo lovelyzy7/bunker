@@ -314,5 +314,108 @@ class ExchangesInTheGameData(unittest.TestCase):
         self.assertGreater(rewards, 1000)
 
 
+
+class BannerRuns(unittest.TestCase):
+    def test_banners_of_summons_bunker_does_not_list_stay_parked(self):
+        # Banner 274 opens summon 9000085, which Bunker leaves out; banner 365
+        # opens summon 159, a parked rerun. Their restored runs would open the
+        # Summons screen on another summon.
+        spec = {"key": [0], "dates": [6, 7], "rows": {"274": [[1, 2]], "365": [[3, 4]], "22": [[5, 6]]}}
+        self.assertEqual(sorted(cal.history_spec("m_mom_banner", spec)["rows"]), ["22"])
+        self.assertIs(cal.history_spec("m_tip", spec), spec)
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(ORIGINAL.exists(), "needs inputs/20240404193219.bin.e")
+class ViewFromLaunch(unittest.TestCase):
+    """Tables the calendar doesn't move are all in the past in the loop's dates
+    (2026 on): characters listed, filters complete. The copy for Show original
+    dates (2021) caps those start dates at launch so the game behaves the same;
+    before, Enhance > Characters was empty (m_character 2022). Story chapters
+    keep their dates and open as the calendar reaches them."""
+    @classmethod
+    def setUpClass(cls):
+        import tempfile
+        from tools import dump_masterdata
+        cls.schemas = dump_masterdata.load_schemas()
+        with tempfile.TemporaryDirectory() as work:
+            view, loop = Path(work) / "view.bin.e", Path(work) / "loop.bin.e"
+            cal.build_master(ORIGINAL, view, 0, view=True)
+            cal.build_master(ORIGINAL, loop, 100 * cal.WEEK)
+            cls.view, cls.loop = cal.read_master(view), cal.read_master(loop)
+        cls.original = cal.read_master(ORIGINAL)
+
+    def rows(self, master, table, *names):
+        toc, blob = master
+        return cal._read(toc, blob, {}, self.schemas, table, *names)
+
+    def test_start_dates_are_capped_at_launch(self):
+        self.assertIn("m_character", cal.VIEW_FROM_LAUNCH)
+        for table, columns in cal.VIEW_FROM_LAUNCH.items():
+            for column in columns:
+                built = [r[0] for r in self.rows(self.view, table, column)]
+                original = [r[0] for r in self.rows(self.original, table, column)]
+                self.assertEqual(built, [min(v, cal.LAUNCH) for v in original], f"{table}.{column}")
+                self.assertTrue(any(v > cal.LAUNCH for v in original), f"{table}.{column} has nothing to cap")
+
+    def test_story_chapters_open_on_their_dates(self):
+        # As in the live game: a chapter opens when the calendar reaches its date.
+        self.assertEqual(self.rows(self.view, "m_main_quest_chapter", "StartDatetime"),
+                         self.rows(self.original, "m_main_quest_chapter", "StartDatetime"))
+
+    def test_catalog_terms_keep_their_dates(self):
+        # The server compares them in the live service's dates (summon notices).
+        self.assertEqual(self.rows(self.view, "m_catalog_term", "StartDatetime"), self.rows(self.original, "m_catalog_term", "StartDatetime"))
+
+    def test_loop_data_is_not_capped(self):
+        self.assertEqual(self.rows(self.loop, "m_main_quest_chapter", "StartDatetime"), self.rows(self.original, "m_main_quest_chapter", "StartDatetime"))
+
+
+@unittest.skipUnless(ORIGINAL.exists(), "needs inputs/20240404193219.bin.e")
+class StoryChaptersInTheGameData(unittest.TestCase):
+    """With the Original calendar, story chapters open on their release dates
+    (moved into the loop), except chapters the player already reached."""
+    @classmethod
+    def setUpClass(cls):
+        from tools import dump_masterdata
+        cls.schemas = dump_masterdata.load_schemas()
+        cls.original = dict(cls.rows(cal.read_master(ORIGINAL)))
+        cls.dated = sorted(c for c, v in cls.original.items() if cal.LAUNCH < v < cal.FOREVER)
+
+    @classmethod
+    def rows(cls, master):
+        toc, blob = master
+        return cal._read(toc, blob, {}, cls.schemas, "m_main_quest_chapter", "MainQuestChapterId", "StartDatetime")
+
+    def build(self, offset, chapters, view=False):
+        import tempfile
+        with tempfile.TemporaryDirectory() as work:
+            out = Path(work) / "out.bin.e"
+            cal.build_master(ORIGINAL, out, offset, view=view, open_chapters=chapters)
+            return dict(self.rows(cal.read_master(out)))
+
+    def test_loop_moves_chapters_and_opens_reached_ones(self):
+        offset, reached = 100 * cal.WEEK, self.dated[0]
+        built = self.build(offset, {reached})
+        self.assertEqual(built[reached], min(self.original[reached], cal.LAUNCH) + offset)
+        for chapter in self.dated[1:]:
+            self.assertEqual(built[chapter], self.original[chapter] + offset, chapter)
+
+    def test_chapters_open_from_the_start_stay_as_they_are(self):
+        built = self.build(100 * cal.WEEK, set())
+        early = [c for c, v in self.original.items() if v < cal.LAUNCH]
+        self.assertTrue(early)
+        self.assertEqual([built[c] for c in early], [self.original[c] for c in early])
+
+    def test_view_keeps_dates_and_opens_reached_ones(self):
+        reached = self.dated[0]
+        built = self.build(0, {reached}, view=True)
+        self.assertEqual(built[reached], min(self.original[reached], cal.LAUNCH))
+        self.assertEqual([built[c] for c in self.dated[1:]], [self.original[c] for c in self.dated[1:]])
+
+    def test_every_chapter_open_when_all_are_reached(self):
+        built = self.build(100 * cal.WEEK, set(self.original))
+        self.assertTrue(all(v <= cal.LAUNCH + 100 * cal.WEEK for v in built.values()))

@@ -149,7 +149,9 @@ final class Updater {
     }
 
     /** Looks for a newer release in the background; calls found on the main thread only if there is one. */
-    static void check(Context context,Found found) {
+    static void check(Context context,Found found) { check(context,found,false); }
+    /** manual: asked for in the menu, so it runs even with automatic checks off. */
+    private static void check(Context context,Found found,boolean manual) {
         Context c=context.getApplicationContext();
         synchronized(Updater.class) {
             if(checked)return;
@@ -157,7 +159,7 @@ final class Updater {
             // An update the system stopped part-way (or one whose install replaced this process) leaves files behind.
             if(!inProgress)FilesStore.delete(new File(c.getCacheDir(),"update"));
         }
-        if(!enabled(c))return;
+        if(!enabled(c)&&!manual)return;
         new Thread(()->{
             try {
                 JSONObject release=new JSONObject(get(latestUrl(c)));

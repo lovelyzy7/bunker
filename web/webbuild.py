@@ -39,8 +39,17 @@ def verify(apk, master, release):
     expected = region.REGIONS[release]
     if region.sha256_of(apk) != expected["sha256"]:
         raise ValueError(f"The game APK is not the original 3.7.1 {expected['name']} release (SHA-256 does not match)")
-    if region.sha256_of(master) != region.MASTER_SHA256:
-        raise ValueError(f"The master data is not the original {MASTER} (SHA-256 does not match)")
+    # The master data is taken by its contents, not its name (a browser names a
+    # second download "20240405123139.bin (1).e"): the Japanese APK takes the
+    # Japanese master data, 20240405123139.bin.e; the Global APK the Global one.
+    edition = region.master_edition(master)
+    if edition is None:
+        raise ValueError("That file isn't NieR Re[in]carnation master data. "
+                         f"Choose {region.MASTERS['en']['name']} (Global) or {region.MASTERS['jp']['name']} (Japanese).")
+    if edition != release:
+        raise ValueError(f"The master data is the {region.MASTERS[edition]['name']} ({region.REGIONS[edition]['name']}) file, "
+                         f"but the game APK is the {expected['name']} one. "
+                         f"Choose {region.MASTERS[release]['name']}.")
 
 
 def addresses(port_offset=0):
@@ -253,7 +262,8 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--apk", type=Path, required=True, help="Original ARM64 game 3.7.1 APK (日服 or 全球服)")
-    parser.add_argument("--master", type=Path, required=True, help="Original 20240404193219.bin.e")
+    parser.add_argument("--master", type=Path, required=True,
+                        help="Original master data: 20240404193219.bin.e (Global) or 20240405123139.bin.e (Japanese)")
     parser.add_argument("--companion-apk", type=Path, required=True, help="Built launcher APK (android/app)")
     parser.add_argument("--output", type=Path, default=None,
                         help="Output APK (default: the detected client's product name, "

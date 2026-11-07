@@ -1,8 +1,8 @@
 diff --git a/server/internal/service/data.go b/server/internal/service/data.go
-index 7ac99c7..dba192c 100644
+index aa83202..b990c6b 100644
 --- a/server/internal/service/data.go
 +++ b/server/internal/service/data.go
-@@ -34,20 +34,29 @@ func envOr(key, def string) string {
+@@ -27,12 +27,21 @@ func envOr(key, def string) string {
  
  type DataServiceServer struct {
  	pb.UnimplementedDataServiceServer
@@ -27,13 +27,13 @@ index 7ac99c7..dba192c 100644
  }
  
  func (s *DataServiceServer) GetLatestMasterDataVersion(ctx context.Context, _ *emptypb.Empty) (*pb.MasterDataGetLatestVersionResponse, error) {
- 	version := masterDataBaseVersion
--	if info, err := os.Stat(masterDataBinPath); err == nil {
-+	if info, err := os.Stat(s.masterDataPath); err == nil {
- 		version = fmt.Sprintf("%s_%d", masterDataBaseVersion, info.ModTime().UnixMilli())
- 	} else {
--		log.Printf("[DataService] stat %s: %v (falling back to base version)", masterDataBinPath, err)
-+		log.Printf("[DataService] stat %s: %v (falling back to base version)", s.masterDataPath, err)
- 	}
- 	log.Printf("[DataService] GetLatestMasterDataVersion -> %s", version)
- 	return &pb.MasterDataGetLatestVersionResponse{
+@@ -40,6 +49,9 @@ func (s *DataServiceServer) GetLatestMasterDataVersion(ctx context.Context, _ *e
+ 	// 区域指定文件缺失时自动回退到实际存在的那份（交叉共用），版本串按实际文件。
+ 	region := regionForUser(CurrentUserId(ctx, s.users, s.sessions), s.users)
+ 	filePath, base, fellBack := resolveMasterData(region)
++	if s.masterDataPath != masterDataBinPath && s.masterDataPath != "" {
++		filePath, base, fellBack = s.masterDataPath, masterDataBaseVersion, false
++	}
+ 	version := base
+ 	if info, err := os.Stat(filePath); err == nil {
+ 		version = fmt.Sprintf("%s_%d", base, info.ModTime().UnixMilli())

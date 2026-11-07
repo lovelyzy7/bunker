@@ -70,6 +70,19 @@
 #include "guerrilla_unlock.h"
 #include "camera_edge.h"
 #include "flying_mom.h"
+#include "render_pace.h"
+#include "badge_pace.h"
+#include "render_effects.h"
+#include "render_scale.h"
+#include "egl_sync.h"
+#include "bunker_button.h"
+#include "title_now.h"
+#include "game_region.h"
+
+// The game region at runtime (game_region.h): set from the client detection
+// before any game_rva() use; the Bunker button and Arena season hooks select
+// their RVAs through it.
+int bunker_game_japanese;
 
 enum { FullHD = 6, WQHD = 7, DeviceMax = 8 };
 
@@ -313,6 +326,7 @@ static void (*time_set_fixed_delta)(float value, void *method);
 static int (*time_frame_count)(void *method);
 static int last_frame = -1;
 
+static char title_marker[1024];  // DisplayPatch.titleMarker
 static int flying_mom_state = -1;  // flying_mom_route's result; -1 before flying_mom_init
 
 /** Runs at the start of ActorController.FixedProcess, on Unity's main thread. */
@@ -562,6 +576,22 @@ static void *game_library;
 static void *game_symbol(const char *name) { return dlsym(game_library, name); }
 static void bunker_log(const char *message) { __android_log_print(ANDROID_LOG_INFO, "Bunker", "%s", message); }
 
+// The in-game Bunker button opens the launcher through GameProcessProvider.openBunker(),
+// called on Unity's thread with the class found here (on the app's own class loader).
+static JavaVM *java;
+static jclass game_process;
+
+static void open_bunker(void) {
+    JNIEnv *env = NULL;
+    if (!java || !game_process) return;
+    if ((*java)->GetEnv(java, (void **)&env, JNI_VERSION_1_6) != JNI_OK && (*java)->AttachCurrentThread(java, &env, NULL) != JNI_OK) return;
+    jmethodID open = (*env)->GetStaticMethodID(env, game_process, "openBunker", "()V");
+    if (open) (*env)->CallStaticVoidMethod(env, game_process, open);
+    if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+}
+
+static void apply_effects(void) { render_effects_apply(); }
+
 // IronSource.showRewardedVideo starts "stp x20, x19, [sp, #-0x20]!; stp x29, x30, [sp, #0x10];
 // add x29, sp, #0x10; adrp x20, ..."; the hook replaces the whole method.
 static const uint32_t kShowRewardedVideo[4] = {0xa9be4ff4u, 0xa9017bfdu, 0x910043fdu, 0xd00237f4u};
@@ -578,7 +608,8 @@ static void hook_roulette_ads(uint8_t *base, const ClientRvas *rvas) {
 }
 
 static const char *apply(int fps, int size, const char *declared_region,
-                         const char *declared_package, char *message, size_t length) {
+                         const char *declared_package, int idle, int heat, int effects_off, int upscale,
+                         char *message, size_t length) {
     Site list[8];
     void *library = dlopen("libil2cpp.so", RTLD_NOW);
     void *symbol = library ? dlsym(library, "il2cpp_init") : NULL;
@@ -598,6 +629,9 @@ static const char *apply(int fps, int size, const char *declared_region,
         return message;
     }
     const ClientRvas *rvas = fact->rvas;
+    // Game region at runtime (game_region.h) before any game_rva() use: the
+    // Bunker button and Arena season hooks take their RVAs through it.
+    bunker_game_japanese = rvas == &kJpRvas;
     __android_log_print(ANDROID_LOG_INFO, "Bunker",
                         "Display patch: %s table selected (package %s, libil2cpp.so %lld B)",
                         fact->region, fact->package, fact->lib_size);
@@ -605,6 +639,10 @@ static const char *apply(int fps, int size, const char *declared_region,
     int count = sites(rvas, fps, size, list);
     game_library = library;
     hook_roulette_ads(base, rvas);
+    if (bunker_button_init(game_symbol, bunker_log, open_bunker))
+        __android_log_print(ANDROID_LOG_WARN, "Bunker", "Bunker button: the game's IL2CPP API is missing; no button in the top row");
+    if (title_marker[0] && title_now_init(game_symbol, bunker_log, title_marker))
+        __android_log_print(ANDROID_LOG_WARN, "Bunker", "Title now: the game's IL2CPP API is missing; the next call returns to the title screen");
 
     // kSnapArrive: per-client RVA, same original/patched words.
     Site snap = {rvas->snap_arrive, kSnapArriveOriginal.original, kSnapArriveOriginal.patched};
@@ -625,6 +663,11 @@ static const char *apply(int fps, int size, const char *declared_region,
         __android_log_print(ANDROID_LOG_WARN, "Bunker", "Story rooms: unsupported game binary; on very wide screens the camera stops short of the room's edge");
     if (guerrilla_unlock_button(base, hook))
         __android_log_print(ANDROID_LOG_WARN, "Bunker", "Guerrilla quests: unsupported game binary; Force Unlock shows before it exists");
+
+    const char *scale = render_scale_init(upscale);  // before egl_sync_fix, whose lookups it joins
+    if (scale) __android_log_print(ANDROID_LOG_WARN, "Bunker", "%s", scale);
+    const char *egl = egl_sync_fix();
+    if (egl) __android_log_print(ANDROID_LOG_WARN, "Bunker", "%s", egl);
 
     const struct { uint32_t rva; const uint32_t *original; } hooks[] = {
         {rvas->hook_fixedprocess, kFixedProcessPrologue},
@@ -672,23 +715,52 @@ static const char *apply(int fps, int size, const char *declared_region,
     }
     if (fps > 30 && (flying_mom_state = flying_mom_init(game_symbol, bunker_log)))
         __android_log_print(ANDROID_LOG_WARN, "Bunker", "Flying Mama: the game's IL2CPP API is missing; it runs faster above 30 fps");
+    if (fps > 30 && badge_pace_init(game_symbol, bunker_log))
+        __android_log_print(ANDROID_LOG_WARN, "Bunker", "Badge pacing: the game's IL2CPP API is missing; badges update every frame");
+    if (effects_off && render_effects_init(game_symbol, bunker_log, effects_off)) effects_off = 0;
+    if ((fps > 30 || effects_off) && render_pace_init(game_symbol, bunker_log, fps, idle, heat, effects_off ? apply_effects : NULL))
+        __android_log_print(ANDROID_LOG_WARN, "Bunker", "Frame pacing: the game's IL2CPP API is missing; it draws every frame");
     return "";
 }
 
 /** Applies the choices; 0 keeps the game's own value. Returns "" or an error.
  *  region (manifest org.veritr1x.bunker.REGION) and package_name feed the
  *  【rev D·L4】region-consistency detection; either may be empty when the
- *  build declares nothing. */
+ *  build declares nothing. idle/heat/effectsOff/upscale drive render_pace.c,
+ *  render_effects.c and render_scale.c (DisplayPatch.java reads display.conf). */
 JNIEXPORT jstring JNICALL Java_org_veritr1x_bunker_DisplayPatch_apply(JNIEnv *env, jclass cls, jint fps, jint size,
-                                                                     jstring region, jstring package_name) {
+                                                                     jstring region, jstring package_name,
+                                                                     jboolean idle, jboolean heat,
+                                                                     jint effects_off, jint upscale) {
     (void)cls;
     char message[160];
+    if (!java && (*env)->GetJavaVM(env, &java) == JNI_OK) {
+        jclass found = (*env)->FindClass(env, "org/veritr1x/bunker/GameProcessProvider");
+        if (found) game_process = (*env)->NewGlobalRef(env, found);
+        else (*env)->ExceptionClear(env);
+    }
     if ((fps && (fps < 30 || fps > 240)) || (size && (size < FullHD || size > DeviceMax)))
         return (*env)->NewStringUTF(env, "Unsupported display setting");
     const char *declared_region = region ? (*env)->GetStringUTFChars(env, region, NULL) : NULL;
     const char *declared_package = package_name ? (*env)->GetStringUTFChars(env, package_name, NULL) : NULL;
-    const char *result = apply(fps, size, declared_region, declared_package, message, sizeof message);
+    const char *result = apply(fps, size, declared_region, declared_package, idle, heat, effects_off, upscale,
+                               message, sizeof message);
     if (declared_region) (*env)->ReleaseStringUTFChars(env, region, declared_region);
     if (declared_package) (*env)->ReleaseStringUTFChars(env, package_name, declared_package);
     return (*env)->NewStringUTF(env, result);
+}
+
+/** Where Lunar Tear marks that the game should go back to its title screen (title_now.c); before apply. */
+JNIEXPORT void JNICALL Java_org_veritr1x_bunker_DisplayPatch_titleMarker(JNIEnv *env, jclass cls, jstring path) {
+    (void)cls;
+    const char *chars = (*env)->GetStringUTFChars(env, path, NULL);
+    if (!chars) return;
+    snprintf(title_marker, sizeof title_marker, "%s", chars);
+    (*env)->ReleaseStringUTFChars(env, path, chars);
+}
+
+/** The device's heat as it changes (render_pace_set_thermal's levels). */
+JNIEXPORT void JNICALL Java_org_veritr1x_bunker_DisplayPatch_thermal(JNIEnv *env, jclass cls, jint level) {
+    (void)env, (void)cls;
+    render_pace_set_thermal(level);
 }

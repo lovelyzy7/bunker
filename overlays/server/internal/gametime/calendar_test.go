@@ -45,6 +45,23 @@ func TestNowFollowsTheCalendar(t *testing.T) {
 	}
 }
 
+func TestStartNextLoopFindsDataBesideTheMaster(t *testing.T) {
+	dir := t.TempDir()
+	master := filepath.Join(dir, "master.bin.e")
+	os.WriteFile(master, []byte("loop1"), 0600)
+	os.WriteFile(filepath.Join(dir, NextName), []byte("loop2"), 0600)
+	path := filepath.Join(dir, "calendar.json")
+	// iOS moves the app's folder on every install, so a stored full path goes stale.
+	c := &Calendar{Loop: 1, LoopStart: ms(t, "2026-10-07T02:00:00Z"), Speed: 1, Next: "/old/container/calendar-next.bin.e", NextLoop: 2}
+	got, err := StartNextLoop(path, master, c, c.End())
+	if err != nil || got.Loop != 2 {
+		t.Fatalf("next loop: %+v %v", got, err)
+	}
+	if raw, _ := os.ReadFile(master); string(raw) != "loop2" {
+		t.Fatalf("master not swapped: %q", raw)
+	}
+}
+
 func TestStartNextLoop(t *testing.T) {
 	dir := t.TempDir()
 	master := filepath.Join(dir, "master.bin.e")
@@ -92,5 +109,42 @@ func TestStartNextLoop(t *testing.T) {
 	}
 	if c, err := LoadCalendar(filepath.Join(dir, "missing.json")); c != nil || err != nil {
 		t.Fatal("missing file should mean calendar off")
+	}
+}
+
+// The original-dates view moves what the game sees back by the calendar's
+// offset; it is off unless the calendar is on and the setting is.
+func TestViewOffsetOnlyWithOriginalDates(t *testing.T) {
+	defer SetCalendar(nil)
+	SetCalendar(nil)
+	if ViewOffset() != 0 {
+		t.Fatal("offset with the calendar off")
+	}
+	c := &Calendar{Loop: 1, LoopStart: Launch + 100*weekMillis}
+	SetCalendar(c)
+	if ViewOffset() != 0 {
+		t.Fatal("offset with the setting off")
+	}
+	c.OriginalDates = true
+	if ViewOffset() != 100*weekMillis {
+		t.Fatalf("offset %d", ViewOffset())
+	}
+	SetCalendar(&Calendar{Loop: 2, LoopStart: Launch + 244*weekMillis, OriginalDates: true})
+	if ViewOffset() != 244*weekMillis {
+		t.Fatalf("loop 2 offset %d", ViewOffset())
+	}
+}
+
+func TestToViewKeepsSentinels(t *testing.T) {
+	defer SetCalendar(nil)
+	SetCalendar(&Calendar{Loop: 1, LoopStart: Launch + 100*weekMillis, OriginalDates: true})
+	real := Launch + 120*weekMillis
+	if got := ToView(real); got != real-100*weekMillis {
+		t.Fatalf("real time %d -> %d", real, got)
+	}
+	for _, v := range []int64{0, 4070908800000, 253402300799000, 946684799999} {
+		if ToView(v) != v {
+			t.Fatalf("sentinel %d moved", v)
+		}
 	}
 }

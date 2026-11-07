@@ -28,7 +28,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: python3 -m pip install pycryptodome msgpack lz4
+      - run: python3 -m pip install pycryptodome msgpack lz4 -r scripts/requirements-notices.txt
       - name: Materialise lunar-scripts-zh
         # upstream-local 是目录挂载（Windows junction）；CI 无本地挂载时从 GitHub
         # 取实体。内容正确性由 prepare 的 contract-digest 预检（upstream.lock pin）。
@@ -38,8 +38,9 @@ jobs:
           fi
       - name: Unit tests
         run: |
-          (cd scripts && python3 -m unittest test_version test_release_assets test_zh_switch test_notices test_history_runs test_tower_floors)
-          (cd android/tools && python3 -m unittest test_privacy test_update_apk test_build_info test_master_patch test_assemble_stream)
+          (cd scripts && python3 -m unittest test_version test_release_assets test_zh_switch test_notices test_history_runs test_tower_floors test_audit_notices test_audit_summon_links test_build_remaining_summon_notices test_build_summon_notice_repair_pack test_native_notice_costume_bonus test_notice_event_bonuses test_notice_fidelity test_notice_icons test_notice_templates test_rich_notice_content)
+          (cd android/tools && python3 -m unittest test_privacy test_update_apk test_build_info test_master_patch test_assemble_stream test_client_days test_bunker_button test_game_regions test_archive_launcher)
+          (cd web && python3 -m unittest test_build_site)
       - name: Style checks
         continue-on-error: true   # a hint, not a gate
         run: |
@@ -118,6 +119,11 @@ jobs:
           go test ./...
           GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath \
             -ldflags "-s -w -X main.version=$(cat ../VERSION)" -o "../out/Bunker-$(cat ../VERSION).exe" .
+          # Linux: Waydroid when it is installed, else Google's emulator.
+          for arch in amd64:x86_64 arm64:arm64; do
+            GOOS=linux GOARCH=${arch%%:*} CGO_ENABLED=0 go build -trimpath \
+              -ldflags "-s -w -X main.version=$(cat ../VERSION)" -o "../out/Bunker-$(cat ../VERSION)-linux-${arch##*:}" .
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: windows-launcher
@@ -162,7 +168,7 @@ jobs:
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/*.zip dist/*.exe dist/update.json site/bundles/android.zip site/bundles/modmenu.zip site/bundles/fonts-jp.zip site/bundles/fonts-en.zip site/py/sources.zip --title "Bunker $(cat VERSION)" --notes-file dist/notes.md --verify-tag
+        run: gh release create "$GITHUB_REF_NAME" dist/*.zip dist/*.exe dist/Bunker-*-linux-* dist/update.json site/bundles/android.zip site/bundles/modmenu.zip site/bundles/fonts-jp.zip site/bundles/fonts-en.zip site/py/sources.zip --title "Bunker $(cat VERSION)" --notes-file dist/notes.md --verify-tag
 
   publish:
     name: Publish the web builder

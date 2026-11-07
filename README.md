@@ -25,6 +25,11 @@ Run the game and its Lunar Tear server on the same Android phone or tablet. Afte
   - **Editors**: items, costumes, weapons, companions, upgrades, memoirs and more.
   - **Rates**: summon odds (★4/★3, costume and featured shares, the 10-draw guarantee,
     the multi-step boost) and the Global client's Special Gift Roulette chances.
+  - **Mods**: optional changes to how the game plays, all off until you turn them on: free
+    stamina, stamina items and premium tickets that arrive as gold and gems, unlimited restocking
+    shop items, Lost Items that give gems, quest rewards ×2 to ×10, no duplicate ★4 in summons,
+    and summon medals traded for gems. "Comfort" turns them all on. Most come from the
+    [Lunar Tear Comfort Mod](https://github.com/NavHobbyDev/lunar-tear-comfort-mod) by NavHobbyDev.
   - **Display**: frame rate up to the screen's maximum refresh rate, and resolution up to the
     screen's own. Walking and battles keep their normal speed. Experimental: it uses more battery.
     At 120 fps, 1080p is easier on the GPU than the screen's own resolution.

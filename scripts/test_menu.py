@@ -34,7 +34,8 @@ class RootTest(unittest.TestCase):
 
     def test_explains_how_to_get_the_sources(self):
         with mock.patch.dict(os.environ, {"BUNKER_MODMENU": ""}), \
-                mock.patch.object(menu, "DEFAULT_ROOT", Path(self.t.name) / "absent"):
+                mock.patch.object(menu, "DEFAULT_ROOT", Path(self.t.name) / "absent"), \
+                mock.patch.object(menu, "UPSTREAM_ROOT", Path(self.t.name) / "absent"):
             with self.assertRaises(SystemExit) as caught:
                 menu.root()
         self.assertIn("bunker-modmenu", str(caught.exception))

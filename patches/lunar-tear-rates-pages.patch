@@ -1,5 +1,5 @@
 diff --git a/server/internal/service/octo.go b/server/internal/service/octo.go
-index 4742d42..d3aa041 100644
+index 21a7fac..d046f2c 100644
 --- a/server/internal/service/octo.go
 +++ b/server/internal/service/octo.go
 @@ -257,6 +257,12 @@ func (s *OctoHTTPServer) handleAll(w http.ResponseWriter, r *http.Request) {
@@ -15,7 +15,7 @@ index 4742d42..d3aa041 100644
  	// In-game information / news page
  	if strings.Contains(path, "/information") {
  		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-@@ -483,6 +489,16 @@ func (s *OctoHTTPServer) handleWebAPI(w http.ResponseWriter, r *http.Request, pa
+@@ -505,6 +511,16 @@ func (s *OctoHTTPServer) handleWebAPI(w http.ResponseWriter, r *http.Request, pa
  		return
  	}
  
@@ -31,4 +31,4 @@ index 4742d42..d3aa041 100644
 +
  	if strings.Contains(path, "termsofuse") {
  		language := staticPageLanguage(path)
- 		s.serveLocalizedStaticPage(w, "terms", "Terms of Service", language, termsVersionMarker)
+ 		noteTermsHint(r.Header.Get("X-Requested-With"), language)

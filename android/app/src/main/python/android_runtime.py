@@ -11,6 +11,7 @@ import hashlib
 import importlib
 import io
 import json
+import logging
 import os
 from pathlib import Path
 import secrets
@@ -21,11 +22,22 @@ import sys
 import threading
 import time
 
+log = logging.getLogger("bunker.tools")
 _server = None
 _thread = None
 _base_url = ""
 _token = ""
 _native = None
+# The game's texture decoder (bundle, target PNG, longest side) -> "" or an error,
+# set by each platform's start: banner art for the Schedule page's timeline.
+TEXTURE = None
+# configure() points these at the game's files when the Android service starts.
+# The attributes exist from import (None until then), so the web modules and
+# their tests can set them directly.
+from web import config as _web_config  # noqa: E402
+for _name in ("ASSETS_DIR", "RELEASE_DIR", "REVISIONS_DIR"):
+    if not hasattr(_web_config, _name):
+        setattr(_web_config, _name, None)
 _data_root = None
 _asset_root = None
 _report = lambda message: None
@@ -103,6 +115,10 @@ def adapt_services():
     service_control.available = lambda: False
     service_control.unavailable_reason = lambda: "The game is stopped while Tools is open."
     service_control.is_active = lambda: False
+    # Restore is offered while the game runs: restoring is a change the game
+    # guard asks to close the game for (install_game_guard), not a reason to
+    # disable the button because the game's server is listening.
+    backup_service.detect_lunar_tear_running = lambda: ""
     # The desktop tool uses second-resolution filenames, which collide on a
     # fast sequence of edits. Retain every snapshot with microsecond precision.
     # Switching players is backed up like any other edit.
@@ -124,7 +140,7 @@ def adapt_services():
                 pass
         return max(0, len(ordinary) - n)
     backup_service.prune_to_last_n = prune
-    def backup(reason="manual"):
+    def backup(reason="manual", backup_dir=None):
         if reason not in backup_service.VALID_REASONS:
             raise ValueError("Invalid backup reason")
         from web import config
@@ -132,7 +148,12 @@ def adapt_services():
         if not config.GAME_DB_PATH.is_file():
             raise FileNotFoundError("Play the game once to create a save.")
         backup_service.ensure_dirs()
-        dest = config.BACKUP_DIR / ("backup_" + datetime.now().strftime("%Y-%m-%dT%H-%M-%S-%f") + "_" + reason + ".db")
+        dest_dir = config.BACKUP_DIR
+        if backup_dir:
+            p = __import__("pathlib").Path(backup_dir).expanduser()
+            p.mkdir(parents=True, exist_ok=True)
+            dest_dir = p
+        dest = dest_dir / ("backup_" + datetime.now().strftime("%Y-%m-%dT%H-%M-%S-%f") + "_" + reason + ".db")
         with contextlib.closing(sqlite3.connect(f"file:{config.GAME_DB_PATH}?mode=ro", uri=True)) as source:
             with contextlib.closing(sqlite3.connect(dest)) as target:
                 source.backup(target)
@@ -272,18 +293,108 @@ def prepare_data():
     write_json(marker, signature)
 
 
+# Pod Programs opens while the game keeps running. These changes are read by
+# the server or the game later (summon rates and roulette before each draw,
+# mods as each is used,
+# display at the next launch, the timeline's filter, a backup copied with
+# SQLite's online backup), so they need nothing closed.
+LIVE_SAFE = frozenset(("/gacha", "/gacha/roulette", "/gacha/preset", "/mods", "/mods/preset", "/display", "/patcher/calendar/timeline", "/backups/create"))
+# These change what the game reads only as it launches ("Show original dates"
+# resets its own day markers then: GameProcessProvider), so the game is closed
+# first (ServerService.closeGameForTools, or the iOS launcher).
+CLOSES = frozenset(("/patcher/calendar/view", "/patcher/calendar/off"))
+# Any other change edits the save, the master data or the calendar, which the
+# server reads as it starts and the game as it signs in: the server stops for
+# the change and starts again after it (pause_game, resume_game), and the game
+# goes back to its title screen to sign in again (interceptor.ReturnToTitle).
+# The game keeps running throughout.
+CLOSE_MESSAGE = "This change closes the game first. Confirm to close it and continue."
+
+# Set as Pod Programs starts: whether the game and its server are running, a
+# call that stops them, and the two around a change beside the game (each
+# returns "" or an error). Without them, nothing runs.
+game_live = lambda: False
+close_game = lambda: ""
+pause_game = lambda: ""
+resume_game = lambda title=True: ""
+
+
+def changed_game(response):
+    """Whether a change's response may have changed what the game loads.
+    A refusal (4xx or 5xx), a redirect back with an error, or a handler's
+    X-Bunker-Unchanged leaves the save as it was: the server starts again,
+    but the game is not sent back to its title screen."""
+    if response.headers.get("x-bunker-unchanged"):
+        return False
+    if response.status_code >= 400:
+        return False
+    if 300 <= response.status_code < 400 and "error=" in response.headers.get("location", ""):
+        return False
+    return True
+
+
+def next_step():
+    """How a change reaches the game, for the message after it."""
+    if game_live():
+        return "The game returns to its title screen to load it."
+    return "Close Pod Programs and tap Deploy."
+
+
+def install_game_guard(app, live, close, pause=lambda: pause_game(), resume=lambda title=True: resume_game(title)):
+    from fastapi.responses import JSONResponse
+    from starlette.concurrency import run_in_threadpool
+
+    @app.get("/bunker/state")
+    def state():
+        return {"live": bool(live()), "safe": sorted(LIVE_SAFE), "closes": sorted(CLOSES)}
+
+    @app.post("/bunker/close-game")
+    async def close_now():
+        if not live():
+            return {"ok": True}
+        error = await run_in_threadpool(close)
+        if error:
+            return JSONResponse({"ok": False, "error": error}, status_code=500)
+        return {"ok": True}
+
+    @app.middleware("http")
+    async def needs_closed_game(request, call_next):
+        path = request.url.path
+        if request.method in ("GET", "HEAD") or path in LIVE_SAFE or path == "/bunker/close-game" or not live():
+            return await call_next(request)
+        if path in CLOSES:
+            return JSONResponse({"ok": False, "error": CLOSE_MESSAGE, "closeGame": True}, status_code=409)
+        error = await run_in_threadpool(pause)
+        if error:
+            return JSONResponse({"ok": False, "error": error}, status_code=500)
+        title = True  # a handler that fails part-way: the game loads the save again
+        try:
+            response = await call_next(request)
+            title = changed_game(response)
+            return response
+        finally:
+            error = await run_in_threadpool(resume, title)
+            if error:
+                log.warning("The server did not start again beside the game: %s", error)
+
+
 def create_app(token, origin):
     from fastapi.responses import JSONResponse
+    from web import config
     from web.app import create_app as base_app
     from android_patcher import router
     import android_display
+    import android_mods
     import android_players
     app = base_app()
     app.include_router(router)
     import android_calendar
     app.include_router(android_calendar.router)
     app.include_router(android_display.router)
+    app.include_router(android_mods.router)
     android_players.install(app)
+    # Inside the session check below: middleware added later runs first.
+    install_game_guard(app, lambda: game_live(), lambda: close_game())
     serial = asyncio.Lock()
     @app.middleware("http")
     async def private_session(request, call_next):
@@ -311,8 +422,14 @@ def start(data_root, asset_root, tools_root, reporter, region="en"):
     global _server, _thread, _base_url, _token
     if _thread and _thread.is_alive():
         return json.dumps({"url": _base_url, "token": _token})
+    global game_live, close_game, pause_game, resume_game
     from java import jclass
     native = jclass("org.veritr1x.bunker.NativeBridge")
+    service = jclass("org.veritr1x.bunker.ServerService")
+    game_live = lambda: bool(service.gameLive())
+    close_game = lambda: str(service.closeGameForTools())
+    pause_game = lambda: str(service.pauseForTools())
+    resume_game = lambda title=True: str(service.resumeForTools(bool(title)))
     configure(data_root, asset_root, tools_root, native.edit, reporter.report, region)
     prepare_data()
     import uvicorn
@@ -332,6 +449,16 @@ def start(data_root, asset_root, tools_root, reporter, region="en"):
         time.sleep(.02)
     sock.close()
     raise RuntimeError("Tools could not start")
+
+
+def update_data(data_root, asset_root, tools_root, version):
+    """Before the server starts after an update (ServerService): the game data
+    for this build, the calendar's or a preset's (android_patcher.update_for)."""
+    from java import jclass
+    configure(data_root, asset_root, tools_root, jclass("org.veritr1x.bunker.NativeBridge").edit)
+    prepare_data()
+    import android_patcher
+    return android_patcher.update_for(version)
 
 
 def stop():

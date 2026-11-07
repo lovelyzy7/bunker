@@ -49,6 +49,20 @@ def expand(cfg, key, seen=()):
     return value.strip()
 
 
+# Presets choose limited-time events; the patcher expires every event chapter
+# a preset doesn't list. These kinds of chapter are part of the game, not
+# events, and the configuration leaves many out (every Dark Memory and
+# Recollections of Dusk chapter: their menus were empty), so every preset keeps
+# them. EventQuestType: 6 character quests, 7 Dark Memories, 8 the cage,
+# 10 Abyss Towers, 11 Recollections of Dusk, 12 the Labyrinth.
+PERMANENT_EVENT_TYPES = {6, 7, 8, 10, 11, 12}
+
+
+def permanent_chapters():
+    rows = runtime.read_json(config.MASTERDATA_DIR / "EntityMEventQuestChapterTable.json", []) or []
+    return sorted(r["EventQuestChapterId"] for r in rows if isinstance(r, dict) and r.get("EventQuestType") in PERMANENT_EVENT_TYPES)
+
+
 def arguments(preset, cfg):
     if preset not in dict(PRESETS + SPLITS):
         raise ValueError("Unknown preset")
@@ -76,6 +90,9 @@ def arguments(preset, cfg):
             events += ", " + get("EVENTS_" + family.upper() + "_" + index)
             if family == "Rec":
                 shops += ", " + get("SHOPS_EVENT_" + index)
+    permanent = permanent_chapters()
+    if permanent:
+        events = ", ".join(filter(None, [events, ", ".join(str(c) for c in permanent)]))
     return ["--event-quests", events, "--banners", banners, "--premium-shops", get("SHOP_PREM"), "--exchange-shops", shops,
             "--exclude-consumables", get("CONSUMABLES_ALL"), "--rewrite-shop-content", join("SHOPCONTENT_COMP", "SHOPCONTENT_MEDAL"),
             "--rewrite-shop-count", get("SHOPCOUNT"), "--rewrite-shop-type", get("SHOPTYPE")]
@@ -171,16 +188,10 @@ def view(request: Request, message: str = "", error: str = ""):
         "calendar": schedule, "start": start})
 
 
-@router.post("/patcher/apply")
-def apply(preset: str = Form(...), configuration: str = Form("")):
-    import android_calendar as calendar
-    if calendar.read_state():
-        return redirect(error="Switch the calendar off first")
+def apply_preset(preset, cfg):
+    """Builds the master data for a preset from the original and makes it the game's."""
     candidate = folder() / "candidate.bin.e"
     try:
-        cfg = json.loads(configuration) if configuration.strip() else get_config()
-        if not isinstance(cfg, dict):
-            raise ValueError("Configuration must be a JSON object")
         args = arguments(preset, cfg)
         origin = folder() / "origin.bin.e"
         if not origin.exists():
@@ -190,12 +201,58 @@ def apply(preset: str = Form(...), configuration: str = Form("")):
         log = runtime.cli(patch_masterdata, ["--input", origin, "--output", candidate, *args])
         (folder() / "last-patch.log").write_text(log)
         activate(candidate, dict(PRESETS + SPLITS)[preset])
-        runtime.write_json(folder() / "config.json", cfg, indent=2)
-        return redirect(message="Applied. Close Pod Programs and tap Deploy.")
-    except Exception as exc:
-        return redirect(error=str(exc))
     finally:
         candidate.unlink(missing_ok=True)
+
+
+def reapply_preset():
+    """Builds the preset's master data again with this build's patcher when the
+    master data is still what that preset made (active.json). Returns True when it did."""
+    active = runtime.read_json(folder() / "active.json")
+    presets = {label: key for key, label in PRESETS + SPLITS}
+    if not (isinstance(active, dict) and active.get("label") in presets):
+        return False
+    master = config.find_master_data_bin()
+    if not master.is_file() or runtime.fingerprint(master) != active.get("sha256"):
+        return False  # Imported, restored or changed since.
+    apply_preset(presets[active["label"]], get_config())
+    return True
+
+
+def updated_file():
+    """The Bunker version update_for last ran for, beside the save (DataUpdate.java, LunarTools.m read it)."""
+    return config.GAME_DB_PATH.parent / "data.updated"
+
+
+def update_for(version):
+    """Brings the game data up to this build once per Bunker version: the
+    calendar's (android_calendar.read_state) or a preset's (reapply_preset).
+    The launchers call it before the server starts, so an update reaches the
+    game without opening Pod Programs. Returns True when it ran."""
+    import android_calendar as calendar
+    stamp = updated_file()
+    if stamp.exists() and stamp.read_text().strip() == version:
+        return False
+    if not calendar.read_state():
+        reapply_preset()
+    stamp.write_text(version)
+    return True
+
+
+@router.post("/patcher/apply")
+def apply(preset: str = Form(...), configuration: str = Form("")):
+    import android_calendar as calendar
+    if calendar.read_state():
+        return redirect(error="Switch the calendar off first")
+    try:
+        cfg = json.loads(configuration) if configuration.strip() else get_config()
+        if not isinstance(cfg, dict):
+            raise ValueError("Configuration must be a JSON object")
+        apply_preset(preset, cfg)
+        runtime.write_json(folder() / "config.json", cfg, indent=2)
+        return redirect(message="Applied. " + runtime.next_step())
+    except Exception as exc:
+        return redirect(error=str(exc))
 
 
 @router.post("/patcher/restore")
@@ -206,7 +263,7 @@ def restore(filename: str = Form(...)):
     try:
         shutil.copyfile(folder() / filename, candidate)
         activate(candidate, "Restored snapshot")
-        return redirect(message="Master data restored. Close Pod Programs and tap Deploy.")
+        return redirect(message="Master data restored. " + runtime.next_step())
     except Exception as exc:
         return redirect(error=str(exc))
     finally:

@@ -14,6 +14,7 @@ import json
 import os
 from pathlib import Path
 import struct
+from typing import NamedTuple
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import RedirectResponse
@@ -74,7 +75,15 @@ def state_path():
 
 def read_state():
     state = runtime.read_json(state_path())
-    return state if isinstance(state, dict) and state.get("loopStart") else None
+    if not (isinstance(state, dict) and state.get("loopStart")):
+        return None
+    move_next(state)
+    if state.get("dataVersion") != DATA_VERSION:
+        activate_loop(state)
+        state["dataVersion"] = DATA_VERSION
+        write_state(state)
+    refresh_view(state)
+    return state
 
 
 def write_state(state):
@@ -115,6 +124,10 @@ def original(state, game):
     return game - (state["loopStart"] - LAUNCH)
 
 
+# --- Game data ---------------------------------------------------------------
+
+# Runs the final game data lost: a rerun overwrote the original dates, or a
+# finished event was parked in 2030 to 2099 (scripts/calendar_history.py).
 HISTORY = Path(__file__).with_name("calendar_history.json")
 # An event chapter's later runs are copies of its row with these ids, so each
 # run opens in its own weeks: chapter + n * COPY_STEP for the nth later run.
@@ -131,6 +144,19 @@ def history():
         return json.loads(HISTORY.read_text())["tables"]
     except FileNotFoundError:
         return {}
+
+
+# Home banners whose run is not restored: their summon is not listed then
+# (Bunker leaves out summon 9000085; summon 159 is a parked rerun), so the
+# banner would open the Summons screen on another summon.
+UNRESTORED_BANNERS = {274, 365}
+
+
+def history_spec(table, spec):
+    """A table's recorded runs to restore (calendar_history.json)."""
+    if table != "m_mom_banner":
+        return spec
+    return dict(spec, rows={k: v for k, v in spec["rows"].items() if int(k) not in UNRESTORED_BANNERS})
 
 
 def runs(final, lost, keep_runs=False):
@@ -161,8 +187,8 @@ def _rows(blob):
 
 
 def _table(rows):
-    import msgpack
-    header = msgpack.packb(len(rows), use_bin_type=True)
+    total = len(rows)
+    header = bytes([0x90 | total]) if total <= 0x0f else b"\xdc" + struct.pack(">H", total) if total <= 0xffff else b"\xdd" + struct.pack(">I", total)
     return header + b"".join(rows)
 
 
@@ -323,6 +349,7 @@ def restore_history(toc, blob, changed, schemas):
     from patcher import patch_masterdata as pm
     copies, other = {}, {}
     for table, spec in history().items():
+        spec = history_spec(table, spec)
         kept = copies if table == "m_event_quest_chapter" else other if table in COPIED else None
         pm.apply_to_table(toc, blob, changed, table, lambda b, s=spec, t=table, k=kept: restore_runs(b, s, k, table_name=t))
     if copies:
@@ -479,8 +506,6 @@ def open_exchanges(toc, blob, changed, schemas):
     return found
 
 
-# --- Game data ---------------------------------------------------------------
-
 def shift_table(blob, columns, offset):
     """Move every dated int64 cell in columns by offset; far-future dates become NEVER."""
     from patcher.patch_masterdata import read_array_len, skip_msgpack_value
@@ -499,6 +524,93 @@ def shift_table(blob, columns, offset):
             p = skip_msgpack_value(blob, p)
         pos = p
     return moved
+
+
+def cap_table(blob, columns, latest):
+    """Moves every dated int64 cell in columns later than latest back to latest."""
+    from patcher.patch_masterdata import read_array_len, skip_msgpack_value
+    count, pos = read_array_len(blob, 0)
+    for _ in range(count):
+        cells, p = read_array_len(blob, pos)
+        for index in range(cells):
+            if index in columns and blob[p] == 0xd3 and struct.unpack(">q", blob[p + 1:p + 9])[0] > latest:
+                struct.pack_into(">q", blob, p + 1, latest)
+            p = skip_msgpack_value(blob, p)
+        pos = p
+    return 0
+
+
+# Tables the calendar doesn't move are all in the past in a loop's dates (2026
+# on): every character listed, every filter complete. The copy for "Show
+# original dates" (2021 on, view=True) caps their start dates at launch so
+# the game behaves the same: the final game data lists 33 characters (the
+# starting cast among them) only from 2022, and Enhance > Characters was
+# empty. Story chapters (m_main_quest_chapter) keep their dates and open as
+# the calendar reaches them, as in the live game. m_catalog_term keeps its
+# dates too: the server compares it in the live service's dates (summon notices).
+VIEW_FROM_LAUNCH = {
+    "m_character": ("ListSettingDisplayStartDatetime",),
+    "m_list_setting_ability_group": ("ListSettingDisplayStartDatetime",),
+    "m_parts_series": ("ListSettingDisplayStartDatetime",),
+    "m_character_viewer_field": ("PublishDatetime",),
+    "m_costume_lottery_effect_release_schedule": ("ReleaseDatetime",),
+    "m_possession_acquisition_route": ("StartDatetime",),
+    "m_navi_cut_in": ("StartDatetime",),
+    "m_appeal_dialog": ("StartDatetime",),
+    "m_stained_glass": ("EmptyDisplayStartDatetime", "LockDisplayStartDatetime"),
+}
+
+
+def gate_chapters(blob, id_index, column, offset, open_ids):
+    """Story chapters released after launch open on their dates moved by
+    offset; those in open_ids open at the loop's start instead."""
+    from patcher.patch_masterdata import read_array_len, skip_msgpack_value
+    import msgpack
+    count, pos = read_array_len(blob, 0)
+    for _ in range(count):
+        cells, p = read_array_len(blob, pos)
+        chapter, at = None, None
+        for index in range(cells):
+            if index == id_index:
+                end = skip_msgpack_value(blob, p)
+                chapter = msgpack.unpackb(bytes(blob[p:end]))
+            if index == column and blob[p] == 0xd3:
+                at = p
+            p = skip_msgpack_value(blob, p)
+        if at is not None:
+            value = struct.unpack(">q", blob[at + 1:at + 9])[0]
+            if LAUNCH <= value < FOREVER:  # earlier: open from the start
+                struct.pack_into(">q", blob, at + 1, (LAUNCH if chapter in open_ids else value) + offset)
+        pos = p
+    return 0
+
+
+# With the Original calendar story chapters open on their release dates, in
+# the first loop only: from the second the player has been through the story.
+# Chapters the player has reached (a quest cleared in them) stay open.
+def all_chapters():
+    return {r["MainQuestChapterId"] for r in table("MainQuestChapter")}
+
+
+def reached_chapters():
+    """Chapters with a quest any player of this save has cleared."""
+    import sqlite3
+    try:
+        db = sqlite3.connect(f"file:{config.GAME_DB_PATH}?mode=ro", uri=True)
+        try:
+            cleared = {q for (q,) in db.execute("select distinct quest_id from user_quests where clear_count > 0")}
+        finally:
+            db.close()
+    except sqlite3.Error:
+        return set()
+    sequence = {r["QuestId"]: r["MainQuestSequenceId"] for r in table("MainQuestSequence")}
+    group = {r["MainQuestSequenceId"]: r["MainQuestSequenceGroupId"] for r in table("MainQuestSequenceGroup")}
+    chapter = {r["MainQuestSequenceGroupId"]: r["MainQuestChapterId"] for r in table("MainQuestChapter")}
+    return {chapter[group[sequence[q]]] for q in cleared if q in sequence and sequence[q] in group and group[sequence[q]] in chapter}
+
+
+def open_chapters(state):
+    return reached_chapters() if state.get("loop", 1) <= 1 else all_chapters()
 
 
 def read_master(path):
@@ -532,8 +644,10 @@ def _read(toc, blob, changed, schemas, table, *names):
     return out
 
 
-def build_master(origin, output, offset):
-    """Writes origin's game data with rotating content moved forward by offset."""
+def build_master(origin, output, offset, view=False, open_chapters=None):
+    """Writes origin's game data with rotating content moved forward by offset;
+    view: the copy for "Show original dates" (VIEW_FROM_LAUNCH); open_chapters:
+    story chapters open on their dates (moved by offset) except these (None: all open)."""
     import msgpack
     from Crypto.Cipher import AES
     from Crypto.Util.Padding import pad
@@ -553,6 +667,14 @@ def build_master(origin, output, offset):
             continue
         columns = {index for index, kind, name in schemas[table][1] if kind == "long" and "Datetime" in name}
         moved += pm.apply_to_table(toc, blob, changed, table, lambda b: shift_table(b, columns, offset)) or 0
+    if open_chapters is not None and "m_main_quest_chapter" in toc:
+        names = [name for _, _, name in schemas["m_main_quest_chapter"][1]]
+        pm.apply_to_table(toc, blob, changed, "m_main_quest_chapter", lambda b: gate_chapters(
+            b, names.index("MainQuestChapterId"), names.index("StartDatetime"), offset, set(open_chapters)))
+    for table, names in (VIEW_FROM_LAUNCH if view else {}).items():
+        if table in toc and table in schemas:
+            columns = {index for index, kind, name in schemas[table][1] if name in names}
+            pm.apply_to_table(toc, blob, changed, table, lambda b, c=columns: cap_table(b, c, LAUNCH))
     for table, column in pm.EXPIRED_AD_TABLES.items():
         pm.apply_to_table(toc, blob, changed, table, lambda b, c=column: pm.expire_table_end(b, c))
     for table in pm.EMPTY_TABLES:
@@ -579,8 +701,86 @@ def origin_file():
     return origin
 
 
+# The next loop's game data sits beside the master data, where the server
+# looks for it (gametime.NextName): a full path in calendar.json goes stale
+# when iOS moves the app's folder on an update. Not .bin.e, which the tools
+# would take for the master data.
+NEXT_NAME = "calendar-next.bin"
+
+
 def next_file():
+    return config.RELEASE_DIR / NEXT_NAME
+
+
+# "Show original dates": the game is sent its data with no date shift and its
+# clock and times moved back by the loop's offset, so it shows 2021-2024
+# (server: gametime.ViewOffset, service.ViewMasterName). The copy does not
+# depend on the loop, so one serves every loop.
+VIEW_NAME = "calendar-view.bin.e"
+
+
+def view_file():
+    return config.RELEASE_DIR / VIEW_NAME
+
+
+# Bumped when the copy's build changes, so a copy built before is rebuilt
+# (refresh_view): 2 caps start dates at launch (VIEW_FROM_LAUNCH) and opens
+# story chapters on their dates.
+VIEW_VERSION = "2"
+# Bumped when a loop's game data changes, so the loop in use is rebuilt
+# (read_state): 1 opens story chapters on their dates.
+DATA_VERSION = 1
+
+
+def view_version_file():
+    return config.RELEASE_DIR / "calendar-view.version"
+
+
+def view_version(state):
+    """The copy's version: the build's, and first loop or later (story chapters)."""
+    return f"{VIEW_VERSION}:{min(state.get('loop', 1), 2)}"
+
+
+def build_view(state):
+    pending = view_file().with_suffix(".tmp")
+    build_master(origin_file(), pending, 0, view=True, open_chapters=open_chapters(state))
+    os.replace(pending, view_file())
+    view_version_file().write_text(view_version(state))
+
+
+def view_outdated(state):
+    version = view_version_file()
+    return not view_file().exists() or not version.exists() or version.read_text().strip() != view_version(state)
+
+
+def refresh_view(state):
+    """Rebuilds the game's copy for "Show original dates" when it is on and the copy is missing or older."""
+    if state.get("originalDates") and view_outdated(state):
+        build_view(state)
+
+
+def set_original_dates(state, on):
+    """Turns "Show original dates" on or off, building the game's copy when needed."""
+    if on and view_outdated(state):
+        build_view(state)
+    state["originalDates"] = bool(on)
+
+
+def old_next_file():
     return patcher.folder() / "calendar-next.bin.e"
+
+
+def move_next(state):
+    """Moves a calendar started before 1.1.3 to the next loop's new place."""
+    if not state.get("next") or state["next"] == NEXT_NAME:
+        return
+    if old_next_file().exists():
+        if next_file().exists():
+            old_next_file().unlink()
+        else:
+            os.replace(old_next_file(), next_file())
+    state["next"] = NEXT_NAME
+    write_state(state)
 
 
 def label(state):
@@ -590,7 +790,7 @@ def label(state):
 def activate_loop(state):
     candidate = patcher.folder() / "candidate.bin.e"
     try:
-        build_master(origin_file(), candidate, state["loopStart"] - LAUNCH)
+        build_master(origin_file(), candidate, state["loopStart"] - LAUNCH, open_chapters=open_chapters(state))
         patcher.activate(candidate, label(state))
     finally:
         candidate.unlink(missing_ok=True)
@@ -601,7 +801,7 @@ def prepare_next(state):
     pending = next_file().with_suffix(".tmp")
     build_master(origin_file(), pending, state["loopStart"] + LOOP_WEEKS * WEEK - LAUNCH)
     os.replace(pending, next_file())
-    state["next"] = str(next_file())
+    state["next"] = NEXT_NAME
     state["nextLoop"] = state["loop"] + 1
 
 
@@ -631,7 +831,7 @@ def open_at_first_summons(state, real=None):
 
 def new_state(real):
     start = LAUNCH + (real - LAUNCH) // WEEK * WEEK
-    state = {"version": 1, "loop": 1, "loopStart": start, "jumpMillis": 0, "speed": 1, "speedSince": start_of_day(real)}
+    state = {"version": 1, "loop": 1, "loopStart": start, "jumpMillis": 0, "speed": 1, "speedSince": start_of_day(real), "dataVersion": DATA_VERSION}
     open_at_first_summons(state, real)
     return state
 
@@ -655,6 +855,9 @@ def turn_on(real=None):
 def turn_off():
     state_path().unlink(missing_ok=True)
     next_file().unlink(missing_ok=True)
+    view_file().unlink(missing_ok=True)
+    view_version_file().unlink(missing_ok=True)
+    old_next_file().unlink(missing_ok=True)
 
 
 def set_speed(state, speed, real=None):
@@ -688,12 +891,34 @@ def names(kind):
     return {r["id"]: r["name"] for r in data.get("records", []) if isinstance(r, dict) and r.get("name_found") and isinstance(r.get("id"), int)}
 
 
+class Entry(NamedTuple):
+    """Dated content: its kind and name, when it is open, the Archive page it
+    links to (or "") and its banner art's bundle path (or "")."""
+    kind: str
+    name: str | None
+    start: int
+    end: int
+    ref: str = ""
+    art: str = ""
+
+
+def summon_art(asset):
+    return f"ui/gacha/en/{asset}/mom_banner.assetbundle" if asset else ""
+
+
 def entries():
-    """Dated content the Schedule page lists: (kind, name, start, end)."""
+    """Dated content the Schedule page lists (Entry)."""
     found = []
     event_names = names("event_quests")
+    # The loop's game data already holds every run the history restored, each
+    # as its own row with its dates moved into the loop (restore_history,
+    # build_master); the history's original dates are not this loop's.
     for row in table("EventQuestChapter"):
-        found.append(("event", event_names.get(row["EventQuestChapterId"]), row["StartDatetime"], row["EndDatetime"]))
+        # A rerun's copy (chapter + n * COPY_STEP) is the same event in the Archive.
+        banner = row.get("BannerAssetId", 0)
+        found.append(Entry("event", event_names.get(row["EventQuestChapterId"]), row["StartDatetime"], row["EndDatetime"],
+                           f"/schedule/event/{row['EventQuestChapterId'] % COPY_STEP}",
+                           f"ui/quest/en/banner/event_banner_{banner:03d}.assetbundle" if banner else ""))
     banner_names = names("gacha_banners")
     # The summons the server offers (server/internal/masterdata/gacha.go):
     # those with a medal, summons sharing a known medal, and the special
@@ -707,11 +932,13 @@ def entries():
             # Only placeholder rows: the dates come from the medal (see parkedReruns).
             parked.add(gacha)
             convert = medals[gacha]["AutoConvertDatetime"]
-            found.append(("summon", banner_names.get(row["MomBannerId"]) or ART_TITLES.get(row["BannerAssetName"]), convert - PARKED_RERUNS[gacha], convert - 2 * DAY))
+            found.append(Entry("summon", banner_names.get(row["MomBannerId"]) or ART_TITLES.get(row["BannerAssetName"]), convert - PARKED_RERUNS[gacha], convert - 2 * DAY,
+                               f"/schedule/summon/{gacha}", summon_art(row["BannerAssetName"])))
     for row in table("MomBanner"):
         if row["DestinationDomainType"] == 1 and row["DestinationDomainId"] in offered and row["DestinationDomainId"] not in PARKED_RERUNS:
             # Some titles are only in the banner art (ART_TITLES).
-            found.append(("summon", banner_names.get(row["MomBannerId"]) or ART_TITLES.get(row["BannerAssetName"]), row["StartDatetime"], row["EndDatetime"]))
+            found.append(Entry("summon", banner_names.get(row["MomBannerId"]) or ART_TITLES.get(row["BannerAssetName"]), row["StartDatetime"], row["EndDatetime"],
+                               f"/schedule/summon/{row['DestinationDomainId']}", summon_art(row["BannerAssetName"])))
     # Summons with a medal but no banner row (server: bannerlessSummons).
     with_banner = {row["DestinationDomainId"] for row in table("MomBanner") if row["DestinationDomainType"] == 1}
     opens = shop_opens_by_price()
@@ -725,22 +952,22 @@ def entries():
         label = shard[shard.find("(") + 1:shard.rfind(")")] if "(" in shard else ""
         if label and "summons" not in label.lower():
             label += " Summons"
-        found.append(("summon", label or None, start, end))
+        found.append(Entry("summon", label or None, start, end, f"/schedule/summon/{gacha}"))
     shop_names = names("shops")
     for row in table("Shop"):
         if row["ShopGroupType"] == 4:
-            found.append(("shop", shop_names.get(row["ShopId"]), row["StartDatetime"], row["EndDatetime"]))
+            found.append(Entry("shop", shop_names.get(row["ShopId"]), row["StartDatetime"], row["EndDatetime"]))
     for row in table("PvpSeason"):
         if not row.get("IsInvalid"):
-            found.append(("arena", f"Arena Season {row['PvpSeasonId'] % 1000:03d}", row["SeasonStartDatetime"], row["SeasonEndDatetime"]))
+            found.append(Entry("arena", f"Arena Season {row['PvpSeasonId'] % 1000:03d}", row["SeasonStartDatetime"], row["SeasonEndDatetime"]))
     for index, row in enumerate(sorted(table("MissionPass"), key=lambda r: r["StartDatetime"]), 1):
-        found.append(("pass", f"Mission pass, month {index}", row["StartDatetime"], row["EndDatetime"]))
+        found.append(Entry("pass", f"Mission pass, month {index}", row["StartDatetime"], row["EndDatetime"]))
     for row in table("BigHuntSchedule"):
-        found.append(("hunt", f"Subjugation Battle {row['BigHuntScheduleId']}", row["ChallengeStartDatetime"], row["ChallengeEndDatetime"]))
+        found.append(Entry("hunt", f"Subjugation Battle {row['BigHuntScheduleId']}", row["ChallengeStartDatetime"], row["ChallengeEndDatetime"]))
     for row in table("EnhanceCampaign") + table("QuestCampaign"):
-        found.append(("campaign", "", row["StartDatetime"], row["EndDatetime"]))
+        found.append(Entry("campaign", "", row["StartDatetime"], row["EndDatetime"]))
     for row in table("ConsumableItemTerm"):
-        found.append(("expiry", "", row["StartDatetime"], row["EndDatetime"]))
+        found.append(Entry("expiry", "", row["StartDatetime"], row["EndDatetime"]))
     # Content that never ends after release is part of the game, not the calendar.
     return [e for e in found if e[2] < NEVER and e[3] < NEVER and e[2] < e[3]]
 
@@ -761,11 +988,14 @@ def shop_opens_by_price():
 
 
 def day_label(ms):
-    return datetime.fromtimestamp(ms / 1000, timezone.utc).strftime("%a %-d %b %Y")
+    # "%-d" is glibc-only: Windows and the browser build crash on it.
+    moment = datetime.fromtimestamp(ms / 1000, timezone.utc)
+    return f"{moment.strftime('%a')} {moment.day} {moment.strftime('%b %Y')}"
 
 
 def short_label(ms):
-    return datetime.fromtimestamp(ms / 1000, timezone.utc).strftime("%a %-d %b")
+    moment = datetime.fromtimestamp(ms / 1000, timezone.utc)
+    return f"{moment.strftime('%a')} {moment.day} {moment.strftime('%b')}"
 
 
 def open_at(items, at):
@@ -778,7 +1008,7 @@ OTHER = {"event": "other event", "summon": "other summon", "shop": "other shop"}
 def summary(items, at):
     """Open content by kind, soonest to close first; unnamed entries are counted in one line."""
     groups, unnamed = {}, {}
-    for kind, name, start, end in sorted(open_at(items, at), key=lambda e: e[3]):
+    for kind, name, start, end, *_ in sorted(open_at(items, at), key=lambda e: e[3]):
         if name or kind in ("campaign", "expiry"):
             groups.setdefault(kind, []).append({"name": name, "until": short_label(end - 1)})
         else:
@@ -788,10 +1018,50 @@ def summary(items, at):
     return groups
 
 
+# The Schedule page's timeline: from a week back to three months ahead (or
+# the loop's end), and what ends within a week. Times are in the dates the
+# game shows; the page draws them in the phone's local time.
+TIMELINE_KINDS = (("summon", "Summons"), ("event", "Events"), ("shop", "Shops"), ("arena", "Arena"))
+TIMELINE_BEFORE, TIMELINE_AFTER, ENDING_SOON = 7 * DAY, 92 * DAY, 7 * DAY
+
+
+def timeline(state, items, now):
+    """Rows of the summons, events, shops and Arena seasons in the window, and those ending soon."""
+    from urllib.parse import quote
+    start, end = now - TIMELINE_BEFORE, min(now + TIMELINE_AFTER, loop_end(state))
+    shift = state["loopStart"] - LAUNCH if state.get("originalDates") else 0
+    labels = dict(TIMELINE_KINDS)
+
+    def item(e):
+        # Ends after the loop are the game data's placeholders for content that stays: no end.
+        return {"kind": e.kind, "name": e.name or labels[e.kind].removesuffix("s"), "start": e.start - shift,
+                "end": e.end - shift if e.end <= loop_end(state) else None, "ref": e.ref,
+                "art": "/patcher/calendar/art?path=" + quote(e.art, safe="/") if e.art else ""}
+    shown = sorted((e for e in items if e.kind in labels and e.start < end and e.end > start), key=lambda e: (e.start, e.end))
+    soon = sorted((e for e in shown if e.start <= now < e.end <= now + ENDING_SOON), key=lambda e: e.end)
+    return {"now": now - shift, "from": start - shift, "to": end - shift, "soon": [item(e) for e in soon],
+            "rows": [{"kind": kind, "label": label, "items": [item(e) for e in shown if e.kind == kind]} for kind, label in TIMELINE_KINDS]}
+
+
+def timeline_file():
+    return config.DATA_DIR / "timeline.json"
+
+
+def timeline_hidden():
+    """The timeline rows the player hid. Kept here, not in the page: iOS keeps no page storage between sessions."""
+    data = runtime.read_json(timeline_file(), {})
+    hidden = data.get("hidden", []) if isinstance(data, dict) else []
+    return [k for k in hidden if k in dict(TIMELINE_KINDS)] if isinstance(hidden, list) else []
+
+
+def set_timeline_hidden(kinds):
+    runtime.write_json(timeline_file(), {"hidden": [k for k in kinds if k in dict(TIMELINE_KINDS)]})
+
+
 def updates(state, items, after):
     """Days in the rest of the loop when new events or summons open, named by their first event."""
     days = {}
-    for kind, name, start, end in sorted(items, key=lambda e: (e[2], e[0] != "event")):
+    for kind, name, start, end, *_ in sorted(items, key=lambda e: (e[2], e[0] != "event")):
         if kind in ("event", "summon") and after < start < loop_end(state):
             day = days.setdefault(start_of_day(start), {"at": start, "names": [], "count": 0})
             day["count"] += 1
@@ -801,11 +1071,21 @@ def updates(state, items, after):
              "more": v["count"] - 1, "all": " ".join(v["names"])} for k, v in sorted(days.items())]
 
 
+# What a jump skips, by kind, in the order the Jump to page lists them.
+MISSED_NAMES = (("event", "event", "events"), ("summon", "summon", "summons"), ("shop", "shop", "shops"),
+                ("arena", "Arena season", "Arena seasons"), ("pass", "monthly pass", "monthly passes"))
+
+
+def missed_text(missed):
+    """preview's missed counts as text: "10 events, 1 Arena season"."""
+    return ", ".join(f"{missed[kind]} {one if missed[kind] == 1 else many}" for kind, one, many in MISSED_NAMES if missed.get(kind))
+
+
 def preview(state, items, now, target):
     """What a jump from now to target opens, still pays out, and skips."""
     arrive = now + -(-(target - now) // DAY) * DAY
     paid, missed = [], {}
-    for kind, name, start, end in items:
+    for kind, name, start, end, *_ in items:
         if not now < end <= arrive:
             continue
         if start <= now and kind in ("arena", "pass"):
@@ -813,7 +1093,8 @@ def preview(state, items, now, target):
         elif start > now and kind in ("event", "summon", "shop", "arena", "pass"):
             missed[kind] = missed.get(kind, 0) + 1
     return {"arrive": arrive, "day": day_label(arrive), "original": day_label(original(state, arrive)), "week": week_of(state, arrive),
-            "days": (arrive - now) // DAY, "open": summary(items, arrive), "paid": paid, "missed": missed}
+            "days": (arrive - now) // DAY, "open": summary(items, arrive), "paid": paid, "missed": missed,
+            "missedText": missed_text(missed)}
 
 
 # --- Pages -------------------------------------------------------------------
@@ -826,17 +1107,21 @@ def redirect(path="/patcher", **kwargs):
 def context(state):
     now = game_now(state)
     items = entries()
+    shown = original(state, now) if state.get("originalDates") else now
     return {"state": state, "loop": state["loop"], "week": week_of(state, now), "weeks": LOOP_WEEKS,
             "progress": round(100 * (now - state["loopStart"]) / (LOOP_WEEKS * WEEK), 1),
-            "today": day_label(now), "original": day_label(original(state, now)), "ends": day_label(loop_end(state)),
-            "speed": str(state.get("speed", 1)), "speeds": SPEEDS, "open": summary(items, now), "now": now}
+            "today": day_label(shown), "originalDates": bool(state.get("originalDates")), "original": day_label(original(state, now)), "ends": day_label(loop_end(state)),
+            "speed": str(state.get("speed", 1)), "speeds": SPEEDS, "now": now,
+            # patcher.html's "Open now" panel reads calendar.open (kind -> entries).
+            "open": summary(items, now),
+            "timeline": dict(timeline(state, items, now), hidden=timeline_hidden())}
 
 
 @router.post("/patcher/calendar/on")
 def calendar_on():
     try:
         turn_on()
-        return redirect(message="Calendar on. Close Pod Programs and tap Deploy.")
+        return redirect(message="Calendar on. " + runtime.next_step())
     except Exception as exc:
         return redirect(error=str(exc))
 
@@ -855,7 +1140,59 @@ def calendar_speed(speed: str = Form(...)):
     try:
         set_speed(state, speed)
         write_state(state)
-        return redirect(message="Speed saved. Close Pod Programs and tap Deploy.")
+        return redirect(message="Speed saved. " + runtime.next_step())
+    except Exception as exc:
+        return redirect(error=str(exc))
+
+
+# Banner art for the timeline, decoded from the game files with the same
+# decoder the Archive uses, into Pod Programs' own folder: the Archive runs in
+# another process and clears its older images.
+_art = {}
+
+
+def art_file(path):
+    """The banner art PNG for a bundle path; FileNotFoundError when there is none."""
+    from archive.media import Textures
+    from android_archive import revision_root
+    if not runtime.TEXTURE:
+        raise FileNotFoundError(path)
+    key = (str(config.ASSETS_DIR), str(config.DATA_DIR), runtime.TEXTURE)
+    if key not in _art:
+        _art.clear()
+        _art[key] = Textures(revision_root(config.ASSETS_DIR.parent) / "assetbundle", config.DATA_DIR / "art", runtime.TEXTURE)
+    try:
+        return _art[key].png(path, "thumb")
+    except ValueError as exc:
+        raise FileNotFoundError(path) from exc
+
+
+@router.get("/patcher/calendar/art")
+def calendar_art(path: str):
+    from fastapi import HTTPException
+    from fastapi.responses import FileResponse
+    try:
+        return FileResponse(art_file(path), media_type="image/png", headers={"Cache-Control": "private, max-age=86400"})
+    except FileNotFoundError:
+        raise HTTPException(404)
+
+
+@router.post("/patcher/calendar/timeline")
+def calendar_timeline(hidden: str = Form("")):
+    from fastapi import Response
+    set_timeline_hidden([k for k in hidden.split(",") if k])
+    return Response(status_code=204)
+
+
+@router.post("/patcher/calendar/view")
+def calendar_view(on: str = Form("")):
+    state = read_state()
+    if not state:
+        return redirect(error="The calendar is off")
+    try:
+        set_original_dates(state, on == "1")
+        write_state(state)
+        return redirect(message="Saved. Close Pod Programs and tap Deploy.")
     except Exception as exc:
         return redirect(error=str(exc))
 
@@ -868,7 +1205,7 @@ def calendar_jump(target: int = Form(...)):
     try:
         jump(state, target)
         write_state(state)
-        return redirect(message=f"Moved to week {week_of(state, game_now(state))}. Close Pod Programs and tap Deploy.")
+        return redirect(message=f"Moved to week {week_of(state, game_now(state))}. " + runtime.next_step())
     except Exception as exc:
         return redirect(error=str(exc))
 

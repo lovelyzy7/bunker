@@ -4,6 +4,84 @@ What changed in Bunker, newest first. Each day lists its changes by area.
 Commit ids are in brackets. Each release's heading sits above the dated
 sections it contains; its notes run down to the previous release.
 
+## Unreleased (content ported from upstream 1.9.0)
+
+Mods and changes that reach the running game. Pod Programs has a Mods
+program: free stamina, stamina items as gold, premium tickets as gems,
+shop items that never run out, Lost Items that give gems, quest rewards ×2
+to ×10, no duplicate ★4 and summon medals traded for gems, each off until
+you turn it on, with Original and Comfort presets (most from the Lunar Tear
+Comfort Mod by NavHobbyDev, MIT). A change to the save, the players, the
+master data or the calendar no longer closes the game: Lunar Tear restarts
+around it and the game goes straight back to its title screen to load it.
+The Bunker menu fits a phone or tablet on its side. Busy screens such as
+Quests and Summons run faster at 60 and 120 fps. Coffin of Repose and
+Rhythm's Citadel medals can be spent, and an edited save no longer drops
+back to level 1. (The upstream release also covers iOS; this fork has no
+iOS build and those parts are not ported. The release number of this fork's
+next build is set at release time.)
+
+### Bunker menu
+- Landscape on a phone: System on the left; Play and a Programs panel on
+  the right, with Pod Programs and Archive as rows that say what each
+  holds. Everything fits on one screen, Deploy included. A tablet on its
+  side gets the same two columns with the full top bar; portrait is
+  unchanged. [b538fa4]
+
+### Game
+- The in-game Bunker button no longer slows busy screens: each of the
+  game's two headers keeps its own row state [0c72350], and the counters
+  are looked for under the heads-up display instead of the whole interface
+  [88c928f].
+- Above 30 fps, campaign badges ("Left: 999d") set their remaining time
+  once a second instead of every frame. [a90b04a]
+- A header or campaign badge the game makes where a destroyed one was is
+  set up as new instead of taking the destroyed one's state: the Notices
+  button or label recognises it. [160582d]
+
+### Pod Programs
+- After a change beside the running game, the game goes back to its title
+  screen at once instead of on its next call: Lunar Tear writes
+  saves/title.now and the game shows its own "Returning to title screen."
+  dialog (ErrorHandlingInterceptor.MoveTitleError) outside battles.
+  [9fea028]
+- A change that was refused, sent back with an error or changed nothing
+  (choosing the player already in use) no longer sends the game to its
+  title screen; Lunar Tear still starts again. [ea82989]
+- Two changes in a row no longer close the game: the launcher's own check
+  as Lunar Tear started again was taken for the game's next call and
+  failed. [1c8737f]
+- When the save backup before a change fails and Lunar Tear then cannot
+  start again, the game is closed instead of being left without a server.
+  [ea82989]
+- Landscape on a phone: the top bar shrinks to one short line and the tabs
+  move to a column on the left, so a page shows its content instead of a
+  strip under the tabs. Tablets and unfolded phones keep the tabs on top;
+  portrait is unchanged. [851da47]
+
+### Server
+- Tables built from the master data are built again when Lunar Tear starts
+  again in the same process, and on the desktop admin's reload
+  (bunkercache instead of sync.OnceValue). [b607091, 97135ff]
+- Mods: a gift that arrives as something else (a premium ticket as gems) is
+  checked against the limit of what arrives, not the ticket's. [4cd5f74]
+  mods.json is looked at once a second at most instead of for every item
+  granted. [1cd99ff]
+- Coffin of Repose and Rhythm's Citadel medals can be spent: drops arrive
+  as the medal their exchange takes, and medals already held are turned
+  into it, one for one. [bc8f5ca]
+- The player level no longer falls back when exp is added to a save whose
+  level is higher than its exp. [ac954a3]
+
+### Mods
+- Pod Programs has a Mods program: changes to how the game plays, for the
+  whole device, each off until you turn it on (see the summary above).
+  Presets: Original (every mod off) and Comfort (every mod on, ×10).
+  Changes apply without a restart, also while the game runs. Most mods
+  come from the Lunar Tear Comfort Mod by NavHobbyDev (MIT). [2160919,
+  86aa0f4] Each mod's description no longer ends with when it applies.
+  [821b8cd]
+
 ## 1.4.11 (2026-11-02)
 
 The installed APK names itself: the installer's version line reads

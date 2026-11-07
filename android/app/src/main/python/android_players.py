@@ -14,6 +14,7 @@ from urllib.parse import urlencode
 from fastapi import APIRouter
 from fastapi.responses import RedirectResponse
 
+import android_runtime as runtime
 from web import config
 
 router = APIRouter()
@@ -109,8 +110,10 @@ def use(user_id: int):
     except Exception as exc:
         return _back(user_id, error=str(exc))
     if not changed:
-        return _back(user_id, message="The game already plays as this player.")
-    return _back(user_id, message="The game will play as this player. Close Pod Programs and tap Deploy.")
+        response = _back(user_id, message="The game already plays as this player.")
+        response.headers["X-Bunker-Unchanged"] = "1"
+        return response
+    return _back(user_id, message="The game will play as this player. " + runtime.next_step())
 
 
 @router.post("/users/new")
@@ -122,7 +125,7 @@ def new():
         kept = new_player(backup=backup_service.create_backup)
     except Exception as exc:
         return RedirectResponse("/users?" + urlencode({"error": str(exc)}), status_code=303)
-    message = "The game will start a new player. Close Pod Programs and tap Deploy."
+    message = "The game will start a new player. " + runtime.next_step()
     if kept:
         message += f" Player {kept} is kept; choose it here to go back."
     return RedirectResponse("/users?" + urlencode({"message": message}), status_code=303)

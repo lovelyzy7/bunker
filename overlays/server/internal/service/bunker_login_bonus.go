@@ -3,8 +3,8 @@ package service
 import (
 	"log"
 	"sort"
-	"sync"
 
+	"lunar-tear/server/internal/bunkercache"
 	"lunar-tear/server/internal/gametime"
 	"lunar-tear/server/internal/masterdata"
 	"lunar-tear/server/internal/store"
@@ -21,7 +21,7 @@ import (
 // Only with the Original calendar: with everything open, the patched game
 // data keeps every card open forever, which would stamp all of them each day.
 
-var loginBonuses = sync.OnceValue(func() []masterdata.EntityMLoginBonus {
+var loginBonuses = bunkercache.Value(func() []masterdata.EntityMLoginBonus {
 	rows := table[masterdata.EntityMLoginBonus]("m_login_bonus")
 	sort.Slice(rows, func(i, j int) bool { return rows[i].LoginBonusId < rows[j].LoginBonusId })
 	return rows
@@ -46,13 +46,15 @@ func openEventLoginBonuses(u *store.UserState, now int64) []masterdata.EntityMLo
 
 // stampEventLoginBonuses stamps each open dated card once for the game day.
 func stampEventLoginBonuses(catalog *masterdata.LoginBonusCatalog, u *store.UserState, now int64) {
-	today := gametime.StartOfDay(now)
 	for _, b := range openEventLoginBonuses(u, now) {
 		st, ok := u.Ext.EventLoginBonuses[b.LoginBonusId]
 		if !ok {
 			st = store.UserLoginBonusState{LoginBonusId: b.LoginBonusId, CurrentPageNumber: 1}
 		}
-		if st.LatestRewardReceiveDatetime >= today {
+		// One stamp per game day: compare days, not `>= today` — a stamp time
+		// in the game clock's future (a real-time save or RewindLoop leftover)
+		// would otherwise block every later day.
+		if gametime.SameDay(st.LatestRewardReceiveDatetime, now) {
 			continue
 		}
 		page, stamp, reward, err := resolveNextStamp(catalog, st)

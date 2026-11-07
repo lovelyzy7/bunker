@@ -173,7 +173,7 @@ func TestBattle(t *testing.T) {
 func TestWeekAndDefense(t *testing.T) {
 	c, u := realSave(t)
 	monday := mondayOf(seasonTime(c)) // weeks start Monday 00:00 GMT-8
-	now := monday + 3*24*3600*1000                                          // a Thursday
+	now := monday + 3*24*3600*1000    // a Thursday
 	season, ladder, ok := c.Sync(&u, now)
 	if !ok {
 		t.Fatal("no season open")

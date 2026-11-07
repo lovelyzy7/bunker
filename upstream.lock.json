@@ -1,5 +1,5 @@
 {
-  "lunar-tear": "3a8c5f1c8c9f6a987de32b03b5a940d12e7ded5f",
+  "lunar-tear": "e0643858d4d2c849789e0f97512b5ed554243a0b",
   "lunar-base": "b88ffa2ab4a36895b75a827b8c89020eee2a1b81",
   "bunker-modmenu": "4b72e3a4050c649ae476a39cf120c45dec5f015c",
   "lunar-tear-masterdata-patcher": "9b6cd167b51dd3b84be200faf92877b4408c1901",
@@ -31,6 +31,6 @@
       "sha256": "e020f0e068961e166bf38421e9c3b377fe37d62152812d0f109a69884831f1a3"
     },
     "note": "转正 submodule（双钉：gitlink commit pin + 契约摘要 pin，prepare 两者皆验）。本地开发位可用目录联接，联接目标 HEAD 须等于 commit。",
-    "commit": "b989186fe21b57ec0887c1eed7090e62b561f30a"
+    "commit": "c92a13bc3caee82e6e4e179ab37229b4f24d85b1"
   }
 }
