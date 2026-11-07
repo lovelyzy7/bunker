@@ -4,7 +4,9 @@ What changed in Bunker, newest first. Each day lists its changes by area.
 Commit ids are in brackets. Each release's heading sits above the dated
 sections it contains; its notes run down to the previous release.
 
-## Unreleased (content ported from upstream 1.9.0)
+## 1.5.0 (2026-11-07)
+
+Content ported from upstream 1.9.0.
 
 Mods and changes that reach the running game. Pod Programs has a Mods
 program: free stamina, stamina items as gold, premium tickets as gems,
