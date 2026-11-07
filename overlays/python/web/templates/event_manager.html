@@ -196,7 +196,7 @@
     if (SERVER_PLATFORM && SERVER_PLATFORM.startsWith("win")) {
       pathHint.textContent = I18N.t("events.path_hint_win", "Server OS: Windows — both \"C:\\...\" and \"/C:/...\" style paths are accepted.");
     } else {
-      pathHint.textContent = I18N.t("events.path_hint_linux", "Server OS: Linux (WSL) — Windows drive paths (e.g. D:\\folder) are mapped to /mnt/d/folder automatically.");
+      pathHint.textContent = I18N.t("events.path_hint_linux", "Select the output directory for the rebuilt bin.e.");
     }
   }
   renderPathHint();

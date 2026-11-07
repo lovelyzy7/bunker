@@ -2,8 +2,13 @@ diff --git a/server/internal/service/data.go b/server/internal/service/data.go
 index aa83202..b990c6b 100644
 --- a/server/internal/service/data.go
 +++ b/server/internal/service/data.go
-@@ -27,12 +27,21 @@ func envOr(key, def string) string {
+@@ -27,12 +27,26 @@ func envOr(key, def string) string {
  
++var (
++	masterDataBinPath     = envOr("LUNAR_MASTERDATA", "assets/release/20240404193219.bin.e")
++	masterDataBaseVersion = envOr("LUNAR_MASTERDATA_VERSION", "20240404193219")
++)
++
  type DataServiceServer struct {
  	pb.UnimplementedDataServiceServer
 -	users    store.UserRepository
