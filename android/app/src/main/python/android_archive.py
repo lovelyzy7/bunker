@@ -33,7 +33,11 @@ def revision_root(asset_root: Path) -> Path:
 def packaged(name: str) -> Path:
     """A bundled package's folder. Chaquopy unpacks templates and styles on first import, so import first."""
     import importlib
-    return Path(importlib.import_module(name).__file__).resolve().parent
+    try:
+        return Path(importlib.import_module(name).__file__).resolve().parent
+    except ModuleNotFoundError:
+        # 测试/桌面环境（CI 的 android/tools 目录）导入面不全时取本模块旁的同名目录。
+        return Path(__file__).resolve().parent / name
 
 
 def android_converters():
