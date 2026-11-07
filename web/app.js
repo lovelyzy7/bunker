@@ -525,25 +525,6 @@ function warmUp() {
 $("game").addEventListener("change", update);
 $("master").addEventListener("change", update);
 
-// The download self-check: a download that died halfway leaves a "pending"
-// MediaStore item, and the installer answers “There was a problem parsing the
-// package” for it. Picking the saved file back compares its size with the
-// product's, so “corrupt” becomes “incomplete — download again” in one step.
-const verifyFile = $("verify-file");
-if (verifyFile) verifyFile.addEventListener("change", async () => {
-  const file = verifyFile.files[0], out = $("verify-result");
-  if (!file || !expected) return;
-  if (file.size !== expected.size) {
-    out.textContent = `\u2717 ${tr("Incomplete download")} (${file.size} / ${expected.size} B) \u00b7 ${tr("Please download again.")}`;
-    return;
-  }
-  out.textContent = `\u2713 ${tr("Size matches")} (${file.size} B)`;
-  try {
-    const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
-    const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
-    out.textContent += ` \u00b7 ${hex.slice(0, 16)}\u2026`;
-  } catch (error) { /* out of memory on a phone: the size check already passed */ }
-});
 $("proxy-url").addEventListener("input", () => { syncSource(); warmUp(); });
 for (const radio of document.querySelectorAll('input[name="launcher-source"]')) {
   radio.addEventListener("change", () => { syncSource(); warmUp(); });
@@ -619,22 +600,7 @@ worker.onmessage = ({ data }) => {
       navigator.serviceWorker.addEventListener("message", onReady);
       navigator.serviceWorker.controller.postMessage({ type: "bunker-product", token, name, blob });
     }
-    // Second channel: the share sheet. The download manager is the weakest link
-    // on phones (and in Incognito it is weaker still — a stalled download leaves
-    // a "pending" item the installer calls a corrupt package). Handing the file
-    // to the share sheet reaches "save to files" or the installer directly.
-    const share = $("share");
-    if (share) {
-      const file = new File([blob], name, { type: "application/vnd.android.package-archive" });
-      const usable = !!(navigator.share && navigator.canShare && navigator.canShare({ files: [file] }));
-      share.hidden = !usable;
-      share.onclick = usable ? () => {
-        navigator.share({ files: [file], title: name }).catch(() => {});
-      } : null;
-    }
     fillResult(data.value);
-    const verifyBox = $("verify-box");
-    if (verifyBox) verifyBox.hidden = false;
 
     $("result").style.display = "block";
     building = false;
@@ -645,7 +611,7 @@ worker.onmessage = ({ data }) => {
     // The finished APK is hundreds of megabytes held by this page, and on a
     // phone that memory is reclaimed within minutes — a download started late
     // dies halfway and the installer calls the pending file a corrupt package.
-    // Start the save at once; the link and the share sheet stay for a retry.
+    // Start the save at once; the link stays for a retry.
     setTimeout(() => { try { $("download").click(); } catch (error) {} }, 400);
   }
 };
