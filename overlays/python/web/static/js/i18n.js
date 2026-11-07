@@ -55,19 +55,6 @@
     "em.section_shops": "商店",
     "em.section_banners": "卡池",
     "em.section_missions": "任务",
-    // ---- 模组 (mods) ----
-    "nav.mods": "模组",
-    "status.tile_mods": "舒适性改动，默认关闭",
-    "mods.title": "模组",
-    "mods.intro": "改变游戏玩法，对本机所有玩家生效。每项模组默认为关；再关掉即回到原版游戏。模组从不自行改动存档，关掉后存档保持模组留下的样子，且改动无需重启即生效。",
-    "mods.preset": "预设",
-    "mods.use_preset": "使用预设",
-    "mods.current": "当前：按下方自选模组组合。",
-    "mods.save": "保存",
-    "mods.saved": "已保存。各模组按其说明生效，无需重启。",
-    "mods.credit": "多数模组来自 ",
-    "mods.credit_link": "Lunar Tear Comfort Mod",
-    "mods.credit_tail": "（NavHobbyDev，MIT）。",
     // ---- base / nav ----
     "nav.status": "状态",
     "nav.users": "用户",
@@ -598,7 +585,7 @@
     "events.title": "管理 — 活动",
     "events.out_path": "存放路径",
     "events.out_ph": "默认：服务器 release 目录",
-    "events.out_hint": "生成的 bin.e 存放目录（不存在会自动创建）。必须先选择路径，否则「应用」和「保存顺序」保持禁用。",
+    "events.out_hint": "默认落点 = server/assets/release/（自动检测）。此处可覆写输出目录。",
     "events.use_default": "使用默认",
     "events.bin_pick": "启用 bin.e 文件",
     "events.bin_hint": "列出所有名称含 <code>bin.e</code> 的文件：bin、<code>.bak</code> 备份、以及被移开的 <code>.old.&lt;时间戳&gt;</code> 旧文件。选中后自动改名为 <code>20240404193219.bin.e</code>，旧激活 bin 会以<strong>所选文件的完整名字 + <code>.old.&lt;时间戳&gt;</code></strong> 移开在最后（例如激活 <code>20240404193219.bin.e.abyss-tower.bak</code> 时，旧 bin 保存为 <code>20240404193219.bin.e.abyss-tower.bak.old.20260824-123456</code>）。选择 <code>.bak</code> 或 <code>.old.&lt;时间戳&gt;</code> 文件可回滚到该版本。",
@@ -621,7 +608,7 @@
     "events.pending": "无待应用更改",
     "events.pending_n": "有 {{n}} 项待应用更改 — 尚未应用",
     "events.reset": "重置",
-    "events.apply": "应用并重建",
+    "events.apply": "应用",
     "events.rebuilding": "重建中...",
     "events.search": "按名称或ID搜索{{label}}...",
     "events.check_all": "全选",
@@ -633,10 +620,11 @@
     "events.no_tables": "未加载活动表。",
     "events.active": "已启用",
     "events.backup_label": "备份文件名：",
-    "events.backup_ph": "留空 = 时间戳",
-    "events.backup_hint": "自定义备份文件名的中间部分：{{prefix}}[输入].bak",
-    "events.path_hint_linux": "服务器：Linux（WSL）—— 可直接粘贴 Windows 盘符路径（如 D:\\folder），将自动映射为 /mnt/d/folder。",
-    "events.path_hint_win": "服务器：Windows —— 支持 \"C:\\...\" 与 \"/C:/...\" 两种路径写法。",
+    "events.backup_ph": "留空 = 自动时间戳",
+    "events.backup_hint": "备份名默认 = UTC 时间戳 + 内容哈希前 8 位。可覆写后缀。",
+    "events.advanced": "高级（路径/备份覆写）",
+    "events.path_hint_default": "默认输出 = server/assets/release/（自动检测）。如有需要可在上方覆写。",
+    "events.path_hint_generic": "输出目录（重建的 bin.e 存放处，不存在会自动创建）。",
 
     "events.apply_confirm": "使用这 {{n}} 项更改重建 master-data 二进制文件？\n输出路径：{{path}}\n将先保存备份。",
     "events.apply_ok": "二进制文件已重建。{{sums}}。备份：{{name}}。\n输出文件：{{bin}}\n重新启动游戏客户端以查看更改。",
@@ -738,8 +726,11 @@
     "items.back": "← Back to user {{id}}",
     "backup.restore_confirm": "Restore from {{name}}?\n\nA pre-restore safety backup will be taken first.",
     "backup.dir_label": "BACKUP DIRECTORY",
-    "events.path_hint_linux": "Server OS: Linux (WSL) — Windows drive paths (e.g. D:\\folder) are mapped to /mnt/d/folder automatically.",
-    "events.path_hint_win": "Server OS: Windows — both \"C:\\...\" and \"/C:/...\" path styles are accepted.",
+    "events.path_hint_generic": "Output directory for the rebuilt bin.e (created automatically if missing).",
+    "events.path_hint_default": "Default output: server/assets/release/ (auto-detected). Override in the field above if needed.",
+    "events.advanced": "Advanced (path / backup override)",
+    "events.backup_ph": "empty = auto timestamp",
+    "events.backup_hint": "Backup name defaults to UTC timestamp + content-hash prefix. Override the suffix if needed.",
     "users.th_edit": "Edit",
     "users.edit_btn": "[ EDIT ]",
     "nav.profile": "Profile",
@@ -892,12 +883,12 @@
     "events.apply_confirm": "Rebuild the master-data bin with these {{n}} change(s)? A dated backup is saved first.",
     "events.out_path": "Output path",
     "events.out_ph": "default: server release dir",
-    "events.out_hint": "Where the generated bin.e will be stored (created automatically if missing). Choose a path first — Apply / Save Order stay disabled until then.",
+    "events.out_hint": "Default = server/assets/release/ (auto-detected). Override the output directory here.",
     "events.use_default": "USE DEFAULT",
     "events.bin_pick": "Active bin.e file",
-    "events.bin_hint": "Every file whose name contains bin.e is listed — bins, .bak backups, and displaced .old.<stamp> files. Picking one enables it: it is renamed to 20240404193219.bin.e automatically in its own directory, and the old active bin is moved aside under the picked file's full name with .old.<stamp> appended at the very end (e.g. activating 20240404193219.bin.e.abyss-tower.bak preserves the old bin as 20240404193219.bin.e.abyss-tower.bak.old.20260824-123456). Picking a .bak or .old.<stamp> file rolls the bin back to that version.",
+    "events.bin_hint": "Every file whose name contains bin.e is listed — bins, .bak backups, and displaced .old.<stamp> files. Picking one activates it under its region's canonical name automatically, and the old active bin is moved aside. Picking a .bak or .old.<stamp> file rolls the bin back to that version.",
     "events.need_path": "Choose an output path first",
-    "events.activated": "Enabled {{name}} as 20240404193219.bin.e{{displaced}}",
+    "events.activated": "Enabled {{name}} as {{target}}{{displaced}}",
     "events.displaced": " (old file moved aside: ",
     "events.activate_fail": "Activation failed",
     "events.load_bins_fail": "Failed to load bin.e list",
@@ -1187,7 +1178,7 @@
     if (busy) { e.stopImmediatePropagation(); }
   }, true);
 
-  // 把服务器（Linux/WSL）路径转成 Windows 风格显示（/mnt/d/x -> D:\\x）。
+  // 把服务器路径转成 Windows 风格显示（跨平台路径归一化）。
   // 仅用于显示；发给服务器的原始输入由服务端做反向映射。
   window.winPath = function (p) {
     if (!p || typeof p !== "string") return p;

@@ -170,14 +170,3 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$GITHUB_REF_NAME" dist/*.zip dist/*.exe dist/Bunker-*-linux-* dist/update.json site/bundles/android.zip site/bundles/modmenu.zip site/bundles/fonts-jp.zip site/bundles/fonts-en.zip site/py/sources.zip --title "Bunker $(cat VERSION)" --notes-file dist/notes.md --verify-tag
 
-  publish:
-    name: Publish the web builder
-    needs: release
-    runs-on: ubuntu-latest
-    permissions:
-      actions: write
-    steps:
-      # GitHub Pages deploys only from main, so pages.yml runs on main and builds the site from this tag.
-      - env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main -f ref="$GITHUB_REF_NAME"
