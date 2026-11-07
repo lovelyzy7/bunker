@@ -1222,3 +1222,6 @@ button.secondary, .button.secondary { background: transparent; color: var(--acce
   footer { display: none; }
   body { padding-bottom: 0; }
 }
+
+/* 内容修补器「当前开放」内置纵向滚动 */
+.open-now-scroll { max-height: 62vh; overflow-y: auto; }

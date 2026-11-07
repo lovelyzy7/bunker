@@ -203,3 +203,24 @@ func ToView(ms int64) int64 {
 	}
 	return ms - ViewOffset()
 }
+
+func RewindLoop(path string, c *Calendar, real int64) (*Calendar, error) {
+	if c == nil || c.Next != "" {
+		return c, nil
+	}
+	moved := *c
+	for i := 0; real+moved.Shift(real) >= moved.End(); i++ {
+		if i >= 1000 { // a runaway speed cannot keep the clock past the end
+			break
+		}
+		moved.Loop++
+		moved.JumpMillis -= LoopWeeks * weekMillis
+	}
+	if moved.Loop == c.Loop {
+		return c, nil
+	}
+	if err := save(path, &moved); err != nil {
+		return c, err
+	}
+	return &moved, nil
+}
