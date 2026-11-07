@@ -305,7 +305,7 @@ const STAGES = [
   [/^Updating the manifest|^Patching master data|^Mod Menu payload/, 3, 48],
   [/^Writing the APK/, 4, 62],
   [/^Writing the Mod Menu/, 5, 78],
-  [/^Signing with the public Bunker key|^Computing the checksum/, 6, 94],
+  [/^Signing with the region key|^Computing the checksum/, 6, 94],
 ];
 
 /** Mark the steps this build will not do: the skipped check, an unused menu. */
@@ -357,7 +357,7 @@ const LOG_PATTERNS = [
   [/^the Python standard library \((\d+) MB\) in ([\d.]+) s \(cached\)$/, "Python 标准库（$1 MB）来自本地缓存"],
   [/^the Python standard library \((\d+) MB\) in ([\d.]+) s$/, "Python 标准库（$1 MB）用时 $2 秒"],
   [/^Writing the APK…$/, "正在打包 APK……"],
-  [/^Signing with the public Bunker key…$/, "正在用公开的 Bunker 密钥签名……"],
+  [/^Signing with the region key…$/, "正在用区域密钥签名……"],
   [/^Signed APK ready to install\.$/, "APK 已签名，可以安装。"],
   [/^\s*(\d+)%…$/, "  $1%……"],
   [/^  (.+) \((\d+) MB\)…$/, "  $1（$2 MB）……"],
@@ -688,7 +688,6 @@ const ZH = {
   "Experimental: the first launch asks to allow drawing over other apps, and a menu that fails to start leaves the game untouched.": "实验性：首次启动会请求「显示在其他应用上层」权限；菜单启动失败也不会影响游戏本身。",
   "The optional memory menu (damage and defense multipliers, no skill cooldown, God mode, forced hit, BigHunt cap lift) is built on the command line: it rewrites the game's launcher activity and installs a native library, which this browser cannot do.": "可选的内存菜单（伤害与防御倍率、技能无 CD、God 免伤、强制命中、讨伐战上限解除）需要在命令行构建：它会改写游戏的启动 Activity 并放入原生库，浏览器内做不到。",
   "Build it with": "构建命令：",
-  ", password and alias": "，密码与别名",
   "ADVANCED :: MOD MENU": "进阶选项 :: MOD 菜单",
   "The optional memory menu (damage and defense multipliers, no skill cooldown, God mode, forced hit, BigHunt cap lift) is built on the command line: it rewrites the game's launcher activity and installs a native library, which this browser cannot do. Build with scripts/build.py --mod-menu instead. See the Mod Menu section.": "可选的内存菜单（伤害与防御倍率、技能无 CD、God 免伤、强制命中、讨伐战上限解除）需要在命令行构建：它会改写游戏的启动 Activity 并放入原生库，浏览器内做不到。请改用 scripts/build.py --mod-menu 构建，详见「Mod 菜单」一节。",
   "Include the Mod Menu (experimental)": "包含 Mod 菜单（实验性）",
@@ -699,7 +698,6 @@ const ZH = {
   " for the Japanese APK.": "。",
   "NOT CHOSEN": "未选择",
   "The game talks to its server on this device through ports 8003, 8080 and 3000. If another app already uses one of them, the launcher tells you. An offset moves all three. For example, 30000 gives 38003, 38080 and 33000. Leave it at 0 unless you need it, and use the same offset for updates.": "游戏在本机通过 8003、8080、3000 三个端口连接服务器。如果其中某个端口已被其他应用占用，启动器会提示。设置偏移可一次性移动这三个端口，例如 30000 会得到 38003、38080、33000。除非确有需要，请保持 0，并在更新时沿用同一偏移。",
-  " password and alias ": "，密码与别名 ",
   ") to sign your own builds the same way. The key is public, so anyone's build can install over yours. To prevent this, sign with a key of your own instead.": "）以便用同样方式签名你自己的构建。该密钥是公开的，所以任何人都可以构建覆盖你的包。若要防止这一点，请改用自己的密钥。",
   "Play on a Mac": "在 Mac 上运行",
   "Then copy the resource dump's": "然后，将资源包的",
@@ -775,11 +773,11 @@ const ZH = {
   "Offset": "偏移",
   "BUILD ▶": "开始构建 ▶",
   "Download": "下载",
-  "The APK is signed and ready to install. Every APK built on this page is signed with the same public Bunker key, so a newer build installs over an older one and keeps your saves.":
-    "APK 已签名，可直接安装。本页构建的每个 APK 都用同一把公开的 Bunker 密钥签名，因此新版本可覆盖旧版本安装并保留存档。",
-  "Download the key": "下载密钥",
-  "to sign your own builds the same way. The key is public, so anyone's build can install over yours. To prevent this, sign with a key of your own instead.":
-    "以便用同样方式签名你自己的构建。该密钥是公开的，所以任何人都可以构建覆盖你的包。若要防止这一点，请改用自己的密钥。",
+  "The APK is signed and ready to install. Each region's APK is signed with its own public key, so a newer build of the same region installs over an older one and keeps your saves.":
+    "APK 已签名，可直接安装。各区域 APK 各用自己的公钥签名（日服用 JP 密钥、全球服用 EN 密钥），因此同区域的新版本可覆盖旧版本安装并保留存档。",
+  "Download the JP key": "下载 JP 密钥",
+  "to sign your own Japanese builds the same way. The Global key is the standard Android debug key. The keys are public, so anyone's build can install over yours. To prevent this, sign with a key of your own instead.":
+    "以便用同样方式签名你自己的日服构建；全球服密钥为 Android 标准调试密钥。这些密钥是公开的，所以任何人都可以构建覆盖你的包。若要防止这一点，请改用自己的密钥。",
   // 0764eb1 的 Windows 段落（剔 iOS/Mac 句子；链接已改 lovelyzy7 仓库）
   "The same APK runs on a Windows PC with an Intel or AMD processor, in Google's Android Emulator. Download":
     "同一 APK 也能在使用 Intel 或 AMD 处理器的 Windows 电脑上运行，使用 Google 的 Android 模拟器。下载",
