@@ -38,6 +38,8 @@ PYTHON = [
     # 与 telemetry_patches.json 一起进站点清单。
     "android/tools/privacy.py",
     "android/tools/telemetry_patches.json",
+    # 1.9.0：privacy.py 导入即读 JP 站点表（JP_SITES），缺件则网页构建器全线 ImportError。
+    "android/tools/telemetry_patches_jp.json",
     "android/tools/package_game.py",
     "android/tools/region.py",
     "android/tools/zh_client.py",
