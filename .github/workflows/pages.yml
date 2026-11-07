@@ -7,13 +7,7 @@
 name: Web builder
 
 on:
-  push:
-    branches: [main]
-    # A documentation-only change cannot alter the bundles, so it does not need
-    # a two-minute Android build (the site job only runs on workflow_dispatch).
-    paths-ignore:
-      - "**.md"
-      - "docs/**"
+  # 只由 release.yml 的 publish 作业派发（workflow_dispatch）；push 触发的构建属冗余跑。
   workflow_dispatch:
     inputs:
       ref:
