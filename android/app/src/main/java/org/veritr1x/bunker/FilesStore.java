@@ -121,8 +121,8 @@ final class FilesStore {
         if (secondsLeft < 0) return line + Text.of(" · estimating time left…");
         long seconds = Math.round(secondsLeft);
         String left = seconds < 60 ? Text.of("under a minute left")
-            : seconds < 3600 ? "about " + (seconds + 30) / 60 + Text.of(" min left")
-            : "about " + seconds / 3600 + " h " + (seconds % 3600 + 30) / 60 + Text.of(" min left");
+            : seconds < 3600 ? Text.of("about ") + (seconds + 30) / 60 + Text.of(" min left")
+            : Text.of("about ") + seconds / 3600 + " h " + (seconds % 3600 + 30) / 60 + Text.of(" min left");
         return line + " · " + left;
     }
     static List<Doc> children(Context c, Uri tree, String id) throws IOException {

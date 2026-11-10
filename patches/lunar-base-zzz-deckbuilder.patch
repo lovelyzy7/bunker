@@ -1,0 +1,44 @@
+diff --git a/server/internal/lunarbase/main.go b/server/internal/lunarbase/main.go
+--- a/server/internal/lunarbase/main.go
++++ b/server/internal/lunarbase/main.go
+@@ -180,6 +180,11 @@
+ 	Memoirs          []memoirGrantSpec      `json:"memoirs"`
+ 	MemoirSlots      []memoirSlotsSpec      `json:"memoir_slots"`
+ 	ContentsStoryIDs []int32                `json:"contents_story_ids"`
++	// Bunker: Pod Programs › Deck Builder (bunker_deckwrite.go, bunker_deckbuilder.go)
++	Deck      json.RawMessage `json:"deck"`
++	StagePath string          `json:"stage_path"`
++	// Deck Builder's staging save: characters' rank (bunker_deckbuilder.go)
++	Ranks []rankSpec `json:"ranks"`
+ 	QuestIDs         []int32                `json:"quest_ids"`
+ 	Missions         []missionSpec          `json:"missions"`
+ 	TutorialTypes    []int32                `json:"tutorial_types"`
+@@ -200,6 +205,7 @@
+ 	OK              bool        `json:"ok"`
+ 	Error           string      `json:"error,omitempty"`
+ 	Applied         int         `json:"applied,omitempty"`
++	Data            any         `json:"data,omitempty"` // Bunker: what a read action found (arena_matching)
+ 	QuestIDs        []int32     `json:"quest_ids,omitempty"`
+ 	Quests          []questInfo `json:"quests,omitempty"`
+ 	TutorialTypes   []int32     `json:"tutorial_types,omitempty"`
+@@ -475,6 +481,12 @@
+ 		return runSendGift(&req)
+ 	case "gift_room":
+ 		return runGiftRoom(&req)
++	case "deck_write": // Bunker: Pod Programs › Deck Builder (bunker_deckwrite.go)
++		return runDeckWrite(&req)
++	case "arena_matching":
++		return runArenaMatching(&req)
++	case "rank_characters":
++		return runRankCharacters(&req)
+ 	case "":
+ 		return 0, errors.New("action required")
+ 	default:
+@@ -499,6 +511,7 @@
+ 		TutorialTypes:   queryTutorialTypes,
+ 		TutorialSkipped: queryTutorialSkipped,
+ 		DeckCreated:     queryDeckCreated,
++		Data:            takeReadData(),
+ 		CompanionID:     queryCompanionID,
+ 	}
+ 	if err != nil {

@@ -44,6 +44,10 @@ PYTHON = [
     "android/tools/region.py",
     "android/tools/zh_client.py",
     "android/tools/patch_masterdata_zh.py",
+    # Prepared patcher (scripts/prepare.py): the master-edit surface whose
+    # TABLE_ROW_ADDITIONS carries Bunker's rows (the gift text), applied by
+    # patch_masterdata_zh after build_bin_e and by android_gift at runtime.
+    "android/app/src/main/python/patcher/patch_masterdata.py",
     "android/tools/fix3_zh.py",
     "android/tools/verify_gate_zh.py",
     # fix4 数据面（EN 两态纯化；fix4_orig_en_values 复制 + NT_KO_TRANSLATIONS 表导出）

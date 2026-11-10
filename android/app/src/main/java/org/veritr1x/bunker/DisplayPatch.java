@@ -242,6 +242,21 @@ final class DisplayPatch {
         @Override public void onPointerCaptureChanged(boolean captured) { base.onPointerCaptureChanged(captured); }
     }
 
+    static String unityArguments(Context context) {
+        try {
+            for (String line : Files.readAllLines(new File(new File(context.getFilesDir(), "tools"), "display.conf").toPath(), StandardCharsets.UTF_8)) {
+                String[] pair = line.split("=", 2);
+                if (pair.length != 2 || !pair[0].trim().equals("textures")) continue;
+                switch (pair[1].trim()) {
+                    case "half": return "-texture-mipmap-skip-level 1";
+                    case "quarter": return "-texture-mipmap-skip-level 2";
+                    default: return null;
+                }
+            }
+        } catch (Exception missing) {}
+        return null;
+    }
+
     private static native String apply(int fps, int size, String region, String packageName,
                                        boolean idle, boolean heat, int effectsOff, int upscale);
 

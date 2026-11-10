@@ -47,6 +47,10 @@ type ExtState struct {
 	// PanelMissions are the Anecdotes' panel sheets, by web panel mission
 	// (one per run: the Original calendar's copies have ids of their own).
 	PanelMissions map[int32]PanelMissionState `json:"panelMissions,omitempty"`
+	// LimitedOpens are the limited-time offers opened for the player with the
+	// Original calendar, by shop item cell: when each opened and closes
+	// (service/bunker_limited_offers.go).
+	LimitedOpens map[int32]LimitedOpenState `json:"limitedOpens,omitempty"`
 	// GrantOverflow is what this request's grants sent to the gift box
 	// (see PossessionGranter.GrantFullAs); never saved.
 	GrantOverflow []GrantOverflow `json:"-"`
@@ -66,15 +70,18 @@ type PvpState struct {
 	DefenseDeckNumber  int32             `json:"defenseDeckNumber,omitempty"`
 	DefenseDeckPower   int32             `json:"defenseDeckPower,omitempty"`
 	DefenseChecked     int64             `json:"defenseChecked,omitempty"` // defense battles are simulated up to here
-	Matching           []int64           `json:"matching,omitempty"`       // computer players offered
-	Opponent           int64             `json:"opponent,omitempty"`       // battle started, not finished
-	AttackLog          []PvpLog          `json:"attackLog,omitempty"`      // newest first
-	DefenseLog         []PvpLog          `json:"defenseLog,omitempty"`
-	Season             PvpSeasonStats    `json:"season"`
-	Weekly             []PvpWeeklyResult `json:"weekly,omitempty"`            // oldest first
-	RewardWeekVersion  int64             `json:"rewardWeekVersion,omitempty"` // weekly rewards paid up to this week
-	RewardSeasonId     int32             `json:"rewardSeasonId,omitempty"`
-	SeasonResult       *PvpWeeklyResult  `json:"seasonResult,omitempty"` // an ended season whose rank reward is not paid yet
+	Matching           []int64 `json:"matching,omitempty"`       // computer players offered
+	Opponent           int64   `json:"opponent,omitempty"`       // battle started, not finished
+	// OpponentDecks are the Deck Builder table decks (by position) of the opponents
+	// listed or being fought, so the deck listed is the deck fought (pvp/decktable.go).
+	OpponentDecks     map[int64]int32   `json:"opponentDecks,omitempty"`
+	AttackLog         []PvpLog          `json:"attackLog,omitempty"` // newest first
+	DefenseLog        []PvpLog          `json:"defenseLog,omitempty"`
+	Season            PvpSeasonStats    `json:"season"`
+	Weekly            []PvpWeeklyResult `json:"weekly,omitempty"`            // oldest first
+	RewardWeekVersion int64             `json:"rewardWeekVersion,omitempty"` // weekly rewards paid up to this week
+	RewardSeasonId    int32             `json:"rewardSeasonId,omitempty"`
+	SeasonResult      *PvpWeeklyResult  `json:"seasonResult,omitempty"` // an ended season whose rank reward is not paid yet
 	// Seasons that ended before SeasonResult's and are not paid yet either, oldest first.
 	EarlierSeasonResults []PvpWeeklyResult `json:"earlierSeasonResults,omitempty"`
 	LatestVersion        int64             `json:"latestVersion,omitempty"`
@@ -184,8 +191,15 @@ func (p PanelMissionState) equal(o PanelMissionState) bool {
 	return maps.Equal(p.Progress, o.Progress) && maps.Equal(p.Claimed, o.Claimed) && maps.Equal(p.PageDone, o.PageDone)
 }
 
+// LimitedOpenState is one limited-time offer's window for a player.
+type LimitedOpenState struct {
+	Open  int64 `json:"open"`
+	Close int64 `json:"close"`
+}
+
 func (e ExtState) Clone() ExtState {
 	out := e
+	out.LimitedOpens = maps.Clone(e.LimitedOpens)
 	out.MissionRuleRevisions = maps.Clone(e.MissionRuleRevisions)
 	out.MissionPass = maps.Clone(e.MissionPass)
 	out.GachaExec = maps.Clone(e.GachaExec)
@@ -211,7 +225,7 @@ func (e ExtState) Clone() ExtState {
 
 func (e ExtState) Equal(o ExtState) bool {
 	return e.MissionsVersion == o.MissionsVersion && e.TimeKeysVersion == o.TimeKeysVersion && e.CalendarLoop == o.CalendarLoop && e.ChapterGachaIds == o.ChapterGachaIds && e.DailyGroupReward == o.DailyGroupReward &&
-		maps.Equal(e.MissionPass, o.MissionPass) && maps.Equal(e.GachaExec, o.GachaExec) &&
+		maps.Equal(e.MissionPass, o.MissionPass) && maps.Equal(e.GachaExec, o.GachaExec) && maps.Equal(e.LimitedOpens, o.LimitedOpens) &&
 		maps.Equal(e.MissionRuleRevisions, o.MissionRuleRevisions) &&
 		maps.Equal(e.SceneChoices, o.SceneChoices) &&
 		maps.Equal(e.SceneChoiceHistory, o.SceneChoiceHistory) &&

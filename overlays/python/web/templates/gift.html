@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Gift{% endblock %}
+{% block bar_right %}GIFT{% endblock %}
+{% block content %}
+<style>
+  .gift-cats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;margin:14px 0 10px}
+  .gift-card{text-align:center;padding:12px 10px;border:1px solid var(--line);background:transparent;color:inherit;font:inherit;font-size:var(--fs-label);letter-spacing:.08em;min-height:44px;line-height:1.3;overflow-wrap:break-word}
+  .gift-card:hover,.gift-card:focus-visible{background:color-mix(in srgb,var(--fg-dark) 12%,transparent);color:inherit;transform:none}
+  .gift-card.on,.gift-card.on:hover{background:var(--accent);color:var(--bg-cream);border-color:var(--accent)}
+  @media (max-width:900px){.gift-cats{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  @media (max-width:520px){.gift-cats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  .gift-tabs{display:flex;gap:18px;margin:4px 0 8px;border-bottom:1px solid var(--line);overflow-x:auto}
+  .gift-tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:10px 0;color:var(--fg-mid);font:inherit;font-size:var(--fs-label);white-space:nowrap;min-height:0}
+  .gift-tabs button:hover{background:none;color:var(--fg-dark);transform:none}
+  .gift-tabs button.on{color:var(--fg-dark);border-bottom-color:currentColor}
+  .gift-list{max-height:40vh;overflow:auto}
+  .gift-row{display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 8px;border-bottom:1px solid color-mix(in srgb,var(--fg-dark) 12%,transparent);cursor:pointer}
+  .gift-row:hover{background:color-mix(in srgb,var(--fg-dark) 8%,transparent)}
+  .gift-row.sel{background:color-mix(in srgb,var(--fg-dark) 18%,transparent);font-weight:bold}
+  .gift-row.owned{color:var(--fg-mid);cursor:default}
+  .gift-group{margin:12px 0 4px;font-family:var(--mono);font-size:var(--fs-label);letter-spacing:.14em;text-transform:uppercase;color:var(--fg-mid)}
+  .gift-send{display:grid;grid-template-columns:1fr 140px auto;gap:10px;align-items:center}
+  .gift-waiting td{padding:4px 12px 4px 0}
+/* A phone on its side: Send in the side column (base.html, automata.css). */
+@media (orientation: landscape) and (max-height: 599px){
+  .page-side .gift-send{display:flex;flex-wrap:wrap;gap:6px}
+  .page-side .gift-send strong{flex:1 1 100%}
+  .page-side .gift-send input{flex:1 1 0;min-width:0}
+  .page-side .gift-send button{width:auto}
+}
+</style>
+
+<h1 class="bracket-header" data-side>Gift</h1>
+<p data-side="intro">Send yourself anything the game can hold. You claim it in the game's Gift Box like any other gift. The game keeps running: the Gift Box shows it after your next action.</p>
+{% if players|length > 1 %}
+  <div class="panel" data-side><p style="margin:0"><label for="player">Player</label>
+  <select id="player" onchange="location.href='/gift?user='+this.value">{% for id, name in players %}<option value="{{ id }}"{% if id == user %} selected{% endif %}>{{ name }}</option>{% endfor %}</select></p></div>
+{% endif %}
+
+{% if not ready %}
+<div class="banner" data-side>&gt; The first gift also adds its text to the game data, so the game returns to its title screen to load it.</div>
+{% endif %}
+
+<h2 class="bracket-header">1 :: Choose</h2>
+<div class="panel">
+  <input id="q" type="search" placeholder="Search every category by name" style="width:100%">
+  <div class="gift-cats" id="cats">{% for card in cards %}<button type="button" class="gift-card" data-card="{{ card.name }}">{{ card.name }}</button>{% endfor %}</div>
+  <div class="gift-tabs" id="tabs"></div>
+  <div class="gift-list" id="list"></div>
+</div>
+
+<h2 class="bracket-header" data-side>2 :: Send</h2>
+<div class="panel" data-side>
+  <div class="gift-send">
+    <strong id="what">Nothing chosen yet</strong>
+    <input id="count" type="number" min="1" value="1" inputmode="numeric" aria-label="Count" disabled>
+    <button id="send" type="button" disabled>SEND</button>
+  </div>
+  <p class="note" id="hint" style="margin:8px 0 0">Pick a category, or search.</p>
+</div>
+
+<h2 class="bracket-header" data-side>Waiting in the Gift Box</h2>
+<div class="panel" data-side>
+{% if waiting %}
+  <table class="gift-waiting">{% for g in waiting %}<tr><td>{{ g.name }} ×{{ "{:,}".format(g.count) }}</td></tr>{% endfor %}</table>
+{% else %}<p style="margin:0" class="note">Nothing from Bunker is waiting.</p>{% endif %}
+</div>
+
+<script id="gift-data" type="application/json">{{ cards|tojson }}</script>
+<script>
+(() => {
+  const CARDS = JSON.parse(document.getElementById("gift-data").textContent), USER = {{ user }};
+  const ONE = {1: "One copy per gift. A copy you already own turns into its usual exchange items when you claim it.",
+               3: "One copy per gift. A copy you already own turns into its usual exchange items when you claim it.",
+               14: "One per gift."};
+  const $ = id => document.getElementById(id);
+  let card = CARDS[0], group = card.groups[0], chosen = null;
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+  function draw() {
+    const q = $("q").value.trim().toLowerCase();
+    document.querySelectorAll(".gift-card").forEach(b => b.classList.toggle("on", !q && b.dataset.card === card.name));
+    $("tabs").innerHTML = q ? "" : card.groups.filter(g => g.entries.length).map(g =>
+      `<button type="button" data-group="${esc(g.name)}" class="${g === group ? "on" : ""}">${esc(g.name)}</button>`).join("");
+    const sources = q ? CARDS.flatMap(c => c.groups.map(g => [c, g])) : [[card, group]];
+    const html = [];
+    for (const [c, g] of sources) {
+      const items = g.entries.filter(e => !q || e.name.toLowerCase().includes(q));
+      if (!items.length) continue;
+      if (q) html.push(`<div class="gift-group">${esc(c.name)} › ${esc(g.name)}</div>`);
+      for (const e of items.slice(0, 400)) {
+        const sel = chosen && chosen.possession_type === e.possession_type && chosen.possession_id === e.possession_id;
+        html.push(`<div class="gift-row${sel ? " sel" : ""}${e.blocked ? " owned" : ""}" data-t="${e.possession_type}" data-i="${e.possession_id}">` +
+                  `<span>${esc(e.name)}${e.blocked ? " · " + esc(e.blocked) : ""}</span><span class="note">${"★".repeat(e.stars)}</span></div>`);
+      }
+    }
+    $("list").innerHTML = html.join("") || '<p class="note">Nothing matches.</p>';
+  }
+  function find(t, i) {
+    for (const c of CARDS) for (const g of c.groups) for (const e of g.entries) if (e.possession_type === t && e.possession_id === i) return e;
+  }
+  async function pick(e) {
+    chosen = e; draw();
+    $("what").textContent = e.name; $("send").disabled = true; $("count").disabled = true; $("count").value = 1;
+    $("hint").textContent = "Checking how many can be claimed…";
+    const r = await fetch(`/gift/room?user=${USER}&type=${e.possession_type}&id=${e.possession_id}`).then(r => r.json()).catch(() => ({}));
+    if (chosen !== e) return;
+    const room = r.room || 0;
+    if (!room) { $("hint").textContent = r.error || "Nothing more of this can be claimed now."; return; }
+    if (e.one_per_gift) { $("hint").textContent = ONE[e.possession_type] || ONE[1]; $("count").max = 1; }
+    else { $("hint").textContent = `Up to ${room.toLocaleString()} more.`; $("count").max = room; $("count").disabled = false; }
+    $("send").disabled = false;
+  }
+  // A count above what can be claimed, or not a whole number, is refused: nothing is cut down.
+  $("count").addEventListener("input", () => {
+    if (!chosen || chosen.one_per_gift) return;
+    const n = Number($("count").value), max = Number($("count").max);
+    const ok = Number.isInteger(n) && n >= 1 && n <= max;
+    $("send").disabled = !ok;
+    $("hint").textContent = ok ? `Up to ${max.toLocaleString()} more.`
+      : n > max ? `That is more than can be claimed now: up to ${max.toLocaleString()}.` : "Enter a whole number, 1 or more.";
+  });
+  $("cats").addEventListener("click", ev => { const b = ev.target.closest(".gift-card"); if (!b) return;
+    $("q").value = ""; card = CARDS.find(c => c.name === b.dataset.card); group = card.groups.find(g => g.entries.length); draw(); });
+  $("tabs").addEventListener("click", ev => { const b = ev.target.closest("button"); if (!b) return;
+    group = card.groups.find(g => g.name === b.dataset.group); draw(); });
+  $("list").addEventListener("click", ev => { const r = ev.target.closest(".gift-row"); if (!r || r.classList.contains("owned")) return;
+    pick(find(+r.dataset.t, +r.dataset.i)); });
+  $("q").addEventListener("input", draw);
+  $("send").addEventListener("click", async () => {
+    const sending = chosen, count = sending.one_per_gift ? 1 : Number($("count").value);
+    if (!Number.isInteger(count) || count < 1) return;
+    $("send").disabled = true;
+    const r = await fetch("/gift/send", {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({user: USER, possession_type: sending.possession_type, possession_id: sending.possession_id, count})})
+      .then(r => r.json()).catch(err => ({ok: false, error: err.message}));
+    const done = r.ok ? `message=${encodeURIComponent(`Sent: ${sending.name} ×${count.toLocaleString()}. It is in the game's Gift Box.`)}`
+                      : `error=${encodeURIComponent(r.error || "The gift was not sent")}`;
+    location.href = `/gift?user=${USER}&${done}`;
+  });
+  draw();
+})();
+</script>
+{% endblock %}

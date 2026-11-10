@@ -73,6 +73,13 @@ def state_path():
     return config.GAME_DB_PATH.parent / "calendar.json"
 
 
+def peek_state():
+    """The calendar's saved state as it is, without read_state's upkeep
+    (moving and rebuilding files): for pages that only show the clock."""
+    state = runtime.read_json(state_path())
+    return state if isinstance(state, dict) and state.get("loopStart") else None
+
+
 def read_state():
     state = runtime.read_json(state_path())
     if not (isinstance(state, dict) and state.get("loopStart")):
@@ -122,6 +129,36 @@ def week_of(state, game):
 def original(state, game):
     """The same moment in the original service."""
     return game - (state["loopStart"] - LAUNCH)
+
+
+def shown_clock(state, real=None):
+    """The time the game sees: real time with the calendar off, else the
+    calendar's, moved back to the original service by "Show original dates"."""
+    real = now_ms() if real is None else real
+    if not state:
+        return real
+    game = game_now(state, real)
+    return original(state, game) if state.get("originalDates") else game
+
+
+def client_days_file():
+    """Beside the save: the launcher clears the game's day markers before the
+    game next starts (GameProcessProvider, LunarLauncher.m)."""
+    return config.GAME_DB_PATH.parent / "client-days.reset"
+
+
+def clock_moved(before, after):
+    """The game keeps day markers (the last day it showed the login bonus,
+    Mama's News, the roulette's FREE badge...) and counts only a later day as a
+    new one. When its clock goes back they would hide those until the old day
+    came round again, so they are cleared."""
+    if after < before:
+        mark_client_days_reset()
+
+
+def mark_client_days_reset():
+    """Clears the game's day markers before it next starts."""
+    client_days_file().write_text("")
 
 
 # --- Game data ---------------------------------------------------------------
@@ -333,6 +370,95 @@ def tower_floors(chapters, groups, sequences, group_col, floors):
     return _table(chapter_rows), _table(keep(groups) + new_groups), _table(keep(sequences) + new_sequences)
 
 
+# A rerun event's earlier runs as they were (scripts/event_runs.py): each its
+# own exchange and medal (EventQuestLink), the medal its page shows and the
+# quests it had. The final game data keeps the last run's only. The server
+# pays each run's drops and quest bonuses from the same file.
+EVENT_RUNS = Path(__file__).with_name("event_runs.json")
+RUN_IDS = 100  # an earlier run's own link, sequence group and sequences: id + (RUN_IDS + n) * COPY_STEP
+
+
+def event_run_data():
+    try:
+        return json.loads(EVENT_RUNS.read_text())["chapters"]
+    except FileNotFoundError:
+        return {}
+
+
+def event_runs(chapters, links, groups, sequences, runs, cols):
+    """Gives each chapter copy of a rerun event its run's link (a new row with
+    that run's exchange and medal), shown medal and quests (a trimmed sequence
+    group when the run had fewer). runs: base chapter -> per-run data, the
+    last run None; cols: the chapter's link, display and group columns.
+    Returns the chapter, link, sequence group and sequence tables."""
+    import msgpack
+    group_rows, seq_rows = {}, {}
+    for _, c in _rows(groups):
+        group_rows.setdefault(msgpack.unpackb(c[0]), []).append(c)
+    for _, c in _rows(sequences):
+        seq_rows.setdefault(msgpack.unpackb(c[0]), []).append(c)
+    chapter_rows, new_links, new_groups, new_seqs, made = [], [], [], [], set()
+    for header, cells in _rows(chapters):
+        chapter = msgpack.unpackb(cells[0])
+        n = chapter // COPY_STEP
+        recorded = runs.get(str(chapter % COPY_STEP)) or []
+        run = recorded[n] if n < len(recorded) else None
+        if run:
+            cells, step = list(cells), (RUN_IDS + n) * COPY_STEP
+            link = run["link"] + step
+            row = run["link_row"]
+            new_links.append(bytes([0x95]) + b"".join(msgpack.packb(v) for v in (link, 3, row["shop"], row["possession_type"], row["possession_id"])))
+            cells[cols["link"]] = msgpack.packb(link)
+            cells[cols["display"]] = msgpack.packb(run["display"])
+            group = msgpack.unpackb(cells[cols["group"]])
+            had = set(run["quests"])
+            every = {msgpack.unpackb(q[2]) for g in group_rows.get(group, []) for q in seq_rows.get(msgpack.unpackb(g[2]), [])}
+            if had and had != every:
+                if group + step not in made:
+                    made.add(group + step)
+                    for g in group_rows.get(group, []):
+                        seq = msgpack.unpackb(g[2])
+                        kept = [q for q in seq_rows.get(seq, []) if msgpack.unpackb(q[2]) in had]
+                        if not kept:
+                            continue
+                        new_groups.append(bytes([0x90 | len(g)]) + msgpack.packb(group + step) + g[1] + msgpack.packb(seq + step) + b"".join(g[3:]))
+                        new_seqs.extend(bytes([0x90 | len(q)]) + msgpack.packb(seq + step) + b"".join(q[1:]) for q in kept)
+                cells[cols["group"]] = msgpack.packb(group + step)
+        chapter_rows.append(header + b"".join(cells))
+    keep = lambda blob: [h + b"".join(c) for h, c in _rows(blob)]
+    return _table(chapter_rows), _table(keep(links) + new_links), _table(keep(groups) + new_groups), _table(keep(sequences) + new_seqs)
+
+
+def run_items(chapters, runs):
+    """The consumable items each earlier run's chapter copy drops (its run's
+    drops, not the final game data's), by chapter id."""
+    out = {}
+    for chapter in chapters:
+        recorded = runs.get(str(chapter % COPY_STEP)) or []
+        n = chapter // COPY_STEP
+        run = recorded[n] if n < len(recorded) else None
+        if run:
+            out[chapter] = {d[1] for drops in run.get("drops", {}).values() for d in drops if d[0] == CONSUMABLE_ITEM}
+    return out
+
+
+def apply_event_runs(toc, blob, changed, schemas):
+    """Gives each restored run of a rerun event its own exchange, medal and quests (event_runs)."""
+    from patcher import patch_masterdata as pm
+    runs = event_run_data()
+    names = ("m_event_quest_chapter", "m_event_quest_link", "m_event_quest_sequence_group", "m_event_quest_sequence")
+    if not runs or not all(n in toc for n in names):
+        return
+    index = {name: i for i, _, name in schemas["m_event_quest_chapter"][1]}
+    cols = {"link": index["EventQuestLinkId"], "display": index["EventQuestDisplayItemGroupId"], "group": index["EventQuestSequenceGroupId"]}
+    tables = {}
+    for n in names:
+        pm.apply_to_table(toc, blob, changed, n, lambda b, n=n: tables.__setitem__(n, bytes(b)) or 0)
+    built = event_runs(*(tables[n] for n in names), runs=runs, cols=cols)
+    for n, new in zip(names, built):
+        pm.apply_to_table(toc, blob, changed, n, lambda b, new=new: new)
+
+
 def copy_chapter_rows(blob, copies):
     """Adds a row for each chapter copy to a table keyed by event chapter (first column)."""
     import msgpack
@@ -342,6 +468,27 @@ def copy_chapter_rows(blob, copies):
         for copy in copies.get(msgpack.unpackb(cells[0]), []) if cells else []:
             out.append(header + msgpack.packb(copy) + b"".join(cells[1:]))
     return _table(out)
+
+
+def keep_key_order(blob):
+    """The rows in their first column's order, ties as they were. The game finds rows by binary search
+    (MasterMemory), so a table must stay in key order; copies written beside the rows they copy break it, and the
+    game then misses rows that are there (CalculatorQuest.TryGetEventQuestType: every auto-repeat stopped)."""
+    import msgpack
+    rows = list(_rows(blob))
+    rows.sort(key=lambda r: msgpack.unpackb(r[1][0]) if r[1] else 0)
+    return _table([header + b"".join(cells) for header, cells in rows])
+
+
+def sort_like_origin(toc, blob, changed, schemas):
+    """Each changed table whose rows the original data keeps in first-column order, back in that order."""
+    from patcher import patch_masterdata as pm
+    for table in list(changed):
+        if table not in schemas or not schemas[table][1]:
+            continue
+        ids = [r[0] for r in _read(toc, blob, {}, schemas, table, schemas[table][1][0][2])]
+        if all(a <= b for a, b in zip(ids, ids[1:])):
+            pm.apply_to_table(toc, blob, changed, table, keep_key_order)
 
 
 def restore_history(toc, blob, changed, schemas):
@@ -497,7 +644,7 @@ def open_exchanges(toc, blob, changed, schemas):
         rows("m_shop_item_cell_term", "ShopItemCellTermId", "StartDatetime", "EndDatetime"),
         dict(read("m_consumable_item", "ConsumableItemId", "ConsumableItemTermId")),
         rows("m_consumable_item_term", "ConsumableItemTermId", "StartDatetime", "EndDatetime"),
-        chapter_items(read))
+        {**chapter_items(read), **run_items([c for c, *_ in read("m_event_quest_chapter", "EventQuestChapterId")], event_run_data())})
     for table, dates in found.items():
         if dates:
             index = {name: i for i, _, name in schemas[table][1]}
@@ -593,16 +740,24 @@ def all_chapters():
 
 
 def reached_chapters():
-    """Chapters with a quest any player of this save has cleared."""
+    """Chapters with a quest any player of this save has cleared, and the
+    chapter each player's story is at (Pod Programs › Story Jump puts a player
+    at the start of a chapter with nothing in it cleared yet)."""
     import sqlite3
     try:
         db = sqlite3.connect(f"file:{config.GAME_DB_PATH}?mode=ro", uri=True)
         try:
             cleared = {q for (q,) in db.execute("select distinct quest_id from user_quests where clear_count > 0")}
+            try:
+                heads = {s for (s,) in db.execute("select distinct head_quest_scene_id from user_main_quest")}
+            except sqlite3.Error:  # a save without the table: cleared quests only
+                heads = set()
         finally:
             db.close()
     except sqlite3.Error:
         return set()
+    scene_quest = {r["QuestSceneId"]: r["QuestId"] for r in table("QuestScene")}
+    cleared |= {scene_quest[s] for s in heads if s in scene_quest}
     sequence = {r["QuestId"]: r["MainQuestSequenceId"] for r in table("MainQuestSequence")}
     group = {r["MainQuestSequenceId"]: r["MainQuestSequenceGroupId"] for r in table("MainQuestSequenceGroup")}
     chapter = {r["MainQuestSequenceGroupId"]: r["MainQuestChapterId"] for r in table("MainQuestChapter")}
@@ -611,6 +766,19 @@ def reached_chapters():
 
 def open_chapters(state):
     return reached_chapters() if state.get("loop", 1) <= 1 else all_chapters()
+
+
+def reopen_reached_chapters():
+    """Builds the game data again so the chapters reached open now (Story Jump):
+    only the Original calendar's first loop locks chapters by date. Returns
+    whether it rebuilt."""
+    state = read_state()
+    if state is None or state.get("loop", 1) > 1:
+        return False
+    activate_loop(state)
+    if state.get("originalDates"):
+        build_view(state)
+    return True
 
 
 def read_master(path):
@@ -649,17 +817,15 @@ def build_master(origin, output, offset, view=False, open_chapters=None):
     view: the copy for "Show original dates" (VIEW_FROM_LAUNCH); open_chapters:
     story chapters open on their dates (moved by offset) except these (None: all open)."""
     import msgpack
-    from Crypto.Cipher import AES
-    from Crypto.Util.Padding import pad
     from patcher import patch_masterdata as pm
     from tools import dump_masterdata
     if offset % WEEK:
         raise ValueError("The calendar moves in whole weeks")
-    key, iv = bytes.fromhex(pm.DEFAULT_KEY), bytes.fromhex(pm.DEFAULT_IV)
     toc, blob = read_master(origin)
     schemas = dump_masterdata.load_schemas()
     changed = {}
     restore_history(toc, blob, changed, schemas)
+    apply_event_runs(toc, blob, changed, schemas)
     open_exchanges(toc, blob, changed, schemas)
     moved = 0
     for table in ROTATING:
@@ -683,6 +849,17 @@ def build_master(origin, output, offset, view=False, open_chapters=None):
     for table, rows in pm.TABLE_ROW_ADDITIONS.items():
         pm.apply_to_table(toc, blob, changed, table, lambda b, r=rows: pm.add_table_rows(b, r))
     pm.apply_to_table(toc, blob, changed, "m_battle_group", pm.patch_wolf_chapter_battle_point)
+    sort_like_origin(toc, blob, changed, schemas)
+    write_master(toc, blob, changed, output)
+    return moved
+
+
+def write_master(toc, blob, changed, output):
+    """Writes a master data file from read_master's tables, with the changed ones replaced."""
+    import msgpack
+    from Crypto.Cipher import AES
+    from Crypto.Util.Padding import pad
+    from patcher import patch_masterdata as pm
     parts, layout, offset_in_blob = [], {}, 0
     for table, (start, length) in sorted(toc.items(), key=lambda item: item[1][0]):
         part = changed.get(table, blob[start:start + length])
@@ -690,8 +867,7 @@ def build_master(origin, output, offset, view=False, open_chapters=None):
         parts.append(part)
         offset_in_blob += len(part)
     plain = msgpack.packb(layout, use_bin_type=True) + b"".join(parts)
-    Path(output).write_bytes(AES.new(key, AES.MODE_CBC, iv).encrypt(pad(plain, AES.block_size)))
-    return moved
+    Path(output).write_bytes(AES.new(bytes.fromhex(pm.DEFAULT_KEY), AES.MODE_CBC, bytes.fromhex(pm.DEFAULT_IV)).encrypt(pad(plain, AES.block_size)))
 
 
 def origin_file():
@@ -725,11 +901,12 @@ def view_file():
 
 # Bumped when the copy's build changes, so a copy built before is rebuilt
 # (refresh_view): 2 caps start dates at launch (VIEW_FROM_LAUNCH) and opens
-# story chapters on their dates.
-VIEW_VERSION = "2"
+# story chapters on their dates; 5 replays each event run with its own exchange.
+VIEW_VERSION = "5"
 # Bumped when a loop's game data changes, so the loop in use is rebuilt
-# (read_state): 1 opens story chapters on their dates.
-DATA_VERSION = 1
+# (read_state): 1 opens story chapters on their dates; 2 keeps every table in key order (auto-repeat);
+# 4 replays each event run with its own exchange, medal and quests (event_runs.json).
+DATA_VERSION = 4
 
 
 def view_version_file():
@@ -744,6 +921,8 @@ def view_version(state):
 def build_view(state):
     pending = view_file().with_suffix(".tmp")
     build_master(origin_file(), pending, 0, view=True, open_chapters=open_chapters(state))
+    import android_challenges as challenges
+    challenges.finish(pending)  # Mods › Challenges, before the game can load it
     os.replace(pending, view_file())
     view_version_file().write_text(view_version(state))
 
@@ -763,7 +942,9 @@ def set_original_dates(state, on):
     """Turns "Show original dates" on or off, building the game's copy when needed."""
     if on and view_outdated(state):
         build_view(state)
+    before = shown_clock(state)
     state["originalDates"] = bool(on)
+    clock_moved(before, shown_clock(state))
 
 
 def old_next_file():
@@ -800,6 +981,8 @@ def prepare_next(state):
     """Builds the next loop's game data ahead, so the server can start it on its own."""
     pending = next_file().with_suffix(".tmp")
     build_master(origin_file(), pending, state["loopStart"] + LOOP_WEEKS * WEEK - LAUNCH)
+    import android_challenges as challenges
+    challenges.finish(pending)  # Mods › Challenges, before the server can load it by itself
     os.replace(pending, next_file())
     state["next"] = NEXT_NAME
     state["nextLoop"] = state["loop"] + 1
@@ -809,6 +992,7 @@ def roll_over(state, real=None):
     """Starts the next loop if this one has ended. Returns True when it did."""
     if game_now(state, real) < loop_end(state):
         return False
+    before = shown_clock(state, real)
     while game_now(state, real) >= loop_end(state):
         state["loop"] += 1
         state["loopStart"] += LOOP_WEEKS * WEEK
@@ -817,6 +1001,7 @@ def roll_over(state, real=None):
     state.pop("next", None)
     prepare_next(state)
     write_state(state)
+    clock_moved(before, shown_clock(state, real))  # with original dates, back to launch
     return True
 
 
@@ -853,11 +1038,13 @@ def turn_on(real=None):
 
 
 def turn_off():
+    before = shown_clock(read_state())
     state_path().unlink(missing_ok=True)
     next_file().unlink(missing_ok=True)
     view_file().unlink(missing_ok=True)
     view_version_file().unlink(missing_ok=True)
     old_next_file().unlink(missing_ok=True)
+    clock_moved(before, now_ms())
 
 
 def set_speed(state, speed, real=None):
@@ -1129,7 +1316,7 @@ def calendar_on():
 @router.post("/patcher/calendar/off")
 def calendar_off():
     turn_off()
-    return redirect(message="Calendar off. Choose content and tap Apply.")
+    return redirect(message="Calendar off. Choose content and tap Apply. " + runtime.next_step())
 
 
 @router.post("/patcher/calendar/speed")
@@ -1192,7 +1379,7 @@ def calendar_view(on: str = Form("")):
     try:
         set_original_dates(state, on == "1")
         write_state(state)
-        return redirect(message="Saved. Close Pod Programs and tap Deploy.")
+        return redirect(message="Saved. " + runtime.next_step())
     except Exception as exc:
         return redirect(error=str(exc))
 

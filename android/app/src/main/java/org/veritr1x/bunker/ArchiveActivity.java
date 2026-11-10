@@ -51,7 +51,7 @@ public final class ArchiveActivity extends Activity {
         web.setWebViewClient(new WebViewClient(){
             @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request){return !local(request.getUrl().toString());}
             @Override public void onPageFinished(WebView view,String url){if(local(url)){message.setVisibility(View.GONE);web.setVisibility(View.VISIBLE);}}
-            @Override public void onReceivedError(WebView view,WebResourceRequest request,WebResourceError error){if(request.isForMainFrame())show(Text.of("> Unable to open the Archive. Close and try again."));}
+            @Override public void onReceivedError(WebView view,WebResourceRequest request,WebResourceError error){if(request.isForMainFrame())show(Text.of("> Couldn't open the Archive. Close it and try again."));}
         });
         // Pictures from the page (Text.of("Save PNG"), the 3D snapshot) go where the user picks; WebView ignores download links.
         web.addJavascriptInterface(new Object(){
@@ -96,8 +96,8 @@ public final class ArchiveActivity extends Activity {
                     CookieManager.getInstance().setCookie(origin,"lunar_archive="+token+"; Path=/; HttpOnly; SameSite=Strict",ok->web.loadUrl(origin+"/"));
                 });
             }catch(Exception|LinkageError error){
-                android.util.Log.e("LunarTear",Text.of("Archive startup failed"),error);
-                runOnUiThread(()->show(Text.of("> The Archive could not start: ")+(error.getMessage()==null?error.toString():error.getMessage())));
+                android.util.Log.e("LunarTear","Archive startup failed",error);
+                runOnUiThread(()->show(Text.of("> The Archive couldn't start: ")+(error.getMessage()==null?error.toString():error.getMessage())));
             }
         },"archive-start").start();
     }
@@ -132,7 +132,7 @@ public final class ArchiveActivity extends Activity {
         try(java.io.OutputStream out=getContentResolver().openOutputStream(data.getData())){
             out.write(png);
             Toast.makeText(this,Text.of("Picture saved"),Toast.LENGTH_SHORT).show();
-        }catch(Exception e){Toast.makeText(this,Text.of("The picture could not be saved"),Toast.LENGTH_LONG).show();}
+        }catch(Exception e){Toast.makeText(this,Text.of("Couldn't save the picture"),Toast.LENGTH_LONG).show();}
     }
     @Override protected void onPause(){super.onPause();web.onPause();}
     @Override protected void onResume(){super.onResume();web.onResume();}

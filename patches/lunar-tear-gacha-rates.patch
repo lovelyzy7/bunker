@@ -1,0 +1,50 @@
+diff --git a/server/internal/gacha/draw.go b/server/internal/gacha/draw.go
+--- a/server/internal/gacha/draw.go
++++ b/server/internal/gacha/draw.go
+@@ -19,7 +19,7 @@
+ 	PossessionId   int32
+ 	RarityType     model.RarityType
+ 	CharacterId    int32
+-	Count          int32
++	Count          int32 // how many (prize box draws); 0 means one
+ }
+ 
+ // Lunar Tear's rates; DefaultRates in rates.go matches them, and Pod Programs can change them.
+diff --git a/server/internal/service/octo.go b/server/internal/service/octo.go
+--- a/server/internal/service/octo.go
++++ b/server/internal/service/octo.go
+@@ -257,6 +257,12 @@
+ 		return
+ 	}
+ 
++	// The summon rates page the game opens from a banner
++	if strings.Contains(path, "/gacha-rate") {
++		serveGachaRatePage(w)
++		return
++	}
++
+ 	// In-game information / news page
+ 	if strings.Contains(path, "/information") {
+ 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+@@ -505,6 +511,21 @@
+ 		return
+ 	}
+ 
++	if strings.Contains(path, "gacha-rate") {
++		serveGachaRatePage(w)
++		return
++	}
++
++	if strings.Contains(path, "/gacha/box") {
++		serveGachaBoxPage(w, r)
++		return
++	}
++
++	if strings.Contains(path, "gacha-detail") {
++		serveGachaDetailsPage(w, r)
++		return
++	}
++
+ 	if strings.Contains(path, "termsofuse") {
+ 		language := staticPageLanguage(path)
+ 		noteTermsHint(r.Header.Get("X-Requested-With"), language)

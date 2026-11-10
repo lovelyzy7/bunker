@@ -131,6 +131,18 @@ def adapt_services():
     if "update" not in backup_service.VALID_REASONS:
         backup_service.VALID_REASONS = (*backup_service.VALID_REASONS, "update")
         backup_service.REASON_LABELS["update"] = "Before update"
+    # Pod Programs › Gift backs the save up before each gift (android_gift.send).
+    if "gift" not in backup_service.VALID_REASONS:
+        backup_service.VALID_REASONS = (*backup_service.VALID_REASONS, "gift")
+        backup_service.REASON_LABELS["gift"] = "Gift"
+    # Pod Programs › Deck Builder backs the save up before each write (android_deckbuilder.write).
+    if "deck builder" not in backup_service.VALID_REASONS:
+        backup_service.VALID_REASONS = (*backup_service.VALID_REASONS, "deck builder")
+        backup_service.REASON_LABELS["deck builder"] = "Deck Builder"
+    # Pod Programs › Story Jump backs the save up before each jump (android_story.jump).
+    if "story jump" not in backup_service.VALID_REASONS:
+        backup_service.VALID_REASONS = (*backup_service.VALID_REASONS, "story jump")
+        backup_service.REASON_LABELS["story jump"] = "Story Jump"
     def prune(n):
         ordinary = [b for b in backup_service.list_backups() if b.reason != "update"]
         for b in ordinary[n:]:
@@ -299,16 +311,17 @@ def prepare_data():
 # display at the next launch, the timeline's filter, a backup copied with
 # SQLite's online backup), so they need nothing closed.
 LIVE_SAFE = frozenset(("/gacha", "/gacha/roulette", "/gacha/preset", "/mods", "/mods/preset", "/display", "/patcher/calendar/timeline", "/backups/create"))
-# These change what the game reads only as it launches ("Show original dates"
-# resets its own day markers then: GameProcessProvider), so the game is closed
-# first (ServerService.closeGameForTools, or the iOS launcher).
-CLOSES = frozenset(("/patcher/calendar/view", "/patcher/calendar/off"))
+# These change what the game reads only as it launches: they move its clock
+# back (the calendar turned off, "Show original dates"), and the game keeps
+# day markers in memory that only a fresh start clears (client-days.reset,
+# GameProcessProvider). The game is closed first, without asking
+# (ServerService.closeGameForTools).
+CLOSES = frozenset(("/patcher/calendar/view", "/patcher/calendar/off", "/patcher/new-day"))
 # Any other change edits the save, the master data or the calendar, which the
 # server reads as it starts and the game as it signs in: the server stops for
 # the change and starts again after it (pause_game, resume_game), and the game
 # goes back to its title screen to sign in again (interceptor.ReturnToTitle).
 # The game keeps running throughout.
-CLOSE_MESSAGE = "This change closes the game first. Confirm to close it and continue."
 
 # Set as Pod Programs starts: whether the game and its server are running, a
 # call that stops them, and the two around a change beside the game (each
@@ -325,6 +338,10 @@ def changed_game(response):
     X-Bunker-Unchanged leaves the save as it was: the server starts again,
     but the game is not sent back to its title screen."""
     if response.headers.get("x-bunker-unchanged"):
+        return False
+    # A change the game picks up from the server on its next call (a gift
+    # in its Gift Box): Lunar Tear restarts around it, the game plays on.
+    if response.headers.get("x-bunker-keep-playing"):
         return False
     if response.status_code >= 400:
         return False
@@ -346,24 +363,18 @@ def install_game_guard(app, live, close, pause=lambda: pause_game(), resume=lamb
 
     @app.get("/bunker/state")
     def state():
-        return {"live": bool(live()), "safe": sorted(LIVE_SAFE), "closes": sorted(CLOSES)}
-
-    @app.post("/bunker/close-game")
-    async def close_now():
-        if not live():
-            return {"ok": True}
-        error = await run_in_threadpool(close)
-        if error:
-            return JSONResponse({"ok": False, "error": error}, status_code=500)
-        return {"ok": True}
+        return {"live": bool(live()), "safe": sorted(LIVE_SAFE)}
 
     @app.middleware("http")
     async def needs_closed_game(request, call_next):
         path = request.url.path
-        if request.method in ("GET", "HEAD") or path in LIVE_SAFE or path == "/bunker/close-game" or not live():
+        if request.method in ("GET", "HEAD") or path in LIVE_SAFE or not live():
             return await call_next(request)
         if path in CLOSES:
-            return JSONResponse({"ok": False, "error": CLOSE_MESSAGE, "closeGame": True}, status_code=409)
+            error = await run_in_threadpool(close)
+            if error:
+                return JSONResponse({"ok": False, "error": error}, status_code=500)
+            return await call_next(request)
         error = await run_in_threadpool(pause)
         if error:
             return JSONResponse({"ok": False, "error": error}, status_code=500)
@@ -384,14 +395,20 @@ def create_app(token, origin):
     from web.app import create_app as base_app
     from android_patcher import router
     import android_display
+    import android_deckbuilder
+    import android_gift
     import android_mods
+    import android_story
     import android_players
     app = base_app()
     app.include_router(router)
     import android_calendar
     app.include_router(android_calendar.router)
     app.include_router(android_display.router)
+    app.include_router(android_gift.router)
+    app.include_router(android_deckbuilder.router)
     app.include_router(android_mods.router)
+    app.include_router(android_story.router)
     android_players.install(app)
     # Inside the session check below: middleware added later runs first.
     install_game_guard(app, lambda: game_live(), lambda: close_game())

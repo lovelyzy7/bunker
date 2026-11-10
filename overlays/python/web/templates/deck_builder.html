@@ -1,0 +1,675 @@
+{% extends "base.html" %}
+{% block title %}Deck Builder{% endblock %}
+{% block content %}
+<style>
+  /* ⓘ info buttons: explanations hidden behind a toggle (base.html does this in the upstream build) */
+  [data-side="intro"]:not(.open), [data-info]:not(.open) { display: none !important; }
+  .intro-info { flex: none; width: 28px; height: 28px; min-height: 0; padding: 0; margin: 0 0 0 10px; vertical-align: middle; border-radius: 50%; border: 1px solid currentColor; background: none; color: var(--accent,#d4a843); font: italic 700 var(--fs-small,13px)/26px Georgia, serif; letter-spacing: 0; text-transform: none; cursor: pointer; }
+  .intro-info:hover { background: none; transform: none; }
+  .intro-info[aria-expanded="true"], .intro-info[aria-expanded="true"]:hover { background: var(--accent,#d4a843); color: var(--bg-cream,#f3efe2); }
+  :root{--db-line:var(--line);--db-soft:color-mix(in srgb,var(--fg-dark) 6%,transparent);--e-fire:#9c3b25;--e-water:#2f5d86;--e-wind:#3f7046;--e-light:#a08a2c;--e-dark:#5a3d6e}
+  .db-controls{display:grid;grid-template-columns:auto 1fr;gap:10px 18px;align-items:center}
+  .db-lbl{font-size:var(--fs-label);letter-spacing:.1em;text-transform:uppercase;opacity:.7}
+  .seg{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);width:100%;border:1px solid currentColor}
+  .seg button{padding:6px 10px;font-size:var(--fs-small);min-height:36px;background:none;color:inherit;border:0;
+    -webkit-appearance:none;appearance:none;margin:0;border-radius:0;box-shadow:none;transform:none}
+  .seg button+button{border-left:1px solid currentColor}
+  .seg button.on{background:var(--fg-dark)!important;color:var(--bg-cream)!important}
+  .help{font-size:var(--fs-label);opacity:.75;margin:4px 0 0;line-height:1.5}
+  .filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px 18px}
+  .f .db-lbl{margin-bottom:4px}
+  .chips{display:flex;flex-wrap:wrap;gap:5px}
+  .chip{font-size:var(--fs-label);padding:6px 12px;border:1px solid var(--db-line);background:none;color:inherit;min-height:32px;white-space:nowrap}
+  .chip.on{background:var(--fg-dark)!important;color:var(--bg-cream)!important;border-color:var(--fg-dark)!important}
+  .chip.e{color:#f3efe2;border:0}
+  .chip.e.on{outline:2px solid var(--fg-dark);outline-offset:1px;color:#f3efe2!important}
+  .chip.e.e-fire.on{background:var(--e-fire)!important}.chip.e.e-water.on{background:var(--e-water)!important}.chip.e.e-wind.on{background:var(--e-wind)!important}.chip.e.e-light.on{background:var(--e-light)!important}.chip.e.e-dark.on{background:var(--e-dark)!important}
+  .slotrow{display:grid;grid-template-columns:56px 1fr;gap:6px;align-items:center;margin-bottom:6px;font-size:var(--fs-label)}
+  .rng{display:grid;grid-template-columns:70px 1fr 50px;gap:8px;align-items:center;font-size:var(--fs-label);margin-bottom:4px}
+  .e-fire{background:var(--e-fire)}.e-water{background:var(--e-water)}.e-wind{background:var(--e-wind)}.e-light{background:var(--e-light)}.e-dark{background:var(--e-dark)}
+  .resbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin:12px 0 10px;font-size:var(--fs-small)}
+  .resbar .sort{display:flex;align-items:center;gap:6px;font-size:var(--fs-label);color:var(--fg-mid);margin:0}
+  .resbar .sort select{width:auto;min-height:36px;height:auto;padding:4px 28px 4px 10px;font-size:var(--fs-input);letter-spacing:normal;margin:0}
+  .cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+  /* A deck card is a button: undo the buttons' capitals, spacing and weight. */
+  .rc{border:1px solid var(--db-line);background:var(--db-soft);display:flex;flex-direction:column;cursor:pointer;text-align:left;color:inherit;padding:0;
+    font:400 var(--fs-small)/1.4 var(--sans);text-transform:none;letter-spacing:normal;min-height:0}
+  .rc:hover,.rc:focus-visible{background:color-mix(in srgb,var(--fg-dark) 10%,transparent)!important;color:inherit!important;transform:none!important}
+  .rc.on{outline:2px solid var(--fg-dark);outline-offset:-2px}
+  .rc-head{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:start;padding:9px 10px 7px}
+  .rc-no{font:700 var(--fs-label)/1.6 var(--mono);opacity:.45}
+  .rc-name b{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:var(--fs-body);font-weight:700;line-height:1.25;overflow:hidden}
+  .rc-name small{display:block;font-size:var(--fs-label);color:var(--fg-mid);margin-top:1px}
+  .rc-win{text-align:right;line-height:1.05}.rc-win b{font-size:var(--fs-body);font-weight:700;display:block}.rc-win small{font-size:var(--fs-label);letter-spacing:.08em;text-transform:uppercase;opacity:.6}
+  .trio{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;padding:0 10px}
+  .tile{display:flex;flex-direction:column;gap:4px;min-width:0}
+  .por{aspect-ratio:3/4;position:relative;border:1px solid var(--db-line);overflow:hidden}
+  .por::after{content:"";position:absolute;inset:0;background:linear-gradient(160deg,rgba(255,255,255,.18),transparent 45%,rgba(0,0,0,.25))}
+  .por img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top}
+  .ch-top{display:grid;grid-template-columns:64px 1fr;gap:10px}
+  .ch-top .por{aspect-ratio:3/4}
+  .por .slot{position:absolute;left:0;bottom:0;background:rgba(0,0,0,.72);color:#f3efe2;font-size:var(--fs-label);letter-spacing:.08em;padding:1px 5px;z-index:1}
+  .por.new::before{content:"NEW";position:absolute;top:0;right:0;background:#f3efe2;color:#3a372f;font-size:var(--fs-label);padding:1px 4px;z-index:1;font-weight:bold}
+  .tile .nm{font-size:var(--fs-label);line-height:1.25;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;min-height:2.5em;overflow-wrap:break-word;hyphens:auto}
+  .rc .tile .nm{font-size:var(--fs-label);color:var(--fg-mid);text-align:center}
+  .db-controls .seg button{min-width:0}
+  .seg[data-name="deck_for"]{grid-auto-flow:row;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .seg[data-name="deck_for"] [data-v="subjugation"]{grid-column:1/-1;border-left:0;border-top:1px solid currentColor}
+  body.owned .best-only,body:not(.owned) .owned-only{display:none!important}
+  body.subj .arena-only,body:not(.subj) .subj-only{display:none!important}
+  .lo-row{display:grid;grid-template-columns:12px 92px minmax(0,1fr);gap:8px;align-items:center;padding:3px 10px}
+  .lo-n{font:700 var(--fs-label) var(--mono);opacity:.5}
+  .lo-trio{display:grid;grid-template-columns:repeat(3,1fr);gap:3px}
+  .lo-txt{min-width:0}.lo-txt b{display:block;font-size:var(--fs-small);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lo-txt small{font-size:var(--fs-label);opacity:.7}
+  .rc-foot{margin-top:6px;display:flex;justify-content:space-between;gap:10px;padding:6px 10px;border-top:1px dotted var(--db-line);font-size:var(--fs-label);opacity:.85}
+  .rc-foot b{font-weight:700}
+  .more{text-align:center;margin:12px 0 0;font-size:var(--fs-label);opacity:.75}
+  .reason{border-left:3px solid currentColor;padding:4px 0 4px 12px;margin:10px 0 14px;line-height:1.55}
+  .chars{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+  .ch{border:1px solid var(--db-line)}
+  .ch-top{padding:10px;border-bottom:1px solid var(--db-line)}
+  .ch-top .role{font-size:var(--fs-label);letter-spacing:.1em;text-transform:uppercase;opacity:.7}
+  .ch-top .nm2{font-weight:bold;margin:2px 0 4px}
+  .ch-top .line{font-size:var(--fs-label);line-height:1.45}
+  .pieces{list-style:none;margin:0;padding:0}
+  .pieces li{display:grid;grid-template-columns:38px 1fr;gap:8px;padding:7px 10px;border-bottom:1px dotted var(--db-line);font-size:var(--fs-label);line-height:1.4}
+  .ico{width:36px;height:30px;border:1px solid var(--db-line);display:flex;align-items:center;justify-content:center;font-size:var(--fs-label);opacity:.85}
+  .pieces b{display:block;font-size:var(--fs-small)}.pieces .r{opacity:.75}
+  .tagnew{font-size:var(--fs-label);border:1px solid currentColor;padding:0 3px;margin-left:4px}
+  .override{margin:14px 0 0;padding:8px 12px;border-left:3px solid var(--danger);background:rgba(107,10,10,.08);font-size:var(--fs-label);line-height:1.55}
+  .w-sl{display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:start;padding:8px 0;border-bottom:1px solid var(--db-line);font-size:var(--fs-small)}
+  .w-sl small{display:block;opacity:.7;font-size:var(--fs-label)}
+  .w-sl .warn{color:var(--danger);opacity:1}
+  .w-h{font-size:var(--fs-label);letter-spacing:.12em;text-transform:uppercase;opacity:.65;margin:14px 0 4px}
+  /* the deck picker: opens from WRITE DECK above the footer */
+  #w-pick{border-top:1px solid var(--db-line);padding:12px max(14px,var(--hole-right,0px)) 12px max(14px,var(--hole-left,0px));max-height:min(62vh,560px);overflow:auto;overscroll-behavior:contain}
+  #w-pick[hidden]{display:none}
+  .wp-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+  .wp-head h3{margin:0;font-size:var(--fs-label);letter-spacing:.12em;text-transform:uppercase;font-weight:700}
+  .wp-tabs{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);width:100%;border:1px solid currentColor;margin-bottom:10px}
+  .wp-tabs button{padding:6px 10px;font-size:var(--fs-small);min-height:36px;background:none;color:inherit;border:0;-webkit-appearance:none;appearance:none;margin:0;border-radius:0;box-shadow:none;transform:none}
+  .wp-tabs button+button{border-left:1px solid currentColor}
+  .wp-tabs button.on{background:var(--fg-dark)!important;color:var(--bg-cream)!important}
+  .wp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+  .wp-sl{position:relative;display:grid;grid-template-columns:auto 1fr;gap:2px 10px;align-items:baseline;padding:8px 10px;min-height:52px;border:1px solid var(--db-line);cursor:pointer;font-size:var(--fs-small)}
+  .wp-sl[hidden]{display:none}
+  .wp-sl input{position:absolute;opacity:0;pointer-events:none}
+  .wp-sl b{font:700 var(--fs-body) var(--mono)}
+  .wp-sl span{min-width:0;overflow-wrap:break-word;line-height:1.3}
+  .wp-sl.empty span{color:var(--fg-mid)}
+  .wp-sl i{grid-column:2;font-style:normal;font-size:var(--fs-label);letter-spacing:.08em;text-transform:uppercase;color:var(--fg-mid)}
+  .wp-sl:has(input:checked){background:var(--fg-dark);color:var(--bg-cream);border-color:var(--fg-dark)}
+  .wp-sl:has(input:checked) span,.wp-sl:has(input:checked) i{color:inherit}
+  .wp-sl:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+  #w-list{margin:12px 0 0;padding-left:18px;font-size:var(--fs-small);line-height:1.5}
+  #w-list:empty{display:none}
+  .wp-foot{display:flex;gap:10px;justify-content:flex-end;margin-top:12px}
+  #w-go[hidden]{display:none}
+  .summary{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--db-line)}
+  .summary p{margin:0;font-size:var(--fs-small);line-height:1.5}
+  /* the criteria: a popup behind the Filters button (a sheet from the bottom on phones) */
+  .open-filters{display:inline-flex;gap:6px;align-items:center}
+  .sheet-dim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:19}
+  .chip.e.e-light,.chip.e.e-light.on,.chip.e.e-light:hover{color:#1e1c18!important}  /* light's gold is too pale for light text */
+  .chip:hover:not(.on){background:color-mix(in srgb,var(--fg-dark) 8%,transparent)!important;color:inherit!important}
+  .chip.e:hover:not(.on){filter:brightness(1.08);color:#f3efe2!important}
+  .f-count{font-size:var(--fs-label);opacity:.7;margin-right:auto}
+  .f-body{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:20px}
+  .f-who-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  #f-find{width:min(220px,55%);padding:5px 9px;font-size:var(--fs-small);min-height:0;margin:0}
+  #f-picked{margin:6px 0}
+  .f-chars{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:12px 8px;align-content:start}
+  .f-chars .fc{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:3px;min-width:0;text-align:center;font-size:var(--fs-label);line-height:1.2}
+  .f-chars .fc:hover{background:none;transform:none}
+  .f-chars .fc .por{aspect-ratio:3/4;transition:opacity .12s}
+  .f-chars .fc .nm{display:block;overflow-wrap:break-word;hyphens:auto}
+  .f-chars .fc .nm b{display:block}
+  .f-chars .fc .nm b{font-weight:700}
+  .f-chars .fc .mark{position:absolute;top:3px;right:3px;z-index:2;width:18px;height:18px;border-radius:50%;background:var(--fg-dark);color:var(--bg-cream);font:700 var(--fs-label)/18px var(--mono)}
+  .f-chars .fc:not(.inc):not(.exc) .mark{display:none}
+  .f-chars .fc.inc .por{outline:3px solid var(--fg-dark);outline-offset:-1px}
+  .f-chars .fc.exc .por{opacity:.35;filter:grayscale(1)}
+  .f-chars .fc.exc .nm{text-decoration:line-through;color:var(--fg-mid)}
+  .f-chars .fc:focus-visible .por{outline:2px dashed var(--fg-dark);outline-offset:1px}
+  .f-what .f{margin-bottom:14px}
+  .filters-panel input[type="range"]{accent-color:var(--fg-dark)}
+  .filters-panel .chips .chip{font-size:var(--fs-label);letter-spacing:.06em;padding:4px 8px}
+  @media (max-width:700px){.f-body{grid-template-columns:minmax(0,1fr)}}
+  .filters-panel{position:fixed;z-index:20;left:50%;top:6vh;transform:translateX(-50%);width:min(980px,calc(100vw - 32px));max-height:88vh;overflow-y:auto;
+    background:var(--bg-cream);color:var(--fg-dark);border:2px solid var(--fg-dark);padding:10px 16px 0;box-sizing:border-box;animation:pop .15s ease-out}
+  .sheet-dim[hidden],.filters-panel[hidden]{display:none}
+  @keyframes pop{from{opacity:0}}
+  .sheet-head{display:flex;justify-content:space-between;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--db-line);margin-bottom:12px}
+  .sheet-head b{font-size:var(--fs-body);letter-spacing:.12em;text-transform:uppercase;margin-right:auto}
+  .sheet-foot{display:grid;grid-template-columns:1fr 2fr;gap:8px;position:sticky;bottom:0;padding:10px 0 12px;margin-top:12px;background:var(--bg-cream);border-top:1px solid var(--db-line)}
+  .deck-sheet{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;background:var(--bg-cream);color:var(--fg-dark)}
+  .deck-sheet[hidden]{display:none}
+  .ds-head{display:flex;align-items:center;gap:10px;padding:8px max(14px,var(--hole-right,0px)) 8px max(14px,var(--hole-left,0px));border-bottom:1px solid var(--db-line)}
+  .ds-head .ds-name{flex:1;min-width:0}
+  .ds-head .ds-name b{display:block;font-size:var(--fs-body);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ds-head .ds-name small{font-size:var(--fs-label);opacity:.7}
+  .ds-head button{min-height:34px;padding:4px 12px}
+  .ds-body{flex:1;overflow-y:auto;padding:12px max(14px,var(--hole-right,0px)) 16px max(14px,var(--hole-left,0px));display:grid;gap:14px;align-content:start}
+  .ds-stats{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--db-line);border-bottom:1px solid var(--db-line);margin-top:8px}
+  .ds-stats div{padding:6px 8px;font-size:var(--fs-label);letter-spacing:.06em;text-transform:uppercase;opacity:.9}
+  .ds-stats div+div{border-left:1px solid var(--db-line)}
+  .ds-stats b{display:block;font-size:var(--fs-body);letter-spacing:0;text-transform:none}
+  .reason{border-left:3px solid currentColor;padding:2px 0 2px 10px;margin:0;line-height:1.5;font-size:var(--fs-small)}
+  .reason:not(.open){display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+  .read-more{min-height:0;padding:0;margin-top:2px;background:none;border:0;color:inherit;font:var(--fs-label) var(--mono);letter-spacing:.1em;text-transform:uppercase;text-decoration:underline;opacity:.75}
+  .read-more[hidden]{display:none}
+  .chars{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
+  details.ch>summary{list-style:none;display:grid;grid-template-columns:40px 1fr auto;gap:10px;align-items:center;padding:8px 10px;cursor:pointer;font:inherit;letter-spacing:normal;text-transform:none}
+  details.ch>summary::-webkit-details-marker{display:none}
+  details.ch>summary .por{width:40px}
+  details.ch>summary::after{content:"+";font:var(--fs-lead) var(--mono);opacity:.6}
+  details.ch[open]>summary::after{content:"–"}
+  details.ch .role{font-size:var(--fs-label);letter-spacing:.08em;text-transform:uppercase;opacity:.7;margin-top:2px}
+  details.ch b{font-weight:700}
+  .pc-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:0 10px 8px}
+  .pc-h{font:var(--fs-label) var(--mono);letter-spacing:.12em;text-transform:uppercase;opacity:.6;padding:2px 10px 4px}
+  .pc{min-width:0}
+  .pc-ico{position:relative;aspect-ratio:1;max-width:80px;border:1px solid var(--db-line);background:rgba(0,0,0,.05);display:flex;align-items:center;justify-content:center;font:var(--fs-label) var(--mono);opacity:.95}
+  .pc-ico:has(img) .pc-k{display:none}
+  .pc-ico img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+  .pc.new .pc-ico::after{content:"NEW";position:absolute;top:0;left:0;background:#f3efe2;color:#3a372f;font:700 var(--fs-label) var(--sans);padding:1px 4px}
+  .pc-i{position:absolute;z-index:2;top:2px;right:2px;width:24px;height:24px;min-height:0;padding:0;border-radius:50%;border:1px solid currentColor;background:var(--bg-cream);color:var(--fg-dark);font:italic 700 var(--fs-small)/22px Georgia,serif;letter-spacing:0;text-transform:none}
+  .pc-i[aria-expanded="true"]{background:var(--fg-dark);color:var(--bg-cream)}
+  .pc small{display:block;font-size:var(--fs-label);letter-spacing:.06em;text-transform:uppercase;opacity:.6;margin-top:4px}
+  .pc b{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:var(--fs-label);font-weight:700;line-height:1.25}
+  .pc-why{margin:0 10px 10px;padding:6px 8px;border-left:2px solid currentColor;font-size:var(--fs-label);line-height:1.45;background:rgba(0,0,0,.04)}
+  .pc-why[hidden]{display:none}
+  details.ch .line{font-size:var(--fs-label);line-height:1.45;padding:0 10px 8px;margin:0}
+  .ds-foot{border-top:1px solid var(--db-line);padding:8px max(14px,var(--hole-right,0px)) 10px max(14px,var(--hole-left,0px));display:flex;align-items:center;gap:12px}
+  .ds-foot p{flex:1;margin:0;font-size:var(--fs-label);line-height:1.45}
+  #d-msg{margin:0}
+  @media (min-width:901px) and (min-height:600px){.deck-sheet{inset:4vh max(16px,calc(50vw - 560px));border:2px solid var(--fg-dark)}.ds-body{grid-template-columns:minmax(0,1fr) minmax(0,1.3fr)}}
+  @media (max-width:900px){.cards{grid-template-columns:1fr}.filters{grid-template-columns:1fr}}
+  @media (max-width:640px){
+    .db-controls{grid-template-columns:minmax(0,1fr)}
+    .filters-panel{left:0;right:0;bottom:0;top:110px;width:auto;max-height:none;transform:none;border-width:2px 0 0;padding:6px 14px 0;animation:rise .2s ease-out}
+    @keyframes rise{from{transform:translateY(40%);opacity:.4}}
+    .write-bar{position:sticky;bottom:0;padding:10px 0;background:inherit}
+  }
+  /* A phone on its side: the controls in the side column, two decks across (automata.css). */
+  @media (orientation: landscape) and (max-height: 599px) {
+    .filters-panel{inset:0;top:0;left:0;width:auto;max-height:none;transform:none;border:0;
+      padding:0 max(14px,var(--hole-right,0px)) 0 max(14px,var(--hole-left,0px))}
+    .filters-panel .sheet-head{position:sticky;top:0;z-index:3;background:var(--bg-cream);padding:8px 0;margin-bottom:8px}
+    .filters-panel .sheet-foot{padding:8px 0}
+    .f-chars{grid-template-columns:repeat(auto-fill,minmax(76px,1fr))}
+    .page-side .db-controls{grid-template-columns:minmax(0,1fr);gap:4px}
+    .page-side .seg button{width:auto;padding:6px 4px;font-size:var(--fs-label)}
+    .page-side .help{font-size:var(--fs-label)}.page-side #against{width:100%}
+    .page-main .cards{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+    /* the deck view: portraits, numbers and reason on the left; characters and the slots on the right */
+    .deck-sheet{left:0}
+    .ds-body{grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);align-items:start}
+    .ds-left{position:sticky;top:0}
+  }
+</style>
+
+<h1 class="bracket-header" data-side>Deck Builder</h1>
+<p data-side="intro">Decks picked the way experienced players picked them at the end of service, equipped from the game's own data, with the game's exact Force. Choose a deck, see why each piece is in it, and write it to the Arena or Loadout decks you choose. Your other decks stay as they are, and Save Data keeps a snapshot from before every write.</p>
+{% if players|length > 1 %}
+  <div class="panel" data-side><p style="margin:0"><label for="player">Player</label>
+  <select id="player" onchange="location.href='/decks?user='+this.value">{% for id, name in players %}<option value="{{ id }}"{% if id == user %} selected{% endif %}>{{ name }}</option>{% endfor %}</select></p></div>
+{% endif %}
+<div id="db-msg" class="banner" hidden></div>
+
+<div class="panel" data-side>
+  <div class="db-controls">
+    <div class="db-lbl">Deck for</div>
+    <div><div class="seg" data-name="deck_for"><button type="button" data-v="attack" class="on">Attack</button><button type="button" data-v="defense">Defense</button><button type="button" data-v="subjugation">Subjugation</button></div></div>
+    <div class="db-lbl" id="lbl-mode">Build from</div>
+    <div><div class="seg" data-name="mode"><button type="button" data-v="owned">What I own</button><button type="button" data-v="best" class="on">All maxed</button></div>
+      <p class="help best-only" data-info="lbl-mode">All maxed ranks the best decks in a world where you own everything: every costume of every character, fully raised. Each costume you own adds to its character's stats, so if you're missing some, the deck does a little worse for you than shown. Writing a deck adds missing pieces maxed and raises your own costumes and characters.</p>
+      <p class="help owned-only">What I own uses your costumes as they are. Allow up to
+        <select id="allow">{% for n in (0, 1, 2, 3, 5, 10, 20) %}<option value="{{ n }}"{% if n == 2 %} selected{% endif %}>{{ n }}</option>{% endfor %}<option value="all">All</option></select> pieces to be added.</p></div>
+    <div class="db-lbl subj-only">Boss</div>
+    <div class="subj-only" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <select id="boss" style="width:100%;min-width:0">{% for b in bosses %}<option value="{{ b.id }}">{{ b.name }} · {{ b.element }}</option>{% endfor %}</select>
+      <select id="difficulty">{% for n in (5, 4, 3, 2, 1) %}<option value="{{ n }}">Difficulty {{ n }}</option>{% endfor %}</select>
+    </div>
+    <div class="db-lbl"><span class="arena-only">Against</span></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <select id="against" class="arena-only" style="max-width:100%"><option value="general">General best</option>
+        {% for o in opponents %}<option value="{{ o.id }}">{{ o.name }} · {{ "{:,}".format(o.points) }} pts · {{ (o.names or [])|join(", ") }}</option>{% endfor %}</select>
+      <button type="button" class="open-filters chip on" onclick="sheet(true)">Filters <span id="nfilters"></span></button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-dim" id="sheet-dim" hidden onclick="sheet(false)"></div>
+<div class="filters-panel" id="filters-panel" role="dialog" aria-modal="true" aria-label="Filters" hidden>
+  <div class="sheet-head"><b>Filters</b><span class="f-count" id="f-count"></span>
+    <button type="button" class="chip" onclick="clearFilters()">Clear all</button><button type="button" class="chip" onclick="sheet(false)" aria-label="Close">✕</button></div>
+  <div class="f-body">
+    <section class="f-who" aria-label="Characters">
+      <div class="f-who-head"><div class="db-lbl">Characters</div><input type="search" id="f-find" placeholder="Find a character" autocomplete="off" aria-label="Find a character"></div>
+      <p class="help" id="f-picked">Tap a costume once to require it (✓), again to leave it out (✕), again to clear it.</p>
+      <div class="f-chars" id="f-chars" role="list"><p class="help">Loading…</p></div>
+    </section>
+    <section class="f-what">
+      <div class="f"><div class="db-lbl">Strategy</div><div class="chips" data-name="strategy" data-one="1">
+        {% for v, n in (("any","Any"),("stall","Stall"),("burst","Burst"),("dauntless","Dauntless"),("compromise_counter","Compromise counter"),("tank","Tank & provoke"),("mono","Mono-element")) %}<button type="button" class="chip{% if v == 'any' %} on{% endif %}" data-v="{{ v }}">{{ n }}</button>{% endfor %}</div></div>
+      <div class="f"><div class="db-lbl">Must have these effects</div><div class="chips" data-name="must">
+        {% for v, n in (("compromise","Compromise"),("cleanse","Cleanse"),("revive","Revive"),("provoke","Provoke"),("dauntless","Dauntless"),("indomitable","Indomitable"),("from_start","Usable from start")) %}<button type="button" class="chip" data-v="{{ v }}">{{ n }}</button>{% endfor %}</div></div>
+      <div class="f"><div class="db-lbl">Element by slot</div>
+        {% for k, n in (("l","Left"),("m","Middle"),("r","Right")) %}<div class="slotrow"><span>{{ n }}</span><div class="chips" data-name="el_{{ k }}" data-one="1">
+          <button type="button" class="chip on" data-v="">Any</button>{% for e in ("fire","water","wind","light","dark") %}<button type="button" class="chip e e-{{ e }}" data-v="{{ e }}">{{ e|title }}</button>{% endfor %}</div></div>{% endfor %}</div>
+      <div class="f"><div class="db-lbl">Leave out elements</div><div class="chips" data-name="exclude_el">
+        {% for e in ("fire","water","wind","light","dark") %}<button type="button" class="chip e e-{{ e }}" data-v="{{ e }}">{{ e|title }}</button>{% endfor %}</div></div>
+      <div class="f"><div class="db-lbl">Minimum per character</div>
+        {% for k, n, mx in (("agi","Agility",3000),("hp","HP",800000),("atk","ATK",80000),("crit","Crit rate ‰",1000)) %}<div class="rng"><span>{{ n }}</span><input type="range" min="0" max="{{ mx }}" step="{{ mx // 50 }}" value="0" data-min="{{ k }}"><span data-show="{{ k }}">—</span></div>{% endfor %}</div>
+      <p class="help">Similar decks are folded into one, so the list doesn't repeat the same deck with one piece changed.</p>
+    </section>
+  </div>
+  <div class="sheet-foot"><button type="button" class="chip" onclick="clearFilters()">Clear</button><button type="button" onclick="sheet(false)">Show decks</button></div>
+</div>
+
+<h2 class="bracket-header">Decks</h2>
+<div class="resbar"><span id="count">Loading…</span><label class="sort arena-only">Sort <select id="sort"><option value="match">Best match</option><option value="force">Force</option><option value="fewest">Fewest to add</option></select></label></div>
+<div class="cards" id="cards"></div>
+<p class="more" id="more"></p>
+
+<div id="detail" class="deck-sheet" role="dialog" aria-modal="true" aria-labelledby="d-title" hidden>
+  <div class="ds-head">
+    <button type="button" class="chip" onclick="closeDetail()" aria-label="Back to the decks">‹ Decks</button>
+    <div class="ds-name"><b id="d-title"></b><small id="d-sub"></small></div>
+  </div>
+  <div class="ds-body">
+    <div class="ds-left">
+      <div class="trio" id="d-trio" style="padding:0"></div>
+      <div class="ds-stats" id="d-stats"></div>
+      <div style="margin-top:10px"><p class="reason" id="d-why"></p><button type="button" class="read-more" id="d-more" hidden onclick="this.textContent = $('d-why').classList.toggle('open') ? 'Read less' : 'Read more'">Read more</button></div>
+      <div id="d-over"></div>
+    </div>
+    <div class="ds-right">
+      <div class="w-h" style="margin-top:0">Characters</div>
+      <div class="chars" id="d-chars"></div>
+      <div id="w-raise-box" hidden><div class="w-h">Raise what you own?</div><div id="w-raise"></div></div>
+    </div>
+  </div>
+  <div id="d-msg" class="banner" hidden></div>
+  <div id="w-pick" hidden>
+    <div class="wp-head"><h3 id="w-pick-h">Write to</h3></div>
+    <div id="w-pick-decks"><div class="wp-tabs" id="w-tabs"><button type="button" data-t="2" class="on">Arena</button><button type="button" data-t="1">Loadout</button></div>
+    <div class="wp-grid" id="w-slots">{% for s in slots %}<label class="wp-sl{% if not s.summary %} empty{% endif %}" data-t="{{ s.deck_type }}"{% if s.deck_type != 2 %} hidden{% endif %}><input type="checkbox" value="{{ s.deck_type }}:{{ s.number }}" data-name="{{ s.label | replace(" (defense)", "") }}" data-summary="{{ s.summary or "" }}"{% if "(defense)" in s.label %} data-defense="1"{% endif %}{% if not s.summary %} data-empty="1"{% endif %}><b>{{ "%02d" | format(s.number) }}</b><span>{{ s.summary or "Empty" }}</span>{% if "(defense)" in s.label %}<i>Defense</i>{% endif %}</label>{% endfor %}</div></div>
+    <ul id="w-list"></ul>
+    <div class="wp-foot"><button type="button" class="secondary" onclick="closePick()">CANCEL</button><button type="button" id="w-yes" onclick="writeDeck()" disabled>REPLACE</button></div>
+  </div>
+  <div class="ds-foot"><p id="w-sum"></p><button type="button" id="w-go" onclick="openPick()">WRITE DECK</button></div>
+</div>
+
+<script>
+// ⓘ info buttons: one per heading, toggles [data-side="intro"] and [data-info] explanations.
+(function() {
+  const main = document.querySelector("main") || document.body;
+  const made = new Map();
+  document.querySelectorAll('[data-side="intro"], [data-info]').forEach(el => {
+    const anchor = el.dataset.info ? document.getElementById(el.dataset.info) : main.querySelector("h1");
+    let b = made.get(anchor || el);
+    if (!b) {
+      b = document.createElement("button");
+      b.type = "button"; b.className = "intro-info"; b.textContent = "i"; b.targets = [];
+      b.setAttribute("aria-label", el.dataset.info ? "More about this" : "About this page");
+      b.setAttribute("aria-expanded", "false");
+      [...el.classList].filter(c => c.endsWith("-only")).forEach(c => b.classList.add(c));
+      b.onclick = e => {
+        e.preventDefault(); e.stopPropagation();
+        const open = !b.targets[0].classList.contains("open");
+        b.targets.forEach(t => t.classList.toggle("open", open));
+        b.setAttribute("aria-expanded", String(open));
+      };
+      anchor ? anchor.append(b) : el.before(b);
+      made.set(anchor || el, b);
+    }
+    b.targets.push(el);
+  });
+})();
+const USER = {{ user }};
+const PREPARING = {{ "true" if preparing else "false" }};
+const state = {deck_for: "attack", mode: "best", strategy: "any", el_l: "", el_m: "", el_r: "", must: [], exclude_el: [], sort: "match", include: [], exclude: []};
+let offset = 0, busy = false, done = false, chosen = null, detailData = null, pending = false;
+const cards = {};   // the listed decks by key, for the deck view's header and numbers
+const $ = id => document.getElementById(id);
+
+document.querySelectorAll(".seg").forEach(seg => seg.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  seg.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+  state[seg.dataset.name] = b.dataset.v;
+  document.body.classList.toggle("subj", state.deck_for === "subjugation");
+  document.body.classList.toggle("owned", state.mode === "owned");
+  load(true);
+}));
+document.querySelectorAll(".chips[data-name]").forEach(box => box.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  const name = box.dataset.name;
+  if (box.dataset.one) { box.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); state[name] = b.dataset.v; }
+  else { b.classList.toggle("on"); state[name] = [...box.querySelectorAll("button.on")].map(x => x.dataset.v); }
+  dirty = true; countFilters();
+}));
+document.querySelectorAll("input[data-min]").forEach(r => r.addEventListener("input", () => {
+  document.querySelector(`[data-show="${r.dataset.min}"]`).textContent = +r.value ? (+r.value).toLocaleString() : "—";
+  dirty = true; countFilters();
+}));
+$("against").addEventListener("change", () => load(true));
+$("boss").addEventListener("change", () => load(true));
+$("difficulty").addEventListener("change", () => load(true));
+const SUBJ = () => state.deck_for === "subjugation";
+const big = n => n >= 1e6 ? `${(n / 1e6).toFixed(n >= 1e8 ? 0 : 1)}M` : n.toLocaleString();
+$("allow").addEventListener("change", () => load(true));
+$("sort").addEventListener("change", e => { state.sort = e.target.value; load(true); });
+
+// The criteria popup: changes made in it apply when it closes (Show decks, ✕, a tap outside, Escape).
+let dirty = false;
+function sheet(open) {
+  $("filters-panel").hidden = $("sheet-dim").hidden = !open;
+  if (open) fetchCostumes();
+  if (open) { $("filters-panel").scrollTop = 0; $("filters-panel").querySelector("button").focus({preventScroll: true}); return; }
+  document.querySelector(".open-filters").focus({preventScroll: true});
+  if (dirty) { dirty = false; load(true); }
+}
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("filters-panel").hidden) sheet(false); });
+// The character picker: the costumes Deck Builder combines in this mode. Tap: require (✓) → leave out (✕) → clear.
+const costumeLists = {};
+async function fetchCostumes() {
+  const mode = state.mode;
+  if (!costumeLists[mode]) {
+    try { costumeLists[mode] = await (await fetch(`/decks/costumes?user=${USER}&mode=${mode}`)).json(); }
+    catch (e) { $("f-chars").innerHTML = '<p class="help">Couldn\'t load the costumes.</p>'; return; }
+  }
+  if (mode === state.mode) drawCostumes();
+}
+// The grid is drawn again only when the list or the search changes; a tap changes marks
+// in place (markCostumes), so the portraits already shown are not loaded again.
+function drawCostumes() {
+  const list = costumeLists[state.mode]; if (!Array.isArray(list)) return;
+  const q = $("f-find").value.trim().toLowerCase();
+  const shown = list.filter(c => !q || c.name.toLowerCase().includes(q) || c.character.toLowerCase().includes(q));
+  $("f-chars").innerHTML = shown.length ? shown.map(c =>
+    `<button type="button" role="listitem" class="fc" data-id="${c.id}" aria-pressed="false" title="${esc(c.name)}">
+      <div class="por e-${esc(c.element)}">${pic(c.id)}<span class="mark">✓</span></div>
+      <span class="nm"><b>${esc(c.character)}</b>${esc(c.name.replace(c.character, "").trim())}</span></button>`).join("") : '<p class="help">No costume matches.</p>';
+  markCostumes();
+}
+function markCostumes() {
+  const list = costumeLists[state.mode]; if (!Array.isArray(list)) return;
+  $("f-chars").querySelectorAll(".fc").forEach(b => {
+    const id = Number(b.dataset.id), st = state.include.includes(id) ? "inc" : state.exclude.includes(id) ? "exc" : "";
+    b.classList.toggle("inc", st === "inc"); b.classList.toggle("exc", st === "exc");
+    b.setAttribute("aria-pressed", st ? "true" : "false");
+    b.querySelector(".mark").textContent = st === "exc" ? "✕" : "✓";
+  });
+  const names = ids => ids.map(id => (list.find(c => c.id === id) || {}).character || id).join(", ");
+  $("f-picked").textContent = state.include.length || state.exclude.length
+    ? [state.include.length ? `Required: ${names(state.include)}` : "", state.exclude.length ? `Left out: ${names(state.exclude)}` : ""].filter(Boolean).join(" · ")
+    : "Tap a costume once to require it (✓), again to leave it out (✕), again to clear it.";
+}
+$("f-find").addEventListener("input", drawCostumes);
+$("f-chars").addEventListener("click", e => {
+  const b = e.target.closest(".fc"); if (!b) return;
+  const id = Number(b.dataset.id);
+  if (state.include.includes(id)) { state.include = state.include.filter(x => x !== id); state.exclude.push(id); }
+  else if (state.exclude.includes(id)) state.exclude = state.exclude.filter(x => x !== id);
+  else if (state.include.length < 3) state.include.push(id);
+  else state.exclude.push(id);              // a deck holds three: a fourth tap leaves it out
+  dirty = true; countFilters(); markCostumes();
+});
+function countFilters() {
+  const n = state.must.length + state.exclude_el.length + state.include.length + state.exclude.length + (state.strategy !== "any") + ["el_l","el_m","el_r"].filter(k => state[k]).length
+          + [...document.querySelectorAll("input[data-min]")].filter(r => +r.value).length;
+  $("nfilters").textContent = n || "";
+  $("f-count").textContent = n ? `${n} active` : "";
+}
+function clearFilters() {
+  document.querySelectorAll(".chips[data-name]").forEach(box => box.querySelectorAll("button").forEach((b, i) => b.classList.toggle("on", !!box.dataset.one && i === 0)));
+  Object.assign(state, {strategy: "any", el_l: "", el_m: "", el_r: "", must: [], exclude_el: [], include: [], exclude: []});
+  if ($("f-find").value) { $("f-find").value = ""; drawCostumes(); } else markCostumes();
+  document.querySelectorAll("input[data-min]").forEach(r => { r.value = 0; document.querySelector(`[data-show="${r.dataset.min}"]`).textContent = "—"; });
+  dirty = true; countFilters();
+  if ($("filters-panel").hidden) sheet(false);
+}
+function query() {
+  const q = new URLSearchParams({user: USER, deck_for: state.deck_for, mode: state.mode, allow: $("allow").value, against: $("against").value,
+    strategy: state.strategy, el_l: state.el_l, el_m: state.el_m, el_r: state.el_r, must: state.must.join(","), exclude_el: state.exclude_el.join(","), sort: state.sort,
+    include: state.include.join(","), exclude: state.exclude.join(","),
+    boss: $("boss").value, difficulty: $("difficulty").value});
+  document.querySelectorAll("input[data-min]").forEach(r => { if (+r.value) q.set("min_" + r.dataset.min, r.value); });
+  return q;
+}
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+// The costume's portrait from the game's files; the element colour stays when there is none.
+const pic = id => `<img src="/decks/portrait/${Number(id)}.png" alt="" loading="lazy" onerror="this.remove()">`;
+// A Subjugation loadout: three decks, one per phase, and the damage each deals in the simulator.
+function loadoutHtml(c) {
+  cards[c.key] = c;
+  const rows = c.decks.map(d => `<div class="lo-row"><span class="lo-n">${d.phase}</span><div class="lo-trio">${d.tiles.map(t =>
+      `<div class="por e-${esc(t.element)}${t.new ? " new" : ""}" title="${esc(t.name)}">${pic(t.id)}</div>`).join("")}</div>
+    <div class="lo-txt"><b>${esc(d.title)}</b><small>${big(d.damage)} damage${d.knockdowns ? " · knock-down" : ""}</small></div></div>`).join("");
+  return `<button type="button" class="rc" data-key="${esc(c.key)}"><div class="rc-head"><span class="rc-no">${String(c.rank).padStart(2, "0")}</span>
+    <div class="rc-name"><b>${big(c.damage)} damage</b><small>Three decks, nine characters</small></div><span></span></div>${rows}
+    <div class="rc-foot"><span>Force <b>${c.force.toLocaleString()}</b></span></div></button>`;
+}
+function cardHtml(c) {
+  if (c.kind === "subjugation") return loadoutHtml(c);
+  cards[c.key] = c;
+  const tiles = c.tiles.map(t => `<div class="tile"><div class="por e-${esc(t.element)}${t.new ? " new" : ""}">${pic(t.id)}<span class="slot">${t.slot}</span></div><span class="nm">${esc(t.name)}</span></div>`).join("");
+  return `<button type="button" class="rc" data-key="${esc(c.key)}"><div class="rc-head"><span class="rc-no">${String(c.rank).padStart(2, "0")}</span>
+    <div class="rc-name"><b>${esc(c.title)}</b><small>${esc(c.strategy)}</small></div><div class="rc-win"><b>${c.win_pct}%</b><small>win rate</small></div></div>
+    <div class="trio">${tiles}</div>
+    <div class="rc-foot"><span>Force <b>${c.force.toLocaleString()}</b></span></div></button>`;
+}
+async function load(reset) {
+  if (busy) { if (reset) pending = true; return; }   // a change while loading: load again when this one ends
+  if (reset) { offset = 0; done = false; $("cards").innerHTML = ""; }
+  if (done) return;
+  busy = true; $("more").textContent = SUBJ() ? "Simulating every deck against the boss, phase by phase…" : "Simulating decks…";
+  if (SUBJ() && reset) $("count").textContent = "Simulating…";
+  try {
+    const q = query(); q.set("offset", offset); q.set("limit", 6);
+    const res = await fetch("/decks/results?" + q);
+    const r = await res.json();
+    if (res.status === 409 && r.prepare) {          // the stage must be built first (an opponent outside it)
+      busy = false; await prepare(r.against, r.costumes); load(true); return;
+    }
+    $("count").innerHTML = SUBJ() ? (r.total ? `<strong>${r.total}</strong> loadout${r.total === 1 ? "" : "s"} of nine against the ${esc($("boss").selectedOptions[0]?.textContent.split(" · ")[0] || "boss")}` : "No loadouts match")
+      : r.total ? `<strong>${r.total.toLocaleString()}</strong> decks · showing 1–${offset + r.items.length}` : "No decks match";
+    $("cards").insertAdjacentHTML("beforeend", r.items.map(cardHtml).join(""));
+    offset += r.items.length; done = r.exhausted || !r.items.length;
+    $("more").textContent = r.total === 0 ? (r.relax ? `Try without the "${r.relax.replace("_", " ")}" filter.` : "") : done ? "" : "Scroll for more";
+  } catch (e) { $("more").textContent = "Couldn't load decks: " + e; }
+  busy = false;
+  if (pending) { pending = false; load(true); }
+  else if (!done) requestAnimationFrame(() => { if (moreInView()) load(false); });
+}
+// The observer reports only a change. On a screen tall enough for the first decks (an iPad,
+// a TV) the marker came into view during the first load, which ignored it, and never left:
+// with nothing to scroll no more decks came. After each load, one still in view loads more.
+function moreInView() {
+  const r = $("more").getBoundingClientRect();
+  return r.height > 0 && r.top < innerHeight && r.bottom > 0;
+}
+new IntersectionObserver(es => { if (es[0].isIntersecting && offset) load(false); }).observe($("more"));
+$("cards").addEventListener("click", e => { const b = e.target.closest(".rc"); if (b) openDetail(b.dataset.key, b); });
+
+// The deck view opens over the list; Back (the phone's too), ✕ and Escape return to the list where it was.
+async function openDetail(key, el) {
+  document.querySelectorAll(".rc").forEach(x => x.classList.toggle("on", x === el));
+  chosen = key;
+  const c = cards[key];
+  const subj = c.kind === "subjugation";
+  closePick();
+  if (subj) return openLoadout(key, c);
+  $("d-title").textContent = c.title;
+  $("d-sub").textContent = c.strategy;
+  $("d-trio").innerHTML = c.tiles.map(t => `<div class="por e-${esc(t.element)}${t.new ? " new" : ""}" title="${esc(t.name)}">${pic(t.id)}<span class="slot">${t.slot}</span></div>`).join("");
+  $("d-stats").innerHTML = [["Win rate", c.win_pct + "%"], ["Force", c.force.toLocaleString()], ["To add", c.to_add], ["Variants", c.variants]]
+    .map(([k, v]) => `<div>${k}<b>${esc(v)}</b></div>`).join("");
+  $("d-why").textContent = c.why; $("d-why").classList.remove("open"); $("d-more").hidden = true;
+  $("d-chars").innerHTML = '<p class="help">Loading…</p>'; $("d-over").innerHTML = ""; $("w-raise-box").hidden = true; $("w-sum").textContent = "";
+  $("d-msg").hidden = true;
+  $("detail").hidden = false; $("detail").querySelector(".ds-body").scrollTop = 0;
+  if (!history.state?.deck) history.pushState({deck: key}, "");
+  const res = await fetch(`/decks/detail?user=${USER}&key=${encodeURIComponent(key)}`);
+  const d = await res.json();
+  if (chosen !== key) return;
+  if (!res.ok) { closeDetail(); say("error", (d.error || "That deck is no longer listed") + ". Loading the list again."); load(true); return; }
+  detailData = d;
+  $("d-why").textContent = d.why_long;
+  requestAnimationFrame(() => { $("d-more").hidden = $("d-why").scrollHeight <= $("d-why").clientHeight + 4; });
+  $("d-chars").innerHTML = d.characters.map((ch, i) => `<details class="ch"${i === 0 ? " open" : ""}><summary><div class="por e-${esc(ch.element)}">${pic(ch.costume_id)}</div>
+    <div><b>${esc(ch.name)}</b><div class="role">${esc(ch.slot)} · ${esc(ch.element)} · Force ${ch.force.toLocaleString()}</div></div></summary>
+    <p class="line">${esc(ch.line)}</p>${pieceRows(ch.pieces)}</details>`).join("");
+  $("d-over").innerHTML = d.overrides.map(o => `<div class="override"><strong>Data override.</strong> ${esc(o)}</div>`).join("");
+  raiseBoxes(d);
+  rescore();
+}
+// The owned costumes a write can raise; All maxed ticks them all.
+function raiseBoxes(d) {
+  const FIELD = {"level": "level", "limit_break_count": "limit breaks", "awaken_count": "awakening",
+                 "costume_lottery_effect_unlocked_slot_count": "karma slots", "karma": "karma", "mythic_slab": "Mythic Slab"};
+  const byCostume = {};
+  d.raises.forEach(r => (byCostume[r.costume_id] = byCostume[r.costume_id] || {name: r.name, items: [], used: r.used_in}).items.push(r));
+  $("w-raise").innerHTML = Object.entries(byCostume).map(([id, x]) => `<label class="w-sl"><input type="checkbox" value="${id}" onchange="rescore()">
+    <span>${esc(x.name)}<small>${x.items.map(i => i.field === "mythic_slab" ? "Mythic Slab filled" : `${esc(FIELD[i.field] || i.field.replaceAll("_", " "))} ${i.current} → ${i.target}`).join(", ")}</small>
+    ${x.used.length ? `<small class="warn">Also used in ${esc(x.used.join(", "))}</small>` : ""}</span><span></span></label>`).join("");
+  $("w-raise-box").hidden = !d.raises.length;
+  // All maxed counts your own costumes and characters fully raised: the write raises them unless unticked.
+  if (state.mode === "best") document.querySelectorAll("#w-raise input").forEach(b => (b.checked = true));
+}
+async function openLoadout(key, c) {
+  const boss = $("boss").selectedOptions[0]?.textContent.split(" · ")[0] || "Subjugation";
+  $("d-title").textContent = boss;
+  $("d-sub").textContent = `Difficulty ${$("difficulty").value} · three decks, nine characters`;
+  $("d-trio").innerHTML = c.decks.flatMap(d => d.tiles).map(t => `<div class="por e-${esc(t.element)}${t.new ? " new" : ""}" title="${esc(t.name)}">${pic(t.id)}</div>`).join("");
+  $("d-stats").innerHTML = [["Damage", big(c.damage)], ["Force", c.force.toLocaleString()],
+                            ["Knock-downs", c.decks.reduce((n, d) => n + d.knockdowns, 0)], ["Decks", 3]]
+    .map(([k, v]) => `<div>${k}<b>${esc(v)}</b></div>`).join("");
+  $("d-why").textContent = "Each deck fights one phase of the boss, Subjugation deck 1 first. The damage is the simulator's, at this difficulty; the boss does not fall, so more damage is a higher score.";
+  $("d-why").classList.remove("open"); $("d-more").hidden = true;
+  $("d-chars").innerHTML = '<p class="help">Loading…</p>'; $("d-over").innerHTML = ""; $("w-raise-box").hidden = true; $("w-sum").textContent = "";
+  $("d-msg").hidden = true;
+  $("detail").hidden = false; $("detail").querySelector(".ds-body").scrollTop = 0;
+  if (!history.state?.deck) history.pushState({deck: key}, "");
+  const res = await fetch(`/decks/detail?user=${USER}&key=${encodeURIComponent(key)}`);
+  const d = await res.json();
+  if (chosen !== key) return;
+  if (!res.ok) { closeDetail(); say("error", (d.error || "That loadout is no longer listed") + ". Loading the list again."); load(true); return; }
+  detailData = d;
+  $("d-chars").innerHTML = d.decks.map(k => `<div class="w-h">Deck ${k.phase} · ${big(k.damage)} damage${k.knockdowns ? " · knock-down" : ""}</div>`
+    + k.characters.map(ch => `<details class="ch"><summary><div class="por e-${esc(ch.element)}">${pic(ch.costume_id)}</div>
+    <div><b>${esc(ch.name)}</b><div class="role">${esc(ch.slot)} · ${esc(ch.element)} · Force ${ch.force.toLocaleString()}</div></div></summary>
+    ${pieceRows(ch.pieces)}</details>`).join("")).join("");
+  raiseBoxes(d);
+  rescore();
+}
+// A character's pieces: weapons in one row, then companion, memoirs and debris; why each is there behind its ⓘ.
+function pieceRows(pieces) {
+  const tile = p => `<div class="pc${p.new ? " new" : ""}"><div class="pc-ico">${p.icon ? `<img src="${esc(p.icon)}" alt="" loading="lazy" onerror="this.remove()">` : ""}<span class="pc-k">${p.kind}</span>
+    ${p.why ? `<button type="button" class="pc-i" aria-expanded="false" aria-label="Why ${esc(p.name)}" data-why="${esc(p.name)}: ${esc(p.why)}">i</button>` : ""}</div>
+    <small>${esc(p.label)}</small><b>${esc(p.name)}</b></div>`;
+  const weapons = pieces.filter(p => p.kind === "MAIN" || p.kind === "SUB"), rest = pieces.filter(p => !weapons.includes(p));
+  return `<div class="pc-h">Weapons</div><div class="pc-row">${weapons.map(tile).join("")}</div>`
+    + (rest.length ? `<div class="pc-h">Support</div><div class="pc-row">${rest.map(tile).join("")}</div>` : "") + '<p class="pc-why" hidden></p>';
+}
+$("d-chars").addEventListener("click", e => {
+  const b = e.target.closest(".pc-i"); if (!b) return;
+  const ch = b.closest("details"), out = ch.querySelector(".pc-why"), open = b.getAttribute("aria-expanded") !== "true";
+  ch.querySelectorAll(".pc-i").forEach(x => x.setAttribute("aria-expanded", String(open && x === b)));
+  out.hidden = !open; out.textContent = open ? b.dataset.why : "";
+});
+function closeDetail() {
+  if (history.state?.deck) { history.back(); return; }   // popstate hides it
+  hideDetail();
+}
+function hideDetail() {
+  $("detail").hidden = true; chosen = null;
+  document.querySelector(`.rc[data-key="${CSS.escape(String(document.querySelector(".rc.on")?.dataset.key || ""))}"]`)?.focus({preventScroll: true});
+}
+addEventListener("popstate", () => { if (!$("detail").hidden) hideDetail(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("detail").hidden) closeDetail(); });
+async function prepare(against, costumes) {
+  $("count").textContent = "Preparing fully raised pieces…";
+  $("more").textContent = "The game's server pauses for a moment while Deck Builder raises them.";
+  const res = await fetch("/decks/prepare", {method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({user: USER, against: against || null, costumes: costumes || []})});
+  const j = await res.json();
+  if (!j.ok) say("error", j.error || "Couldn't prepare Deck Builder");
+}
+function say(kind, text) {
+  const msg = $("db-msg");
+  msg.hidden = false; msg.className = "banner" + (kind === "error" ? " error" : " success");
+  msg.textContent = (kind === "error" ? "> ERROR :: " : "> ") + text;
+  msg.scrollIntoView({behavior: "smooth"});
+}
+const ticked = sel => [...document.querySelectorAll(sel + " input:checked")].map(x => x.value);
+async function rescore() {
+  const raise = ticked("#w-raise");
+  const s = await (await fetch(`/decks/rescore?user=${USER}&key=${encodeURIComponent(chosen)}&raise=${raise.join(",")}`)).json();
+  if (detailData.kind === "subjugation") {
+    $("w-sum").innerHTML = `<strong>Adds ${detailData.added} piece${detailData.added === 1 ? "" : "s"}, fully raised.</strong> Force <b>${s.force.toLocaleString()}</b> over the three decks, <b>${big(s.damage)}</b> damage`
+      + (detailData.raises.length ? ` with ${raise.length ? "the ticked costumes raised" : "your costumes as they are"}.` : ".");
+    return;
+  }
+  $("w-sum").innerHTML = `<strong>Adds ${detailData.added} piece${detailData.added === 1 ? "" : "s"}, fully raised.</strong> Force <b>${s.force.toLocaleString()}</b>, wins <b>${s.win_pct}%</b>`
+    + (detailData.raises.length ? ` with ${raise.length ? "the ticked costumes raised" : "your costumes as they are"}.` : ".") + " A Save Data snapshot is taken first.";
+}
+// WRITE DECK opens the picker: Arena or Loadout decks, each naming what it holds; the picks are listed as what they
+// replace, and REPLACE writes them.
+function pickTab(t) {
+  document.querySelectorAll("#w-tabs button").forEach(b => b.classList.toggle("on", b.dataset.t === String(t)));
+  document.querySelectorAll("#w-slots .wp-sl").forEach(l => { l.hidden = l.dataset.t !== String(t); });
+}
+function pickList() {
+  const subj = detailData?.kind === "subjugation";
+  const boxes = subj ? [] : [...document.querySelectorAll("#w-slots input:checked")];
+  const lines = subj ? ["Replaces your Subjugation decks 1, 2 and 3, one deck per phase"]
+    : boxes.map(b => b.dataset.summary ? `Replaces ${b.dataset.name} (${b.dataset.summary})` : `Fills ${b.dataset.name} (empty)`);
+  $("w-list").innerHTML = lines.map(l => `<li>${esc(l)}</li>`).join("");
+  $("w-yes").disabled = !lines.length;
+  $("w-yes").textContent = lines.length && !subj && boxes.every(b => !b.dataset.summary) ? "WRITE" : "REPLACE";
+  const n = t => document.querySelectorAll(`#w-slots .wp-sl[data-t="${t}"] input:checked`).length;
+  document.querySelectorAll("#w-tabs button").forEach(b => { const k = n(b.dataset.t); b.textContent = (b.dataset.t === "2" ? "Arena" : "Loadout") + (k ? ` · ${k}` : ""); });
+}
+function openPick() {
+  const subj = detailData?.kind === "subjugation";
+  $("w-pick-decks").hidden = subj;
+  $("w-pick-h").textContent = subj ? "Write to Subjugation" : "Write to";
+  if (!subj) pickTab(document.querySelector("#w-slots input:checked")?.value.split(":")[0] || 2);
+  pickList();
+  $("d-msg").hidden = true;
+  $("w-pick").hidden = false; $("w-go").hidden = true;
+  $("w-pick").scrollTop = 0;
+}
+function closePick() { $("w-pick").hidden = true; $("w-go").hidden = false; }
+$("w-tabs").addEventListener("click", e => { const b = e.target.closest("button"); if (b) pickTab(b.dataset.t); });
+$("w-slots").addEventListener("change", pickList);
+async function writeDeck() {
+  const subj = detailData?.kind === "subjugation";
+  const slots = subj ? [] : ticked("#w-slots");
+  const msg = $("d-msg");
+  closePick();
+  if (!subj && !slots.length) { msg.hidden = false; msg.className = "banner error"; msg.textContent = "> ERROR :: Choose a deck slot to write to."; return; }
+  $("w-go").disabled = true;
+  try {
+    const r = await fetch("/decks/write", {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({user: USER, key: chosen, raise: ticked("#w-raise").map(Number),
+        slots: slots.map(v => { const [t, n] = v.split(":").map(Number); return {deck_type: t, number: n}; })})});
+    const j = await r.json();
+    msg.hidden = false;
+    if (j.ok) {
+      msg.className = "banner success";
+      msg.textContent = subj ? `> Written to Subjugation decks 1, 2 and 3. Added ${j.added} piece${j.added === 1 ? "" : "s"}.`
+        : `> Written to ${slots.length} deck slot${slots.length > 1 ? "s" : ""}. Added ${j.added} piece${j.added === 1 ? "" : "s"}. The game updates the deck's power when it next shows it.`;
+      load(true);   // the save changed: the list is read again
+    }
+    else { msg.className = "banner error"; msg.textContent = "> ERROR :: " + j.error; }
+  } finally { $("w-go").disabled = false; }
+}
+if (PREPARING) prepare(null).then(() => location.reload());
+else load(true);
+</script>
+{% endblock %}

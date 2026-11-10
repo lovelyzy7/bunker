@@ -5,15 +5,31 @@ chaquopy {
         version = '3.11'
         extractPackages 'web', 'tools', 'patcher', 'archive', 'bunker_tools'
         pip {
-            install 'fastapi==0.115.14'
-            install 'pydantic==1.10.22'
-            install 'uvicorn==0.34.3'
-            install 'jinja2==3.1.6'
-            install 'python-multipart==0.0.20'
-            install 'pycryptodome==3.21.0'
-            install 'itsdangerous==2.2.0'
+            // Every dependency is vendored as a wheel: pip's cross-platform
+            // resolution against the remote indexes backtracks for minutes on
+            // this network, and the Chaquopy index only ships native wheels for
+            // android_21/24 (re-tagged to android_28 below). Fully offline.
+            install '../vendor/wheels/fastapi-0.115.14-py3-none-any.whl'
+            install '../vendor/wheels/starlette-0.41.3-py3-none-any.whl'
+            install '../vendor/wheels/anyio-4.9.0-py3-none-any.whl'
+            install '../vendor/wheels/idna-3.10-py3-none-any.whl'
+            install '../vendor/wheels/sniffio-1.3.1-py3-none-any.whl'
+            install '../vendor/wheels/typing_extensions-4.12.2-py3-none-any.whl'
+            install '../vendor/wheels/click-8.1.7-py3-none-any.whl'
+            install '../vendor/wheels/h11-0.14.0-py3-none-any.whl'
+            install '../vendor/wheels/pydantic-1.10.22-py3-none-any.whl'
+            install '../vendor/wheels/uvicorn-0.34.3-py3-none-any.whl'
+            install '../vendor/wheels/jinja2-3.1.6-py3-none-any.whl'
+            install '../vendor/wheels/python_multipart-0.0.20-py3-none-any.whl'
+            // Native wheels are vendored (like msgpack): the Chaquopy index builds
+            // them for android_21/24, which pip's exact platform tag for
+            // minSdk 28 won't take directly.
+            install '../vendor/wheels/pycryptodome-3.21.0-0-cp311-cp311-android_28_arm64_v8a.whl'
+            install '../vendor/wheels/itsdangerous-2.2.0-py3-none-any.whl'
             install '../vendor/wheels/msgpack-1.1.1-py3-none-any.whl'
-            install 'lz4==4.3.2'
+            install '../vendor/wheels/lz4-4.3.2-0-cp311-cp311-android_28_arm64_v8a.whl'
+            // jinja2's native dependency, vendored for the same reason.
+            install '../vendor/wheels/markupsafe-3.0.3-0-cp311-cp311-android_28_arm64_v8a.whl'
         }
     }
 }

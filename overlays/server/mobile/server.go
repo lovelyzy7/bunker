@@ -2,6 +2,7 @@
 package mobile
 
 import (
+	"lunar-tear/server/internal/masterdata/memorydb"
 	"context"
 	"crypto/rand"
 	"database/sql"
@@ -27,8 +28,10 @@ import (
 	"lunar-tear/server/internal/gametime"
 	"lunar-tear/server/internal/interceptor"
 	"lunar-tear/server/internal/mods"
+	"lunar-tear/server/internal/pvp"
 	"lunar-tear/server/internal/runtime"
 	"lunar-tear/server/internal/service"
+	gamestore "lunar-tear/server/internal/store"
 	"lunar-tear/server/internal/store/sqlite"
 	"lunar-tear/server/migrations"
 
@@ -98,6 +101,9 @@ type instance struct {
 	http      []*http.Server
 	listeners []net.Listener
 	dbs       []*sql.DB
+	// granter is the running server's possession granter (Pod Programs ›
+	// Gift checks gifts with it: liveGranter).
+	granter func() *gamestore.PossessionGranter
 }
 
 func (s *instance) close() {
@@ -260,6 +266,7 @@ func Start(dataRoot, assetRoot string) (err error) {
 		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{MinTime: time.Second, PermitWithoutStream: true}),
 		grpc.ChainUnaryInterceptor(interceptor.Recover, interceptor.Platform, interceptor.Logging, interceptor.ReturnToTitle, interceptor.NewDiffInterceptor(store, store), interceptor.NewMissionInterceptor(store, store), interceptor.ViewTimes, interceptor.TimeSync), grpc.UnknownServiceHandler(interceptor.UnknownService))
 	service.InitBunker(holder)
+	pvp.SetDataDir(dataRoot) // Deck Builder's deck table beside the save (pvp/decktable.go)
 	summonNotices := map[int32]int32{}
 	for _, e := range holder.Get().GachaEntries {
 		if e.InformationId != 0 {
@@ -270,13 +277,15 @@ func Start(dataRoot, assetRoot string) (err error) {
 	service.SetArchiveRoot(dataRoot)
 	gacha.SetRatesPath(filepath.Join(dataRoot, "gacha_rates.json"))
 	gacha.SetRouletteRatesPath(filepath.Join(dataRoot, "roulette_rates.json"))
-	mods.SetPath(filepath.Join(dataRoot, "mods.json")) // Pod Programs > Mods
-	interceptor.SetTitleMarker(filepath.Join(dataRoot, "title.now")) // title_now.c
+	mods.SetPath(filepath.Join(dataRoot, "mods.json"))                  // Pod Programs > Mods
+	gametime.SetDayStartPath(filepath.Join(dataRoot, "day-start.json")) // Pod Programs > Content > Start a new day
+	interceptor.SetTitleMarker(filepath.Join(dataRoot, "title.now"))    // title_now.c
 	registerServices(s.grpc, local(8003), cdnURL, "http://"+local(3000), filepath.Join(assetRoot, "assets", "release", MasterName), store, holder, false)
 	healthServer := health.NewServer()
 	healthServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
 	grpc_health_v1.RegisterHealthServer(s.grpc, healthServer)
 	active = s
+	s.granter = func() *gamestore.PossessionGranter { return holder.Get().QuestHandler.Granter }
 	serveError := func(e error) {
 		if e != nil && !errors.Is(e, http.ErrServerClosed) && !errors.Is(e, grpc.ErrServerStopped) && !errors.Is(e, net.ErrClosed) {
 			log.Printf("Listener failed: %v", e)
@@ -308,6 +317,8 @@ func Stop() {
 		active = nil
 		s.close()
 		releaseMemory()
+		service.ResetOctoCaches()
+		memorydb.Close()
 	}
 	setStatus("stopped", "")
 	log.Print("Server stopped; saves flushed")

@@ -1,0 +1,14 @@
+diff --git a/server/internal/lunarbase/main.go b/server/internal/lunarbase/main.go
+--- a/server/internal/lunarbase/main.go
++++ b/server/internal/lunarbase/main.go
+@@ -471,6 +471,10 @@
+ 		return runClearTutorials(&req)
+ 	case "delete_user":
+ 		return runDeleteUser(&req)
++	case "send_gift": // Bunker: Pod Programs › Gift (bunker_gift.go)
++		return runSendGift(&req)
++	case "gift_room":
++		return runGiftRoom(&req)
+ 	case "":
+ 		return 0, errors.New("action required")
+ 	default:

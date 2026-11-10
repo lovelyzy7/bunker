@@ -71,6 +71,47 @@ def _check_key_iv(args):
             raise SystemExit("[patch_masterdata_zh] --iv-file 与内置 IV 不一致；拒绝。")
 
 
+def _add_bunker_rows(path):
+    """Bunker's rows that the prepared patcher carries (TABLE_ROW_ADDITIONS's
+    m_gift_text — the gift text): every master the build makes has them, as
+    the content presets do (原版 7f99d9d). Idempotent; a missing patcher or
+    rows mean nothing to do (the runtime adds them on the first gift)."""
+    python_root = ROOT / "android/app/src/main/python"
+    if str(python_root) not in sys.path:
+        sys.path.insert(0, str(python_root))
+    try:
+        from patcher import patch_masterdata as pm
+    except ImportError:
+        return False
+    rows = getattr(pm, "TABLE_ROW_ADDITIONS", {}).get("m_gift_text")
+    if not rows:
+        return False
+    import msgpack
+    from Crypto.Cipher import AES
+    from Crypto.Util.Padding import pad, unpad
+    key, iv = bytes.fromhex(pm.DEFAULT_KEY), bytes.fromhex(pm.DEFAULT_IV)
+    raw = Path(path).read_bytes()
+    decoded = unpad(AES.new(key, AES.MODE_CBC, iv).decrypt(raw), AES.block_size)
+    try:
+        msgpack.unpackb(decoded, raw=False, strict_map_key=False)
+        raise ValueError("Master data has no tables")
+    except msgpack.ExtraData as exc:
+        toc, blob = exc.unpacked, exc.extra
+    changed = {}
+    if not pm.apply_to_table(toc, blob, changed, "m_gift_text",
+                             lambda b: pm.add_table_rows(b, rows)):
+        return False
+    parts, layout, offset = [], {}, 0
+    for table, (start, length) in sorted(toc.items(), key=lambda item: item[1][0]):
+        part = changed.get(table, blob[start:start + length])
+        layout[table] = (offset, len(part))
+        parts.append(part)
+        offset += len(part)
+    plain = msgpack.packb(layout, use_bin_type=True) + b"".join(parts)
+    Path(path).write_bytes(AES.new(key, AES.MODE_CBC, iv).encrypt(pad(plain, AES.block_size)))
+    return True
+
+
 def patch_file(input_path, output_path, *, bin_edit=None, report=None, dry_run=False):
     """旧 --input/--output 契约 → build_bin_e()；返回 build_bin_e 的报告 dict。"""
     src, dst = Path(input_path), Path(output_path)
@@ -93,6 +134,7 @@ def patch_file(input_path, output_path, *, bin_edit=None, report=None, dry_run=F
                                  bin_edit=bin_edit, report_path=report, dry_run=dry_run)
         if not dry_run:
             shutil.copy2(staged_out, dst)
+            _add_bunker_rows(dst)
     return result
 
 

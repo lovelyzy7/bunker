@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"archive/zip"
 	"encoding/json"
 	"fmt"
@@ -36,8 +37,9 @@ type Notices struct {
 
 	mu     sync.Mutex
 	loaded bool
-	zip    *zip.ReadCloser
-	files  map[string]*zip.File
+	pack   string
+	prefix string
+	sizes  map[string]uint64 // entry name -> uncompressed size (the pack is reopened per read)
 	list   []*notice
 	byID   map[int32]*notice
 	gacha  map[int32]int32   // summon -> its notice
@@ -153,9 +155,11 @@ func (s *Notices) load() bool {
 		return false
 	}
 	files := map[string]*zip.File{}
+	sizes := map[string]uint64{}
 	for _, f := range z.File {
 		if name, ok := strings.CutPrefix(f.Name, prefix); ok {
 			files[name] = f
+			sizes[name] = f.UncompressedSize64
 		}
 	}
 	var index struct {
@@ -171,11 +175,14 @@ func (s *Notices) load() bool {
 			}
 		}
 	}
+	// The pack is read through here and reopened per image (serveImage): the
+	// file is not held open, so it stays deletable (a held handle fails the
+	// tests' temporary-directory cleanup on Windows).
+	z.Close()
 	if len(index.Notices) == 0 {
-		z.Close()
 		return false
 	}
-	s.zip, s.files, s.list = z, files, index.Notices
+	s.pack, s.prefix, s.sizes, s.list = zipPath, prefix, sizes, index.Notices
 	s.byID = make(map[int32]*notice, len(index.Notices))
 	for _, n := range index.Notices {
 		s.byID[n.Id] = n
@@ -240,26 +247,54 @@ func (s *Notices) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.serveList(w, q.Get("tab"))
 }
 
+// read returns one entry's bytes. The pack is reopened for each read: the
+// file is not held open, so the pack stays deletable on Windows (a held
+// handle fails test temporary-directory cleanup).
+func (s *Notices) read(name string) ([]byte, bool) {
+	s.mu.Lock()
+	pack, prefix := s.pack, s.prefix
+	_, known := s.sizes[name]
+	s.mu.Unlock()
+	if !known {
+		return nil, false
+	}
+	z, err := zip.OpenReader(pack)
+	if err != nil {
+		return nil, false
+	}
+	defer z.Close()
+	for _, cand := range z.File {
+		if n, ok := strings.CutPrefix(cand.Name, prefix); ok && n == name {
+			rc, err := cand.Open()
+			if err != nil {
+				return nil, false
+			}
+			defer rc.Close()
+			var buf bytes.Buffer
+			if _, err := io.Copy(&buf, rc); err != nil {
+				return nil, false
+			}
+			return buf.Bytes(), true
+		}
+	}
+	return nil, false
+}
+
 func (s *Notices) serveImage(w http.ResponseWriter, key string) {
 	if !s.load() {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	f := s.files["img/"+key+".webp"]
-	if f == nil {
+	name := "img/" + key + ".webp"
+	body, ok := s.read(name)
+	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	rc, err := f.Open()
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	defer rc.Close()
 	w.Header().Set("Content-Type", "image/webp")
-	w.Header().Set("Content-Length", strconv.FormatUint(f.UncompressedSize64, 10))
+	w.Header().Set("Content-Length", strconv.FormatUint(uint64(len(body)), 10))
 	w.Header().Set("Cache-Control", "max-age=31536000, immutable")
-	io.Copy(w, rc)
+	w.Write(body)
 }
 
 // The game's three tabs: News (everything), Events and Issues.

@@ -19,7 +19,7 @@ import (
 // the client receives the mission changes with the request's own.
 func NewMissionInterceptor(users store.UserRepository, sessions store.SessionRepository) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		if skipDiffForMethod(info.FullMethod) || strings.HasPrefix(info.FullMethod, "/apb.api.data.") {
+		if skipDiffForMethod(info.FullMethod) || handlerDiffsItself(info.FullMethod) || strings.HasPrefix(info.FullMethod, "/apb.api.data.") {
 			return handler(ctx, req)
 		}
 		cat := missions.Current()
@@ -38,7 +38,11 @@ func NewMissionInterceptor(users store.UserRepository, sessions store.SessionRep
 		var tracked store.UserState
 		after, err := users.UpdateUser(userId, func(u *store.UserState) {
 			tracked = store.CloneUserState(*u)
-			cat.Track(&before, u, info.FullMethod, req, gametime.NowMillis())
+			now := gametime.NowMillis()
+			cat.Track(&before, u, info.FullMethod, req, now)
+			// A chapter cleared or the loadout tutorial finished opens its
+			// limited-time offer with the Original calendar.
+			service.OpenLimitedOffers(u, now)
 		})
 		if err != nil {
 			log.Printf("[missions] %s: %v", info.FullMethod, err)

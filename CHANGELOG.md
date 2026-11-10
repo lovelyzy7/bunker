@@ -1,5 +1,57 @@
 # Changelog
 
+## 1.10.5 (2026-11-10)
+
+Content ported from upstream 1.10.0–1.10.5（原版 1.10.0→1.10.5 适配移植；
+iOS/iPad/TV 相关一概不进，版本号与原版对齐）.
+
+**Deck Builder（卡组构建器）**: Arena（攻/防）、Loadout 与 Subjugation 卡组，
+从你拥有的服装（可加件）或 All maxed 出发——终服收官阵容、按原作数据配装、
+游戏精确 Force 与胜率，每个部件附选取理由；按属性/策略/效果/角色筛选，
+对通用 meta 或指定对手构建，写入前先备份（Save Data 快照）。
+All maxed 排名 3,177,096 个卡组、对 50 个对手（23 专家 meta + 27 最强），
+回忆按原作规则拉满。
+
+**Gift（礼物）**: 给自己发任意游戏物品（宝石/召唤券/角色/武器/回忆/碎片，
+按用途分组），入游戏内礼盒「From Bunker, with love.」领取；可领数与重复
+保护，游戏继续运行。首次礼物会把礼物文案写进游戏数据（m_gift_text 90000）。
+
+**Story Jump（剧情跳转）**: 存档推进到主线任一章节/任务开头；跳过的任务按
+剧情方式结算（exp/金币/首通奖励一次、任务标清、无掉落）；先备份、可预览、
+只向前，S2 询问路线。
+
+**Mods 扩展**: 无限每日次数、免费跳过、EXP 倍率 ×1–×10、剧情好友（2B、9S、
+A2 等 28 人入好友与竞技场）；三项挑战——Hard enemies（×1.5~×5）、
+Weakness only、Slow skills，各付奖励加成（至 ×10）；**Start a new day**
+一次重开所有日常（任务次数/商店/免费召唤/应援/登录奖励）。Mods 页按
+Economy/Quests/Summons/World/Challenges 五组折叠，新增 Everything 预设。
+
+**日历**: 限时包按触发开启、一人一次（完成包/Jumpstart/Ch.6 等各限时窗口）；
+复刻活动每轮原样重放（29 活动 33 轮，各轮勋章/兑换/任务，event_runs 数据）；
+关日历与「显示原始日期」直接关游戏（不再询问），时钟回拨后日标记清理、
+日常不冻结。
+
+**召唤与公告**: 碎片/勋章按公告与立绘发放（双服 17+ 处修正）、价格按图核
+对（198 卡池）、假促销划线价移除；公告召唤价与服务器规则同步（fetch 时
+对齐，无需新包）；关日历时全部勋章兑换开放。
+
+**服务器**: Subjugation 计分按原作（伤害/100、生存加成、连击九档，旧分一次性
+÷100）；Limited shop 34 包与限时横幅表恢复、新手/回流活动不再丢；
+回忆掉落给足、25 章补掉；读图轻量化（UpdateSequence/gimmick 序列）；
+Memoir Editor 新增 Game-legal only 开关（只造原作可能的回忆）。
+
+**启动器（Android）**: ⋮ 菜单 **Auto deploy**（关=停留启动器等 Deploy）；
+菜单文案统一（one voice）；横屏布局紧凑适配；Pod Programs 横屏满屏
+（顶栏隐藏、窗口避开摄像头挖孔，页面经 /bunker/close 关闭）。
+
+**双语**: Pod Programs 全部页面（含新页）中/英双语（bunker-i18n.js 词条 +
+正则规则）；Bunker 菜单 Text.of 词典扩充（新文案 37 条）。
+
+**开发**: 原版 patch 链 11 项移植并重定位到本仓 pin（gift/deckbuilder/
+story-jump/memoir-legal/mods-expansion/slab-drops/bighunt-score/fork-fixes/
+event-runs/medal-gacha/gacha-hooks）；scripts 补 event_runs、
+sync_notice_prices、release.py、unit_tests.sh；真机与 Go/Python 测试全绿。
+
 ## 1.5.1 (2026-11-07)
 
 Web builder: the share sheet button and the downloaded-file verifier are gone

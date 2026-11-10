@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
-	"io"
 	"mime"
 	"net/http"
 	"path"
@@ -62,7 +61,8 @@ func (s *Notices) HasWebFile(urlPath string) bool {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.files[name] != nil
+	_, ok = s.sizes[name]
+	return ok
 }
 
 // ServeWeb serves a web app file from the pack.
@@ -72,34 +72,22 @@ func (s *Notices) ServeWeb(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	s.mu.Lock()
-	f := s.files[name]
-	s.mu.Unlock()
-	if f == nil {
+	body, ok := s.read(name)
+	if !ok {
 		http.NotFound(w, r)
 		return
 	}
-	rc, err := f.Open()
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	defer rc.Close()
 	ctype := mime.TypeByExtension(path.Ext(name))
 	if ctype == "" { // the cards and pieces are named by hash, without an extension
-		head := make([]byte, 512)
-		n, _ := io.ReadFull(rc, head)
-		head = head[:n]
-		ctype = http.DetectContentType(head)
+		ctype = http.DetectContentType(body)
 		w.Header().Set("Content-Type", ctype)
 		w.Header().Set("Cache-Control", "max-age=86400")
-		w.Write(head)
-		io.Copy(w, rc)
+		w.Write(body)
 		return
 	}
 	w.Header().Set("Content-Type", ctype)
 	w.Header().Set("Cache-Control", "max-age=86400")
-	io.Copy(w, rc)
+	w.Write(body)
 }
 
 // WebPage is the web app's page, which shows the panel mission for the URL.
@@ -107,19 +95,7 @@ func (s *Notices) WebPage() ([]byte, bool) {
 	if !s.load() {
 		return nil, false
 	}
-	s.mu.Lock()
-	f := s.files["web/default_page.html"]
-	s.mu.Unlock()
-	if f == nil {
-		return nil, false
-	}
-	rc, err := f.Open()
-	if err != nil {
-		return nil, false
-	}
-	defer rc.Close()
-	b, err := io.ReadAll(rc)
-	return b, err == nil
+	return s.read("web/default_page.html")
 }
 
 // The app's other page the game opens: a sub-quest type's guide

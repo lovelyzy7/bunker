@@ -1,0 +1,73 @@
+diff --git a/server/internal/interceptor/timesync.go b/server/internal/interceptor/timesync.go
+--- a/server/internal/interceptor/timesync.go
++++ b/server/internal/interceptor/timesync.go
+@@ -3,8 +3,6 @@
+ import (
+ 	"context"
+ 	"fmt"
+-
+-	"lunar-tear/server/internal/gametime"
+ 
+ 	"google.golang.org/grpc"
+ 	"google.golang.org/grpc/metadata"
+@@ -18,7 +16,7 @@
+ 		"/apb.api.user.UserService/TransferUser":
+ 	default:
+ 		grpc.SetTrailer(ctx, metadata.Pairs(
+-			"x-apb-response-datetime", fmt.Sprintf("%d", gametime.NowMillis()),
++			"x-apb-response-datetime", fmt.Sprintf("%d", viewNowMillis()),
+ 		))
+ 	}
+ 	return resp, err
+diff --git a/server/internal/userdata/projector.go b/server/internal/userdata/projector.go
+--- a/server/internal/userdata/projector.go
++++ b/server/internal/userdata/projector.go
+@@ -36,7 +36,7 @@
+ 	if s == "" {
+ 		return "[]"
+ 	}
+-	return s
++	return viewJSON(s) // the original-dates view (bunker_view.go)
+ }
+ 
+ func sortedStringKeys[T any](rows map[string]T) []string {
+diff --git a/server/internal/service/data.go b/server/internal/service/data.go
+--- a/server/internal/service/data.go
++++ b/server/internal/service/data.go
+@@ -50,17 +50,18 @@
+ }
+ 
+ func (s *DataServiceServer) GetLatestMasterDataVersion(ctx context.Context, _ *emptypb.Empty) (*pb.MasterDataGetLatestVersionResponse, error) {
+-	// 按会话区域返回各自的版本串（JP/GL 各自的 base+mtime，两个文件各自成立）。
+-	// 区域指定文件缺失时自动回退到实际存在的那份（交叉共用），版本串按实际文件。
+-	region := regionForUser(CurrentUserId(ctx, s.users, s.sessions), s.users)
+-	filePath, base, fellBack := resolveMasterData(region)
++	var region Region
++	filePath, base, fellBack := s.masterDataPath, masterDataBaseVersion, false
++	if s.users != nil && ctx != nil {
++		region = regionForUser(CurrentUserId(ctx, s.users, s.sessions), s.users)
++		filePath, base, fellBack = resolveMasterData(region)
++	}
+ 	if s.masterDataPath != masterDataBinPath && s.masterDataPath != "" {
+ 		filePath, base, fellBack = s.masterDataPath, masterDataBaseVersion, false
+ 	}
+ 	version := base
+-	if info, err := os.Stat(filePath); err == nil {
+-		version = fmt.Sprintf("%s_%d", base, info.ModTime().UnixMilli())
+-	} else {
++	if info, err := os.Stat(viewMasterFile(filePath)); err == nil {
++		version = fmt.Sprintf("%s_%d%s", base, info.ModTime().UnixMilli(), viewMasterSuffix(filePath))	} else {
+ 		log.Printf("[DataService] stat %s: %v (falling back to base version)", filePath, err)
+ 	}
+ 	log.Printf("[DataService] GetLatestMasterDataVersion -> %s (region=%s file=%s fallback=%v)", version, region, filePath, fellBack)
+diff --git a/server/internal/service/octo.go b/server/internal/service/octo.go
+--- a/server/internal/service/octo.go
++++ b/server/internal/service/octo.go
+@@ -534,6 +534,7 @@
+ 			}
+ 		}
+ 	}
++	filePath = viewMasterFile(filePath)
+ 	log.Printf("[HTTP] Master data serve: %s -> %s", requestPath, filePath)
+ 	w.Header().Set("Content-Type", "application/octet-stream")
+ 	http.ServeFile(w, r, filePath)

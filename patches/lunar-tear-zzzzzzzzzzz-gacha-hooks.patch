@@ -1,0 +1,40 @@
+diff --git a/server/internal/service/gacha.go b/server/internal/service/gacha.go
+--- a/server/internal/service/gacha.go
++++ b/server/internal/service/gacha.go
+@@ -429,6 +429,9 @@
+ }
+ 
+ func gachaUnlockCondition(entry store.GachaCatalogEntry) *pb.GachaUnlockCondition {
++	if c, ok := bunkerGachaUnlockCondition(entry); ok {
++		return c
++	}
+ 	if entry.UnlockConditionType == 0 {
+ 		return &pb.GachaUnlockCondition{GachaUnlockConditionType: model.GachaUnlockNone}
+ 	}
+@@ -441,6 +444,9 @@
+ 	if !entry.IsUserGachaUnlock {
+ 		return false
+ 	}
++	if unlocked, ok := bunkerGachaUnlockedFor(entry, user); ok {
++		return unlocked
++	}
+ 	if entry.UnlockConditionType == model.GachaUnlockMainQuestClear {
+ 		// Replaying a cleared quest sets its state back to Active until it ends; ClearCount stays.
+ 		q, ok := user.Quests[entry.UnlockConditionValue]
+@@ -451,6 +457,7 @@
+ 
+ func toProtoGachaFor(entry store.GachaCatalogEntry, bs *store.GachaBannerState, user store.UserState) *pb.Gacha {
+ 	g := toProtoGacha(entry, bs)
++	eventSummonLink(g, entry) // event summons: the run that is on
+ 	g.IsUserGachaUnlock = gachaUnlockedFor(entry, &user)
+ 	g.GachaPricePhase = buildProtoPricePhases(entry, bs, &user)
+ 	if mode, ok := g.GachaMode.(*pb.Gacha_GachaModeBoxComposition); ok && len(entry.BoxContents) > 0 {
+@@ -484,7 +491,7 @@
+ 		GachaDecorationType:        entry.GachaDecorationType,
+ 		SortOrder:                  entry.SortOrder,
+ 		IsInactive:                 entry.IsInactive,
+-		InformationId:              entry.InformationId,
++		InformationId:              summonNotice(entry),
+ 	}
+ 
+ 	g.GachaPricePhase = buildProtoPricePhases(entry, bs, nil)

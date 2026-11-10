@@ -1,0 +1,33 @@
+diff --git a/server/internal/questflow/rewards.go b/server/internal/questflow/rewards.go
+--- a/server/internal/questflow/rewards.go
++++ b/server/internal/questflow/rewards.go
+@@ -282,7 +282,7 @@
+ 	}
+ 	rewardGroupId := h.firstClearRewardGroupId(user, questDef)
+ 	for _, reward := range h.FirstClearRewardsByGroupId[rewardGroupId] {
+-		h.applyRewardPossession(user, model.PossessionType(reward.PossessionType), reward.PossessionId, reward.Count, nowMillis)
++		h.grantFirstClearReward(user, model.PossessionType(reward.PossessionType), reward.PossessionId, reward.Count, nowMillis)
+ 	}
+ }
+ 
+diff --git a/server/internal/service/user.go b/server/internal/service/user.go
+--- a/server/internal/service/user.go
++++ b/server/internal/service/user.go
+@@ -129,6 +129,17 @@
+ 				// Conversions shown in the last session are done with.
+ 				user.Gacha.ConvertedGachaMedal = store.ConvertedGachaMedalState{}
+ 				autoConvertExpiredMedals(user, cats.GachaEntries, cats.GachaHandler, user.GameStartDatetime)
++			}
++		}
++		// Stories whose quests were cleared before their conditions were read
++		// right (the Arc 2 ★2 weapons) unlock now.
++		if bunkerHolder != nil {
++			if cats := bunkerHolder.Get(); cats != nil && cats.QuestHandler != nil && cats.QuestHandler.Granter != nil {
++				// Saves from older versions are repaired first (story weapons, memoirs), so stories unlock too.
++				cats.QuestHandler.RepairOnGameStart(user, user.GameStartDatetime)
++				if cats.QuestHandler.Granter.CatchUpWeaponStories(user, user.GameStartDatetime) {
++					log.Printf("[UserService] user %d: weapon stories caught up", user.UserId)
++				}
+ 			}
+ 		}
+ 		// Limited stock whose day, week or month has ended is full again; the

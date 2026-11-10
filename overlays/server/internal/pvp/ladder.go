@@ -24,12 +24,15 @@ type CPU struct {
 	Point    int32
 	Costumes [3]int32
 	Weapons  [3]int32
+	// Loadout is the Deck Builder deck it fields (Catalog.Dress, decktable.go); nil without the table.
+	Loadout *DeckLoadout
 }
 
 // Ladder is a season's computer players. It is generated from the season id,
 // so it is the same each time the server starts.
 type Ladder struct {
 	cpus   []CPU
+	story  []CPU   // the first slots as story friends (story.go)
 	points []int32 // all points, descending
 	order  []int   // cpus indexes by points, descending
 }
@@ -55,6 +58,9 @@ func (c *Catalog) Ladder(seasonId int32) *Ladder {
 		l.cpus[i] = cpu
 		l.points[i] = cpu.Point
 	}
+	for i, ch := range StoryCharacters {
+		l.story = append(l.story, c.storyCPU(l.cpus[i], ch.CharacterId, ch.Name))
+	}
 	sort.Slice(l.points, func(i, j int) bool { return l.points[i] > l.points[j] })
 	l.order = make([]int, len(l.cpus))
 	for i := range l.order {
@@ -69,9 +75,11 @@ func (l *Ladder) Get(playerId int64) (CPU, bool) {
 	if !IsCPU(playerId) {
 		return CPU{}, false
 	}
-	return l.cpus[playerId-CpuIdBase-1], true
+	return l.at(int(playerId - CpuIdBase - 1)), true
 }
 
+// at returns the CPU at an index, the story friend in its slot when there is
+// one (story.go).
 func (l *Ladder) Size() int { return len(l.cpus) }
 
 // above counts the computer players with more points.
@@ -105,9 +113,9 @@ func (l *Ladder) Ranked(from, count int, playerPoint int32) []RankEntry {
 		case pos == playerAt:
 			out = append(out, RankEntry{Rank: int32(pos + 1), Player: true})
 		case pos < playerAt:
-			out = append(out, RankEntry{Rank: int32(pos + 1), CPU: l.cpus[order[pos]]})
+			out = append(out, RankEntry{Rank: int32(pos + 1), CPU: l.at(order[pos])})
 		default:
-			out = append(out, RankEntry{Rank: int32(pos + 1), CPU: l.cpus[order[pos-1]]})
+			out = append(out, RankEntry{Rank: int32(pos + 1), CPU: l.at(order[pos-1])})
 		}
 	}
 	return out
@@ -140,7 +148,7 @@ func (l *Ladder) Near(target int32, skip map[int64]bool, r *rand.Rand) (CPU, boo
 	if best < 0 {
 		return CPU{}, false
 	}
-	return l.cpus[best], true
+	return l.at(best), true
 }
 
 // pickDeck gives a computer player three characters, more often ★4 the

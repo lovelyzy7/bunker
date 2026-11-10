@@ -1,0 +1,236 @@
+﻿#!/usr/bin/env python3
+"""Deck Builder: All maxed results baked at build time (deckbuilder/baked.py): the shipped format, its ranked
+lists, the fighter fingerprint."""
+import itertools
+import json
+import sqlite3
+import tempfile
+import unittest
+from pathlib import Path
+
+from deckbuilder_testlib import BUILD, cli_invoke, needs_stage, tables
+from deckbuilder import baked
+
+
+def rec(l, aw, am, dw, dm, f):
+    return baked.Record(tuple(l), aw, am, dw, dm, f)
+
+
+ROWS = [rec((1, 2, 3), 1.0, 0.25, 0.8, 0.1, 400000), rec((1, 2, 4), 0.6, -0.1, 1.0, 0.5, 350000),
+        rec((2, 3, 4), 0.6, 0.2, 0.0, -0.4, 500000), rec((4, 3, 1), 0.0, -0.9, 0.4, 0.05, 300000)]
+LOADOUTS = {c: {"costume_id": c, "element": e, "role": "attacker", "main_weapon": 100 + c, "subs": [], "companion": None,
+                "memoir_set": None, "debris": None} for c, e in ((1, "fire"), (2, "water"), (3, "wind"), (4, "dark"))}
+
+
+class FormatTest(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.path = Path(self.dir.name)
+        baked.write(self.path, LOADOUTS, "abc123", ROWS, extra={"bake": "test"})
+        self.b = baked.Baked.load(self.path)
+
+    def tearDown(self):
+        self.dir.cleanup()
+
+    def test_round_trip_in_rank_order(self):
+        """Attack ranks by attack win then margin (and Force), defense by defense win then margin; values kept to
+        4 decimals, lineups in slot order."""
+        self.assertEqual([r.lineup for r in self.b.records("attack")], [(1, 2, 3), (2, 3, 4), (1, 2, 4), (4, 3, 1)])
+        self.assertEqual([r.lineup for r in self.b.records("defense")], [(1, 2, 4), (1, 2, 3), (4, 3, 1), (2, 3, 4)])
+        self.assertEqual(self.b.records("attack")[0], ROWS[0])
+        self.assertEqual(self.b.fingerprint, "abc123")
+        self.assertEqual(self.b.element(2), "water")
+        self.assertEqual(self.b.meta["bake"], "test")
+
+    def test_the_force_list(self):
+        """A third list ranks decks by Force with each costume's Force loadout (force_loadouts)."""
+        flo = {c: dict(lo, main_weapon=500 + c) for c, lo in LOADOUTS.items()}
+        baked.write(self.path, LOADOUTS, "abc", ROWS, force_rows=[((1, 2, 3), 600000), ((2, 3, 4), 650000), ((4, 3, 1), 610000)],
+                    force_loadouts=flo)
+        b = baked.Baked.load(self.path)
+        self.assertEqual([(r.lineup, r.force) for r in b.records("force")], [((2, 3, 4), 650000), ((4, 3, 1), 610000), ((1, 2, 3), 600000)])
+        self.assertEqual(b.loadouts_for("force")[2]["main_weapon"], 502)
+        self.assertEqual(b.loadouts_for("match")[2]["main_weapon"], 102)
+
+    def test_keeps_only_the_top(self):
+        b = baked.write(self.path, LOADOUTS, "x", ROWS, keep=2)
+        b = baked.Baked.load(self.path)
+        self.assertEqual([r.lineup for r in b.records("attack")], [(1, 2, 3), (2, 3, 4)])
+        self.assertEqual([r.lineup for r in b.records("defense")], [(1, 2, 4), (1, 2, 3)])
+
+    def test_missing_data_is_none(self):
+        self.assertIsNone(baked.Baked.load(self.path / "nowhere"))
+
+    def test_the_opponents_it_was_scored_against(self):
+        """The bake names its opponents: meta_decks (the experts' meta decks as it equipped them, in baked loadouts,
+        with their weights) and meta_top (its own strongest decks). A bake that names none was scored against the
+        app's own meta."""
+        self.assertEqual((self.b.meta_decks, self.b.meta_top), ([], []))
+        md = [{"name": "Expert", "weight": 1.0, "loadouts": [LOADOUTS[1], LOADOUTS[2], LOADOUTS[3]]}]
+        baked.write(self.path, LOADOUTS, "x", ROWS, meta_decks=md, meta_top=[(1, 2, 3), (4, 3, 1)])
+        b = baked.Baked.load(self.path)
+        self.assertEqual((b.meta_decks, b.meta_top), (md, [(1, 2, 3), (4, 3, 1)]))
+
+
+class DebrisTest(unittest.TestCase):
+    """The game holds one of each debris: in a deck, a debris an earlier character already has is replaced on the
+    later one by its next in order (first not taken)."""
+    def test_a_debris_twice_goes_to_the_next(self):
+        lo = {c: dict(LOADOUTS[c], debris=d) for c, d in ((1, 900), (2, 900), (3, 901))}
+        order = lambda element: [900, 901, 902]
+        out = baked.deck_loadouts((1, 2, 3), lo, order)
+        self.assertEqual([x["debris"] for x in out], [900, 902, 901])
+        self.assertEqual([x["costume_id"] for x in out], [1, 2, 3])
+        self.assertEqual(lo[2]["debris"], 900)                  # the shared loadouts are not changed
+
+    def test_no_debris_or_none_left(self):
+        lo = {c: dict(LOADOUTS[c], debris=d) for c, d in ((1, 900), (2, 900), (3, None))}
+        out = baked.deck_loadouts((1, 2, 3), lo, lambda e: [900])
+        self.assertEqual([x["debris"] for x in out], [900, None, None])
+
+
+@needs_stage
+class GeneratorTest(unittest.TestCase):
+    """All maxed against the general meta answered from the baked lists: their order, the same filters, the baked
+    gear in the deck; the live search for what the bake does not cover."""
+    POOL = [35036, 33029, 31032, 32035, 34048, 32028]
+
+    @classmethod
+    def setUpClass(cls):
+        from deckbuilder import equip, experts, generate, model, stage
+        cls.dir = tempfile.TemporaryDirectory(dir=BUILD)
+        path = Path(cls.dir.name) / "stage.db"
+        cls.ex = experts.Experts.load(tables())
+        meta = [l.costumes for l in sorted(cls.ex.meta_pool(), key=lambda l: -l.weight)[:1]]
+        stage.Stager(cli_invoke(path), tables()).build(**equip.stage_plan([(c,) for c in cls.POOL] + meta, tables(), cls.ex))
+        cls.stage = model.Save(sqlite3.connect(f"file:{path}?mode=ro", uri=True), 1)
+        los = {}
+        for c in cls.POOL:
+            spec = equip.equip((c,), equip.Mode("best"), cls.stage, cls.stage, tables(), cls.ex).specs[0]
+            pid = lambda kind, ref: cls.stage.piece_id(kind, ref.uuid) if ref else None
+            los[c] = {"costume_id": c, "role": equip.role(c, cls.ex), "element": equip.element_of(c, tables()),
+                      "main_weapon": pid("weapon", spec.main_weapon), "subs": [pid("weapon", w) for w in spec.subs],
+                      "companion": pid("companion", spec.companion), "memoir_set": None, "debris": pid("debris", spec.debris)}
+        cls.los = los
+        char = {c: tables().idx("Costume", "CostumeId")[c]["CharacterId"] for c in cls.POOL}
+        combos = [c for c in itertools.combinations(cls.POOL, 3) if len({char[x] for x in c}) == 3]
+        cls.rows = [baked.Record(c, round(1 - i / 40, 4), 0.0, round(i / 40, 4), 0.0, 300000 + 1000 * i) for i, c in enumerate(combos)]
+        cls.bdir = Path(cls.dir.name) / "baked"
+        # the Force list: the same loadouts with each costume's last sub weapon as its main (a different loadout)
+        cls.flos = {c: (dict(lo, main_weapon=lo["subs"][-1], subs=lo["subs"][:-1]) if lo["subs"] else lo) for c, lo in los.items()}
+        cls.force_rows = [(r.lineup, 600000 - 1000 * i) for i, r in enumerate(reversed(cls.rows))]
+        baked.write(cls.bdir, los, "fp", cls.rows, force_rows=cls.force_rows, force_loadouts=cls.flos)
+        cls.gen = generate.Generator(tables(), cls.ex, cls.stage, cls.stage, baked=baked.Baked.load(cls.bdir), meta_size=1, runs=1)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.stage.db.close()
+        cls.dir.cleanup()
+
+    def criteria(self, **kw):
+        from deckbuilder import equip, generate
+        return generate.Criteria(**dict(dict(deck_for="attack", mode=equip.Mode("best")), **kw))
+
+    def test_attack_and_defense_in_baked_order(self):
+        page = self.gen.page(self.criteria(), 0, 4)
+        self.assertEqual([r.lineup for r in page.items], [r.lineup for r in self.rows[:4]])
+        self.assertEqual([r.rank for r in page.items], [1, 2, 3, 4])
+        self.assertEqual(page.total, len(self.rows))
+        r = page.items[0]
+        # the baked numbers, which ranked it: the list reads in order
+        self.assertEqual((r.win_rate, r.margin, r.force), (self.rows[0].attack_win, self.rows[0].attack_margin, self.rows[0].force))
+        d = self.gen.page(self.criteria(deck_for="defense"), 0, 2)
+        top = sorted(self.rows, key=lambda r: -r.defense_win)[:2]
+        self.assertEqual([r.lineup for r in d.items], [r.lineup for r in top])
+        self.assertEqual([(r.win_rate, r.margin) for r in d.items], [(r.defense_win, r.defense_margin) for r in top])
+
+    def test_filters_and_force_sort(self):
+        page = self.gen.page(self.criteria(exclude=frozenset({35036})), 0, 50)
+        self.assertTrue(page.items and all(35036 not in r.lineup for r in page.items))
+        forced = self.gen.page(self.criteria(sort="force"), 0, 3)
+        self.assertEqual([r.lineup for r in forced.items], [l for l, f in sorted(self.force_rows, key=lambda x: -x[1])[:3]])
+        self.assertEqual(forced.items[0].equipped.specs[0].main_weapon.uuid,
+                         self.stage.pick("weapon", weapon_id=self.flos[forced.items[0].lineup[0]]["main_weapon"]))
+
+    def test_the_deck_holds_the_baked_gear(self):
+        r = self.gen.page(self.criteria(), 0, 1).items[0]
+        for c, spec in zip(r.lineup, r.equipped.specs):
+            self.assertEqual(self.stage.piece_id("weapon", spec.main_weapon.uuid), self.los[c]["main_weapon"])
+        self.assertEqual(r.elements, tuple(self.los[c]["element"] for c in r.lineup))
+        self.assertTrue(r.deck.characters()[0])
+
+    def test_shown_numbers_are_against_the_bakes_opponents(self):
+        """A Force-list deck's win rate and margin (its gear was never fought) are simulated against the bake's opponents: its meta decks in their
+        shipped loadouts (built as the app equips them) and its meta_top decks in their baked loadouts, every opponent
+        weighted alike."""
+        from deckbuilder import generate
+        from deckbuilder.sim import battle
+        md = baked.meta_decks(self.gen, self.ex, self.stage, tables())
+        self.assertEqual([battle._side(baked.meta_deck(d, i, self.stage, tables()), tables()) for i, d in enumerate(md)],
+                         [battle._side(d, tables()) for d, _, _ in self.gen.meta()])      # the shipped loadouts rebuild them
+        top = [self.rows[-1].lineup]
+        bdir = Path(self.dir.name) / "baked_top"
+        baked.write(bdir, self.los, "fp", self.rows, meta_decks=md, meta_top=top, force_rows=self.force_rows,
+                    force_loadouts=self.flos)
+        gen = generate.Generator(tables(), self.ex, self.stage, self.stage, baked=baked.Baked.load(bdir), meta_size=1, runs=1)
+        opp = gen.baked_opponents()
+        self.assertEqual([w for _, w, _ in opp], [0.5, 0.5])
+        ids = lambda d: tuple(ch.costume.id for ch in d.characters() if ch)
+        self.assertEqual(ids(opp[1][0]), top[0])
+        r = gen.page(self.criteria(sort="force"), 0, 1).items[0]      # the Force list's gear was never fought: simulated
+        self.assertEqual((r.win_rate, r.margin), gen.outcome(r.deck, self.criteria(sort="force"), opp))
+        self.assertEqual(self.gen.baked_opponents(), self.gen.meta())     # a bake that names none: the app's own meta
+
+    def test_what_the_bake_does_not_cover_searches_live(self):
+        """What I own, an opponent, minimum stats or Fewest to add depend on the player's save or the opponent: the live
+        search answers them."""
+        from deckbuilder import equip
+        self.assertTrue(self.gen.baked_applies(self.criteria()))
+        self.assertTrue(self.gen.baked_applies(self.criteria(deck_for="defense", sort="force")))
+        for c in (self.criteria(mode=equip.Mode("owned", 2)), self.criteria(against=object()), self.criteria(min_stats={"agi": 1000}),
+                  self.criteria(sort="fewest")):
+            self.assertFalse(self.gen.baked_applies(c))
+
+class StagePlanTest(unittest.TestCase):
+    """The phone's stage holds every baked costume and piece (the baked decks are written from it)."""
+    def test_plan_holds_the_baked_pieces_and_merges(self):
+        import android_deckbuilder as db
+        from deckbuilder_testlib import HAVE_MASTER
+        if not HAVE_MASTER:
+            self.skipTest("no master data")
+        los = {c: dict(LOADOUTS[c], subs=[200 + c], companion=7 if c < 3 else None, memoir_set=10 if c == 1 else None,
+                       debris=900 + (c % 2), **({"karma": {"1": 4, "2": 7, "3": 16}} if c == 2 else {})) for c in LOADOUTS}
+        b = baked.Baked(Path("."), {"costumes": sorted(los), "loadouts": {str(c): lo for c, lo in los.items()}, "fingerprint": "x"})
+        plan = db._baked_plan(b, tables())
+        self.assertEqual(plan["costume_ids"], [1, 2, 3, 4])
+        self.assertEqual(plan["weapon_ids"], [101, 102, 103, 104, 201, 202, 203, 204])
+        self.assertEqual((plan["companion_ids"], plan["thought_ids"]), ([7], [900, 901]))
+        self.assertEqual(len(plan["memoirs"]), 9)                  # set 10: three pieces for each build (attacker, support, Force)
+        self.assertEqual(plan["costume_karma"], {2: {"1": 4, "2": 7, "3": 16}})     # each costume's baked karma
+        merged = db._merge_plans({"costume_ids": [4, 9], "weapon_ids": [101], "companion_ids": [], "thought_ids": [], "memoirs": plan["memoirs"][:1]}, plan)
+        self.assertEqual(merged["costume_ids"], [1, 2, 3, 4, 9])
+        self.assertEqual(len(merged["memoirs"]), 9)
+        self.assertEqual(merged["costume_karma"], plan["costume_karma"])
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+class ForceKarmaTest(unittest.TestCase):
+    """The Force list's karma is chosen for Force (force-gear): it rides on the spec to Force and to the write."""
+    class _Stage:
+        def pick(self, kind, **where):
+            return f"{kind}-{list(where.values())[0]}"
+
+    def test_a_force_loadout_gives_its_spec_the_karma(self):
+        lo = dict(LOADOUTS[1], force_karma={"1": 5, "2": 9, "3": 16})
+        spec = baked.loadout_spec(lo, self._Stage(), None)
+        self.assertEqual(spec.karma, {"1": 5, "2": 9, "3": 16})
+        self.assertIsNone(baked.loadout_spec(LOADOUTS[1], self._Stage(), None).karma)
+
+    def test_the_write_sends_it(self):
+        import android_deckbuilder as db
+        spec = baked.loadout_spec(dict(LOADOUTS[1], force_karma={"1": 5}), self._Stage(), None)
+        self.assertEqual(db._spec_json(spec)["karma"], {"1": 5})
+        self.assertNotIn("karma", db._spec_json(spec._replace(karma=None)))

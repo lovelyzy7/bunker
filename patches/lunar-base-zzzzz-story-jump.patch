@@ -1,0 +1,21 @@
+diff --git a/server/internal/lunarbase/main.go b/server/internal/lunarbase/main.go
+--- a/server/internal/lunarbase/main.go
++++ b/server/internal/lunarbase/main.go
+@@ -185,6 +185,8 @@
+ 	StagePath string          `json:"stage_path"`
+ 	// Deck Builder's staging save: characters' rank (bunker_deckbuilder.go)
+ 	Ranks []rankSpec `json:"ranks"`
++	// Pod Programs › Story Jump (bunker_story.go)
++	Story *storySpec `json:"story"`
+ 	QuestIDs         []int32                `json:"quest_ids"`
+ 	Missions         []missionSpec          `json:"missions"`
+ 	TutorialTypes    []int32                `json:"tutorial_types"`
+@@ -487,6 +489,8 @@
+ 		return runArenaMatching(&req)
+ 	case "rank_characters":
+ 		return runRankCharacters(&req)
++	case "story_jump": // Bunker: Pod Programs › Story Jump (bunker_story.go)
++		return runStoryJump(&req)
+ 	case "":
+ 		return 0, errors.New("action required")
+ 	default:

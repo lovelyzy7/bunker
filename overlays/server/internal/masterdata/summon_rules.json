@@ -484,6 +484,7 @@
    "asset": "limited_59",
    "end": 1629597599000,
    "id": 59,
+   "medal": 8007,
    "notice": 0,
    "pair": 0,
    "src": "banner row; usual prices",
@@ -718,6 +719,7 @@
    "asset": "limited_123",
    "end": 1640570340000,
    "id": 123,
+   "medal": 8021,
    "notice": 0,
    "pair": 0,
    "src": "art: limited-time character and weapons, Yuletide Wishes shard; dates: event guide \"Premium Summons: Yuletide Wishes\"",
@@ -1093,16 +1095,11 @@
    "id": 186,
    "notice": 0,
    "pair": 0,
-   "src": "banner row; usual prices",
+   "src": "banner row; art: Paid Gems Only",
    "start": 1656900000000,
    "steps": [
     {
-     "cur": "gems",
-     "draws": 1,
-     "price": 300
-    },
-    {
-     "cur": "gems",
+     "cur": "paid",
      "draws": 10,
      "guar": "r3w",
      "price": 3000
@@ -1172,17 +1169,11 @@
    "id": 194,
    "notice": 0,
    "pair": 0,
-   "src": "banner row; usual prices; art: ★★★★ appearance rate doubled",
+   "src": "banner row; art: Paid Gems Only; art: ★★★★ appearance rate doubled",
    "start": 1659578400000,
    "steps": [
     {
-     "cur": "gems",
-     "draws": 1,
-     "price": 300,
-     "rate": 2
-    },
-    {
-     "cur": "gems",
+     "cur": "paid",
      "draws": 10,
      "guar": "r3w",
      "price": 3000,
@@ -1215,17 +1206,11 @@
    "id": 405,
    "notice": 0,
    "pair": 0,
-   "src": "banner row; usual prices; art: ★★★★ appearance rate x1.5",
+   "src": "banner row; art: Paid Gems Only; art: ★★★★ appearance rate x1.5",
    "start": 1661479200000,
    "steps": [
     {
-     "cur": "gems",
-     "draws": 1,
-     "price": 300,
-     "rate": 1.5
-    },
-    {
-     "cur": "gems",
+     "cur": "paid",
      "draws": 10,
      "guar": "r3w",
      "price": 3000,
@@ -1395,6 +1380,7 @@
    "asset": "limited_417",
    "end": 1665626399000,
    "id": 417,
+   "medal": 8105,
    "notice": 734,
    "pair": 0,
    "src": "notice 734 and art",
@@ -1452,6 +1438,7 @@
    "asset": "limited_424",
    "end": 1667786399999,
    "id": 424,
+   "medal": 8109,
    "notice": 777,
    "pair": 0,
    "src": "notice 777; art: ★★★★ appearance rate x1.5",
@@ -1481,6 +1468,7 @@
    "asset": "limited_425",
    "end": 1667786399999,
    "id": 425,
+   "medal": 8109,
    "notice": 776,
    "pair": 0,
    "src": "notice 776; art: ★★★★ appearance rate x1.5",
@@ -1567,6 +1555,7 @@
    "asset": "limited_438",
    "end": 1672019940000,
    "id": 438,
+   "medal": 8134,
    "notice": 839,
    "pair": 0,
    "src": "notice 839 and art",
@@ -1623,6 +1612,7 @@
    "asset": "limited_444",
    "end": 1672019999000,
    "id": 444,
+   "medal": 8138,
    "notice": 874,
    "pair": 0,
    "src": "notice 874 (Vol. 2) and art",
@@ -1649,6 +1639,7 @@
    "asset": "limited_445",
    "end": 1672019999000,
    "id": 445,
+   "medal": 8138,
    "notice": 874,
    "pair": 0,
    "src": "notice 874 (Vol. 3) and art",
@@ -1704,6 +1695,7 @@
    "asset": "limited_450",
    "end": 1672365599000,
    "id": 450,
+   "medal": 8142,
    "notice": 890,
    "pair": 0,
    "src": "notice 890 (Vol. 2) and art",
@@ -1723,6 +1715,7 @@
    "asset": "limited_451",
    "end": 1672559999000,
    "id": 451,
+   "medal": 8142,
    "notice": 890,
    "pair": 0,
    "src": "notice 890 (Vol. 3) and art",
@@ -1863,6 +1856,7 @@
    "asset": "limited_467",
    "end": 1679450340000,
    "id": 467,
+   "medal": 8148,
    "notice": 0,
    "pair": 0,
    "src": "art: featuring Japanese 2nd Anniversary Celebratory characters, Congratulatory Dress shard; dates: event guide \"Premium Summons: Congratulatory Dress\"",
@@ -1919,6 +1913,7 @@
    "asset": "limited_471",
    "end": 1679450340000,
    "id": 471,
+   "medal": 8151,
    "notice": 0,
    "pair": 0,
    "src": "art: featuring new Japanese 2nd Anniversary Celebratory characters, Resolute Dress shard; dates: event guide \"Premium Summons: Resolute Dress\"",
@@ -1941,6 +1936,7 @@
    "asset": "limited_473",
    "end": 1678067999000,
    "id": 473,
+   "medal": 8153,
    "notice": 989,
    "pair": 0,
    "src": "notice 989 (Vol. 2) and art",
@@ -1969,6 +1965,7 @@
    "asset": "limited_474",
    "end": 1678067999000,
    "id": 474,
+   "medal": 8153,
    "notice": 989,
    "pair": 0,
    "src": "notice 989 (Vol. 3) and art",
@@ -1997,6 +1994,7 @@
    "asset": "limited_476",
    "end": 1683511199000,
    "id": 476,
+   "medal": 8154,
    "notice": 1052,
    "pair": 0,
    "src": "notice 1052 (Vol. 2) and art",
@@ -2144,6 +2142,7 @@
    "asset": "limited_488",
    "end": 1683511199999,
    "id": 488,
+   "medal": 8161,
    "notice": 1094,
    "pair": 0,
    "src": "notice 1094; art: ★★★★ appearance rate x1.5",
@@ -2298,9 +2297,10 @@
    "asset": "limited_506",
    "end": 1692345599999,
    "id": 506,
+   "medal": 8170,
    "notice": 1142,
    "pair": 0,
-   "src": "notice 1142",
+   "src": "notice 1142; notice 1142: Healer & Support Summon Medals",
    "start": 1684720800000,
    "steps": [
     {
@@ -2317,9 +2317,10 @@
    "asset": "limited_507",
    "end": 1692345599999,
    "id": 507,
+   "medal": 8170,
    "notice": 1142,
    "pair": 0,
-   "src": "notice 1142; limited_507, the notice's second banner",
+   "src": "notice 1142; limited_507, the notice's second banner; notice 1142: Healer & Support Summon Medals",
    "start": 1684720800000,
    "steps": [
     {
@@ -2666,6 +2667,7 @@
    "asset": "limited_546",
    "end": 1696557540000,
    "id": 546,
+   "medal": 8197,
    "notice": 0,
    "pair": 0,
    "src": "art: perform a 10 summon for free, YoRHa Stage Play shards x10; dates: event guide \"Premium Summons: YoRHa Stage Play\"",
@@ -2684,21 +2686,18 @@
    "asset": "limited_554",
    "end": 1699235999000,
    "id": 554,
+   "medal": 8205,
    "notice": 0,
    "pair": 0,
-   "src": "banner row; usual prices",
+   "src": "banner row; art: Crossover Commemorative 10 Free Summons; art: Summon Shard (DQX ONLINE - All) x10",
    "start": 1698372000000,
    "steps": [
     {
-     "cur": "gems",
-     "draws": 1,
-     "price": 300
-    },
-    {
-     "cur": "gems",
+     "cur": "free",
      "draws": 10,
      "guar": "r3w",
-     "price": 3000
+     "limit": 1,
+     "price": 0
     }
    ]
   },
@@ -2868,19 +2867,15 @@
    "id": 600,
    "notice": 0,
    "pair": 0,
-   "src": "banner row; usual prices",
+   "src": "banner row; art: Story Completion Countdown x10 free per day",
    "start": 1705996800000,
    "steps": [
     {
-     "cur": "gems",
-     "draws": 1,
-     "price": 300
-    },
-    {
-     "cur": "gems",
+     "cur": "free",
+     "daily": true,
      "draws": 10,
      "guar": "r3w",
-     "price": 3000
+     "price": 0
     }
    ]
   },
@@ -2890,19 +2885,15 @@
    "id": 601,
    "notice": 0,
    "pair": 0,
-   "src": "banner row; usual prices",
+   "src": "banner row; art: Story Completion Countdown x10 free per day",
    "start": 1706860800000,
    "steps": [
     {
-     "cur": "gems",
-     "draws": 1,
-     "price": 300
-    },
-    {
-     "cur": "gems",
+     "cur": "free",
+     "daily": true,
      "draws": 10,
      "guar": "r3w",
-     "price": 3000
+     "price": 0
     }
    ]
   },
@@ -2912,19 +2903,15 @@
    "id": 602,
    "notice": 0,
    "pair": 0,
-   "src": "banner row; usual prices",
+   "src": "banner row; art: Story Completion Countdown x10 free per day",
    "start": 1707465600000,
    "steps": [
     {
-     "cur": "gems",
-     "draws": 1,
-     "price": 300
-    },
-    {
-     "cur": "gems",
+     "cur": "free",
+     "daily": true,
      "draws": 10,
      "guar": "r3w",
-     "price": 3000
+     "price": 0
     }
    ]
   },
@@ -2934,19 +2921,15 @@
    "id": 603,
    "notice": 0,
    "pair": 0,
-   "src": "banner row; usual prices",
+   "src": "banner row; art: Story Completion Countdown x10 free per day",
    "start": 1708070400000,
    "steps": [
     {
-     "cur": "gems",
-     "draws": 1,
-     "price": 300
-    },
-    {
-     "cur": "gems",
+     "cur": "free",
+     "daily": true,
      "draws": 10,
      "guar": "r3w",
-     "price": 3000
+     "price": 0
     }
    ]
   },
@@ -2956,19 +2939,15 @@
    "id": 604,
    "notice": 0,
    "pair": 0,
-   "src": "banner row; usual prices",
+   "src": "banner row; art: Story Completion Countdown x10 free per day",
    "start": 1708675200000,
    "steps": [
     {
-     "cur": "gems",
-     "draws": 1,
-     "price": 300
-    },
-    {
-     "cur": "gems",
+     "cur": "free",
+     "daily": true,
      "draws": 10,
      "guar": "r3w",
-     "price": 3000
+     "price": 0
     }
    ]
   },
@@ -2978,19 +2957,15 @@
    "id": 605,
    "notice": 0,
    "pair": 0,
-   "src": "banner row; usual prices",
+   "src": "banner row; art: Story Completion Countdown x10 free per day",
    "start": 1709280000000,
    "steps": [
     {
-     "cur": "gems",
-     "draws": 1,
-     "price": 300
-    },
-    {
-     "cur": "gems",
+     "cur": "free",
+     "daily": true,
      "draws": 10,
      "guar": "r3w",
-     "price": 3000
+     "price": 0
     }
    ]
   },
@@ -3032,19 +3007,15 @@
    "id": 609,
    "notice": 0,
    "pair": 0,
-   "src": "banner row; usual prices",
+   "src": "banner row; art: Story Completion Countdown x10 free per day",
    "start": 1709884800000,
    "steps": [
     {
-     "cur": "gems",
-     "draws": 1,
-     "price": 300
-    },
-    {
-     "cur": "gems",
+     "cur": "free",
+     "daily": true,
      "draws": 10,
      "guar": "r3w",
-     "price": 3000
+     "price": 0
     }
    ]
   },
@@ -3054,19 +3025,15 @@
    "id": 610,
    "notice": 0,
    "pair": 0,
-   "src": "banner row; usual prices",
+   "src": "banner row; art: Story Completion Countdown x10 free per day",
    "start": 1710489600000,
    "steps": [
     {
-     "cur": "gems",
-     "draws": 1,
-     "price": 300
-    },
-    {
-     "cur": "gems",
+     "cur": "free",
+     "daily": true,
      "draws": 10,
      "guar": "r3w",
-     "price": 3000
+     "price": 0
     }
    ]
   },
@@ -3130,7 +3097,7 @@
    "id": 9002,
    "notice": 0,
    "pair": 0,
-   "src": "banner row; usual prices",
+   "src": "banner row; notice 1500009002 and art: Advanced Handbook x2 as a bonus (10 times only)",
    "start": 1635300000000,
    "steps": [
     {
@@ -3139,9 +3106,20 @@
      "price": 300
     },
     {
+     "bonus": [
+      "Advanced Handbook x2"
+     ],
      "cur": "gems",
      "draws": 10,
      "guar": "r3w",
+     "items": [
+      {
+       "id": 311003,
+       "n": 2,
+       "t": 5
+      }
+     ],
+     "limit": 10,
      "price": 3000
     }
    ]
@@ -3151,9 +3129,10 @@
    "end": 1683511199999,
    "id": 10107,
    "lineup": 10094,
+   "medal": 8591,
    "notice": 0,
    "pair": 0,
-   "src": "event guide: Weekly Summons 04-30-2023, rerun of 10094",
+   "src": "event guide: Weekly Summons 04-30-2023, rerun of 10094; notice 1106: Shard (Weekly Summons A)",
    "start": 1682906400000,
    "steps": [
     {
@@ -3176,9 +3155,10 @@
    "end": 1683511199999,
    "id": 10108,
    "lineup": 10095,
+   "medal": 8592,
    "notice": 0,
    "pair": 0,
-   "src": "event guide: Weekly Summons 04-30-2023, rerun of 10095",
+   "src": "event guide: Weekly Summons 04-30-2023, rerun of 10095; notice 1106: Shard (Weekly Summons B)",
    "start": 1682906400000,
    "steps": [
     {
@@ -4020,9 +4000,10 @@
    "asset": "step_up_523001",
    "end": 1657504740000,
    "id": 523001,
+   "medal": 8064,
    "notice": 0,
    "pair": 0,
-   "src": "art: steps 1-5, crossover character guaranteed upon summoning a ★★★★, rate doubled in steps 4-5, crossover character in the 10th slot of step 5; dates: event guide \"Premium Summons: Drakengard 3 (Resurrected Crossover)\"",
+   "src": "art: steps 1-5, crossover character guaranteed upon summoning a ★★★★, rate doubled in steps 4-5, crossover character in the 10th slot of step 5; dates: event guide \"Premium Summons: Drakengard 3 (Resurrected Crossover)\"; art: Summon Shard (Drakengard 3 Crossover) x10",
    "start": 1655085600000,
    "steps": [
     {
@@ -4360,6 +4341,7 @@
    "asset": "step_up_531001",
    "end": 1661911140000,
    "id": 531001,
+   "medal": 8087,
    "notice": 0,
    "pair": 0,
    "src": "art: steps 1-5, featuring new limited-time characters, Blessed Dress shards; dates: event guide \"Premium Summons: Blessed Dress\"",
@@ -4479,6 +4461,7 @@
    "asset": "step_up_534001",
    "end": 1665107999000,
    "id": 534001,
+   "medal": 8092,
    "notice": 723,
    "pair": 0,
    "src": "notice 723",
@@ -4710,6 +4693,7 @@
    "asset": "step_up_551001",
    "end": 1675648799999,
    "id": 551001,
+   "medal": 8147,
    "notice": 943,
    "pair": 0,
    "src": "notice 943",
@@ -4775,6 +4759,7 @@
    "asset": "step_up_557001",
    "end": 1683507599000,
    "id": 557001,
+   "medal": 8154,
    "notice": 1053,
    "pair": 0,
    "src": "notice 1053",
@@ -4835,6 +4820,7 @@
    "asset": "step_up_558001",
    "end": 1683511199000,
    "id": 558001,
+   "medal": 8154,
    "notice": 1053,
    "pair": 0,
    "src": "art: steps 1-3, ★★★★ rate doubled, featuring 2P, Fio and Akeha, featured character guaranteed in step 3; dates: notice 1053",
@@ -4894,6 +4880,7 @@
    "asset": "step_up_560001",
    "end": 1683507599000,
    "id": 560001,
+   "medal": 8162,
    "notice": 1051,
    "pair": 0,
    "src": "notice 1051",
@@ -5006,9 +4993,10 @@
    "asset": "step_up_563001",
    "end": 1686275999000,
    "id": 563001,
+   "medal": 8165,
    "notice": 0,
    "pair": 0,
-   "src": "art: steps 1-3, ★★★★ rate doubled, featuring Fabled Witch, Weapon and Assassin, featured character guaranteed in step 3; dates: event guide \"SINoALICE (Resurrected Crossover)\"",
+   "src": "art: steps 1-3, ★★★★ rate doubled, featuring Fabled Witch, Weapon and Assassin, featured character guaranteed in step 3; dates: event guide \"SINoALICE (Resurrected Crossover)\"; art: Summon Shards (SINoALICE Crossover) x10",
    "start": 1683511200000,
    "steps": [
     {
@@ -6026,9 +6014,10 @@
    "asset": "step_up_581001",
    "end": 1695347940000,
    "id": 581001,
+   "medal": 8198,
    "notice": 0,
    "pair": 0,
-   "src": "art: steps 1-3, the featured or a specific character in step 2, the featured character in step 3; dates: event guide \"Premium Summons: Mechanical Hunter\"",
+   "src": "art: steps 1-3, the featured or a specific character in step 2, the featured character in step 3; dates: event guide \"Premium Summons: Mechanical Hunter\"; art: Shard (Tale of Resistance) x10 each step",
    "start": 1694743200000,
    "steps": [
     {
@@ -6086,9 +6075,10 @@
    "asset": "step_up_582001",
    "end": 1695952740000,
    "id": 582001,
+   "medal": 8198,
    "notice": 0,
    "pair": 0,
-   "src": "art: steps 1-3, the featured or a specific character in step 2, the featured character in step 3; dates: event guide \"Premium Summons: Mechanical Weapon\"",
+   "src": "art: steps 1-3, the featured or a specific character in step 2, the featured character in step 3; dates: event guide \"Premium Summons: Mechanical Weapon\"; art: Shard (Tale of Resistance) x10 each step",
    "start": 1695348000000,
    "steps": [
     {
@@ -6304,9 +6294,10 @@
    "asset": "step_up_586001",
    "end": 1697767140000,
    "id": 586001,
+   "medal": 8204,
    "notice": 0,
    "pair": 0,
-   "src": "art: steps 1-3, the featured or a specific character in step 2, the featured character in step 3; dates: event guide \"Premium Summons: Oathbound Exile\"",
+   "src": "art: steps 1-3, the featured or a specific character in step 2, the featured character in step 3; dates: event guide \"Premium Summons: Oathbound Exile\"; art: Shard (Never-Ending Adventure) x10 each step",
    "start": 1697162400000,
    "steps": [
     {
@@ -6370,9 +6361,10 @@
    "asset": "step_up_587001",
    "end": 1698371940000,
    "id": 587001,
+   "medal": 8204,
    "notice": 0,
    "pair": 0,
-   "src": "art: steps 1-3, the featured or a specific character in step 2, the featured character in step 3; dates: event guide \"Premium Summons: Oathbound Belle\"",
+   "src": "art: steps 1-3, the featured or a specific character in step 2, the featured character in step 3; dates: event guide \"Premium Summons: Oathbound Belle\"; art: Shard (Never-Ending Adventure) x10 each step",
    "start": 1697767200000,
    "steps": [
     {
@@ -7514,9 +7506,10 @@
    "asset": "step_up_900003",
    "end": 1648691940000,
    "id": 900003,
+   "medal": 8012,
    "notice": 0,
    "pair": 0,
-   "src": "art: steps 1-5, featured character or weapon guaranteed upon summoning a ★★★★, Lars (Lacrima Soldier) in step 5; dates: event guide \"Premium Summons: Lacrima Soldier\"",
+   "src": "art: steps 1-5, featured character or weapon guaranteed upon summoning a ★★★★, Lars (Lacrima Soldier) in step 5; dates: event guide \"Premium Summons: Lacrima Soldier\"; art: Shard (Lacrima Soldier) x10",
    "start": 1647568800000,
    "steps": [
     {
@@ -7991,19 +7984,25 @@
    "id": 9000021,
    "notice": 0,
    "pair": 0,
-   "src": "banner row; usual prices",
+   "src": "banner row; art: 10x summon for 2,000 gems, Advanced Handbook x2 as a bonus (five times only)",
    "start": 1638086400000,
    "steps": [
     {
-     "cur": "gems",
-     "draws": 1,
-     "price": 300
-    },
-    {
+     "bonus": [
+      "Advanced Handbook x2"
+     ],
      "cur": "gems",
      "draws": 10,
      "guar": "r3w",
-     "price": 3000
+     "items": [
+      {
+       "id": 311003,
+       "n": 2,
+       "t": 5
+      }
+     ],
+     "limit": 5,
+     "price": 2000
     }
    ]
   },
@@ -8289,19 +8288,25 @@
    "id": 9000034,
    "notice": 0,
    "pair": 0,
-   "src": "banner row; usual prices",
+   "src": "banner row; art: 10x summon for 2,000 gems, Piece: Black Pearl x1 as a bonus (20 times only)",
    "start": 1640152800000,
    "steps": [
     {
-     "cur": "gems",
-     "draws": 1,
-     "price": 300
-    },
-    {
+     "bonus": [
+      "Piece: Black Pearl x1"
+     ],
      "cur": "gems",
      "draws": 10,
      "guar": "r3w",
-     "price": 3000
+     "items": [
+      {
+       "id": 501002,
+       "n": 1,
+       "t": 5
+      }
+     ],
+     "limit": 20,
+     "price": 2000
     }
    ]
   },
@@ -8311,19 +8316,25 @@
    "id": 9000046,
    "notice": 0,
    "pair": 0,
-   "src": "banner row; usual prices",
+   "src": "banner row; art: 10x summon for 2,000 gems, Advanced Handbook x2 as a bonus (five times only)",
    "start": 1640678400000,
    "steps": [
     {
-     "cur": "gems",
-     "draws": 1,
-     "price": 300
-    },
-    {
+     "bonus": [
+      "Advanced Handbook x2"
+     ],
      "cur": "gems",
      "draws": 10,
      "guar": "r3w",
-     "price": 3000
+     "items": [
+      {
+       "id": 311003,
+       "n": 2,
+       "t": 5
+      }
+     ],
+     "limit": 5,
+     "price": 2000
     }
    ]
   },
@@ -8483,19 +8494,25 @@
    "id": 9000060,
    "notice": 0,
    "pair": 0,
-   "src": "banner row; usual prices",
+   "src": "banner row; art: 10x summon for 2,000 gems, Piece: Black Pearl x1 as a bonus (20 times only)",
    "start": 1642730400000,
    "steps": [
     {
-     "cur": "gems",
-     "draws": 1,
-     "price": 300
-    },
-    {
+     "bonus": [
+      "Piece: Black Pearl x1"
+     ],
      "cur": "gems",
      "draws": 10,
      "guar": "r3w",
-     "price": 3000
+     "items": [
+      {
+       "id": 501002,
+       "n": 1,
+       "t": 5
+      }
+     ],
+     "limit": 20,
+     "price": 2000
     }
    ]
   },
@@ -8617,19 +8634,25 @@
    "id": 9000069,
    "notice": 0,
    "pair": 0,
-   "src": "banner row; usual prices",
+   "src": "banner row; art: 10x summon for 2,000 gems, Advanced Handbook x2 as a bonus (five times only)",
    "start": 1643356800000,
    "steps": [
     {
-     "cur": "gems",
-     "draws": 1,
-     "price": 300
-    },
-    {
+     "bonus": [
+      "Advanced Handbook x2"
+     ],
      "cur": "gems",
      "draws": 10,
      "guar": "r3w",
-     "price": 3000
+     "items": [
+      {
+       "id": 311003,
+       "n": 2,
+       "t": 5
+      }
+     ],
+     "limit": 5,
+     "price": 2000
     }
    ]
   },
@@ -8810,19 +8833,25 @@
    "id": 9000091,
    "notice": 0,
    "pair": 0,
-   "src": "banner row; usual prices",
+   "src": "banner row; art: 10x summon for 2,000 gems, Advanced Handbook x2 as a bonus (five times only)",
    "start": 1646035200000,
    "steps": [
     {
-     "cur": "gems",
-     "draws": 1,
-     "price": 300
-    },
-    {
+     "bonus": [
+      "Advanced Handbook x2"
+     ],
      "cur": "gems",
      "draws": 10,
      "guar": "r3w",
-     "price": 3000
+     "items": [
+      {
+       "id": 311003,
+       "n": 2,
+       "t": 5
+      }
+     ],
+     "limit": 5,
+     "price": 2000
     }
    ]
   },
@@ -8832,19 +8861,25 @@
    "id": 9000100,
    "notice": 0,
    "pair": 0,
-   "src": "banner row; usual prices",
+   "src": "banner row; art: 10x summon for 2,000 gems, Advanced Handbook x2 as a bonus (five times only)",
    "start": 1648454400000,
    "steps": [
     {
-     "cur": "gems",
-     "draws": 1,
-     "price": 300
-    },
-    {
+     "bonus": [
+      "Advanced Handbook x2"
+     ],
      "cur": "gems",
      "draws": 10,
      "guar": "r3w",
-     "price": 3000
+     "items": [
+      {
+       "id": 311003,
+       "n": 2,
+       "t": 5
+      }
+     ],
+     "limit": 5,
+     "price": 2000
     }
    ]
   },
@@ -8854,19 +8889,25 @@
    "id": 9000104,
    "notice": 0,
    "pair": 0,
-   "src": "banner row; usual prices",
+   "src": "banner row; art: 10x summon for 2,000 gems, Advanced Handbook x2 as a bonus (five times only)",
    "start": 1651132800000,
    "steps": [
     {
-     "cur": "gems",
-     "draws": 1,
-     "price": 300
-    },
-    {
+     "bonus": [
+      "Advanced Handbook x2"
+     ],
      "cur": "gems",
      "draws": 10,
      "guar": "r3w",
-     "price": 3000
+     "items": [
+      {
+       "id": 311003,
+       "n": 2,
+       "t": 5
+      }
+     ],
+     "limit": 5,
+     "price": 2000
     }
    ]
   },
@@ -8874,9 +8915,10 @@
    "asset": "limited_506",
    "end": 1708243199999,
    "id": 9505061,
+   "medal": 8170,
    "notice": 1300,
    "pair": 0,
-   "src": "notice 1300: rerun of 506",
+   "src": "notice 1300: rerun of 506; notice 1300: Healer & Support Summon Medals",
    "start": 1692345600000,
    "steps": [
     {
@@ -8893,9 +8935,10 @@
    "asset": "limited_506",
    "end": 1714456799999,
    "id": 9505062,
+   "medal": 8170,
    "notice": 1620,
    "pair": 0,
-   "src": "notice 1620: rerun of 506",
+   "src": "notice 1620: rerun of 506; notice 1620: Healer & Support Summon Medals",
    "start": 1708243200000,
    "steps": [
     {
@@ -8912,9 +8955,10 @@
    "asset": "limited_507",
    "end": 1708243199999,
    "id": 9505071,
+   "medal": 8170,
    "notice": 1300,
    "pair": 0,
-   "src": "notice 1300: rerun of 506; limited_507, the notice's second banner",
+   "src": "notice 1300: rerun of 506; limited_507, the notice's second banner; notice 1300: Healer & Support Summon Medals",
    "start": 1692345600000,
    "steps": [
     {
@@ -8931,9 +8975,10 @@
    "asset": "limited_507",
    "end": 1714456799999,
    "id": 9505072,
+   "medal": 8170,
    "notice": 1620,
    "pair": 0,
-   "src": "notice 1620: rerun of 506; limited_507, the notice's second banner",
+   "src": "notice 1620: rerun of 506; limited_507, the notice's second banner; notice 1620: Healer & Support Summon Medals",
    "start": 1708243200000,
    "steps": [
     {
@@ -9818,7 +9863,15 @@
      330151
     ]
    },
-   "src": "art: Featuring wind-affinity weapons"
+   "src": "art: Featuring wind-affinity weapons; notice 1500000043 and art: Perform a 10x summon for 1,500 paid gems",
+   "steps": [
+    {
+     "cur": "paid",
+     "draws": 10,
+     "guar": "r3w",
+     "price": 1500
+    }
+   ]
   },
   "430": {
    "src": "notice 833",
@@ -11538,7 +11591,15 @@
      350161
     ]
    },
-   "src": "art: Featuring dark-affinity weapons"
+   "src": "art: Featuring dark-affinity weapons; notice 1500000052 and art: Perform a 10x summon for 1,500 paid gems",
+   "steps": [
+    {
+     "cur": "paid",
+     "draws": 10,
+     "guar": "r3w",
+     "price": 1500
+    }
+   ]
   },
   "520": {
    "featured": {
@@ -14797,6 +14858,17 @@
     }
    ]
   },
+  "60": {
+   "src": "notice 1500000060 and art: Perform a 10x summon for 1,500 paid gems",
+   "steps": [
+    {
+     "cur": "paid",
+     "draws": 10,
+     "guar": "r3w",
+     "price": 1500
+    }
+   ]
+  },
   "606": {
    "end": 1711785599999,
    "featured": {
@@ -15341,6 +15413,17 @@
    },
    "steps": []
   },
+  "85": {
+   "src": "art (JA limited_85): 「10回」ガチャが有償限定1500ジェムで引ける, a 10x summon for 1,500 paid gems, as the other element summons (43, 52, 60)",
+   "steps": [
+    {
+     "cur": "paid",
+     "draws": 10,
+     "guar": "r3w",
+     "price": 1500
+    }
+   ]
+  },
   "9000007": {
    "featured": {
     "src": "art",
@@ -15357,7 +15440,15 @@
      320131
     ]
    },
-   "src": "art: Featuring water-affinity weapons"
+   "src": "art: Featuring water-affinity weapons; notice 1509000007 and art (limited_60): Perform a 10x summon for 1,500 paid gems",
+   "steps": [
+    {
+     "cur": "paid",
+     "draws": 10,
+     "guar": "r3w",
+     "price": 1500
+    }
+   ]
   },
   "9000008": {
    "featured": {
@@ -15823,8 +15914,77 @@
    },
    "steps": []
   },
+  "9000082": {
+   "src": "notice 1509000082 (10x summon Free, Mama's Exciting Festival Medal x10) and art: Perform a 10x summon for free; once a day, as this art's free 10x summons elsewhere (64, 581)",
+   "steps": [
+    {
+     "cur": "free",
+     "daily": true,
+     "draws": 10,
+     "guar": "r3w",
+     "limit": 1,
+     "price": 0
+    }
+   ]
+  },
   "9505061": {
-   "src": "notice 1300: once a day, ★★★★ weapon guaranteed, ★★★★ weapons from the Healer & Support lineup (the medal exchange's, by element)",
+   "featured": {
+    "c": [
+     33021,
+     31023,
+     31026,
+     31015,
+     33015,
+     33016,
+     33010,
+     31014,
+     32014,
+     32012,
+     33014
+    ],
+    "src": "notice 1300; Healer & Support Summon Medal Exchange (shop 8170), its offers on 2023-08-18, by element",
+    "w": [
+     330521,
+     310511,
+     310551,
+     310371,
+     330381,
+     330401,
+     330231,
+     310331,
+     320281,
+     320241,
+     330341,
+     320511,
+     330531,
+     320481,
+     310521,
+     320521,
+     310561,
+     320291,
+     330411,
+     310341,
+     320311,
+     330351,
+     330431,
+     320341,
+     330331,
+     310381,
+     320321,
+     330291,
+     330491,
+     310141,
+     310251,
+     320121,
+     320191,
+     320251,
+     330391,
+     330461,
+     330221,
+     330441
+    ]
+   },
+   "src": "notice 1300: once a day, ★★★★ weapon guaranteed, ★★★★ weapons from the Healer & Support lineup (the medal exchange's, by element); w4 as the exchange offered it on 2023-08-18",
    "w4": [
     310141,
     310251,
@@ -15836,9 +15996,6 @@
     310521,
     310551,
     310561,
-    310651,
-    310671,
-    310681,
     320121,
     320191,
     320241,
@@ -15851,8 +16008,6 @@
     320481,
     320511,
     320521,
-    320561,
-    320571,
     330221,
     330231,
     330291,
@@ -15868,13 +16023,76 @@
     330461,
     330491,
     330521,
-    330531,
-    330621,
-    330641,
-    330661
+    330531
    ]
   },
   "9505062": {
+   "featured": {
+    "c": [
+     32031,
+     33030,
+     33021,
+     31023,
+     31026,
+     31015,
+     33015,
+     33016,
+     33010,
+     31014,
+     32014,
+     32012,
+     33014
+    ],
+    "src": "notice 1620; Healer & Support Summon Medal Exchange (shop 8170), its offers on 2024-02-18, by element",
+    "w": [
+     320561,
+     330641,
+     330521,
+     310511,
+     310551,
+     310371,
+     330381,
+     330401,
+     330231,
+     310331,
+     320281,
+     320241,
+     330341,
+     320571,
+     330621,
+     310651,
+     330661,
+     310671,
+     310681,
+     320511,
+     330531,
+     320481,
+     310521,
+     320521,
+     310561,
+     320291,
+     330411,
+     310341,
+     320311,
+     330351,
+     330431,
+     320341,
+     330331,
+     310381,
+     320321,
+     330291,
+     330491,
+     310141,
+     310251,
+     320121,
+     320191,
+     320251,
+     330391,
+     330461,
+     330221,
+     330441
+    ]
+   },
    "src": "notice 1620: once a day, ★★★★ weapon guaranteed, ★★★★ weapons from the Healer & Support lineup (the medal exchange's, by element)",
    "w4": [
     310141,
@@ -15926,7 +16144,54 @@
    ]
   },
   "9505071": {
-   "src": "notice 1300: once a day, ★★★★ weapon guaranteed, ★★★★ weapons from the Healer & Support lineup (the medal exchange's, by element)",
+   "featured": {
+    "c": [
+     34039,
+     35027,
+     34038,
+     35020,
+     34022,
+     34015,
+     34002,
+     34023,
+     34028,
+     35011,
+     34031
+    ],
+    "src": "notice 1300; Healer & Support Summon Medal Exchange (shop 8170), its offers on 2023-08-18, by element",
+    "w": [
+     340701,
+     350511,
+     340681,
+     350411,
+     340411,
+     340301,
+     340151,
+     340421,
+     340501,
+     350231,
+     340541,
+     350471,
+     350521,
+     350561,
+     340691,
+     340661,
+     340671,
+     350571,
+     340711,
+     350481,
+     340481,
+     350381,
+     340061,
+     340471,
+     340511,
+     350201,
+     350281,
+     340211,
+     350371
+    ]
+   },
+   "src": "notice 1300: once a day, ★★★★ weapon guaranteed, ★★★★ weapons from the Healer & Support lineup (the medal exchange's, by element); w4 as the exchange offered it on 2023-08-18",
    "w4": [
     340061,
     340151,
@@ -15945,9 +16210,6 @@
     340691,
     340701,
     340711,
-    340821,
-    340841,
-    340851,
     350201,
     350231,
     350281,
@@ -15959,11 +16221,61 @@
     350511,
     350521,
     350561,
-    350571,
-    350671
+    350571
    ]
   },
   "9505072": {
+   "featured": {
+    "c": [
+     34039,
+     35027,
+     34038,
+     35020,
+     34022,
+     34015,
+     34002,
+     34023,
+     34028,
+     35011,
+     34031
+    ],
+    "src": "notice 1620; Healer & Support Summon Medal Exchange (shop 8170), its offers on 2024-02-18, by element",
+    "w": [
+     340701,
+     350511,
+     340681,
+     350411,
+     340411,
+     340301,
+     340151,
+     340421,
+     340501,
+     350231,
+     340541,
+     340821,
+     350671,
+     340841,
+     340851,
+     350471,
+     350521,
+     350561,
+     340691,
+     340661,
+     340671,
+     350571,
+     340711,
+     350481,
+     340481,
+     350381,
+     340061,
+     340471,
+     340511,
+     350201,
+     350281,
+     340211,
+     350371
+    ]
+   },
    "src": "notice 1620: once a day, ★★★★ weapon guaranteed, ★★★★ weapons from the Healer & Support lineup (the medal exchange's, by element)",
    "w4": [
     340061,

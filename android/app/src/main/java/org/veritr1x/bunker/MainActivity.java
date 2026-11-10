@@ -47,7 +47,7 @@ public final class MainActivity extends Activity {
     private int permille=-1;
     private String last="";
     private boolean running=false,busy=false,tools=false,bound=false,autoAttempted=false,launchWhenReady=true,foreground=false;
-    private String serverState="Server stopped",serverDetail=Text.of("Import your game files to get started.");
+    private String serverState=Text.of("Server stopped"),serverDetail=Text.of("Choose your game files to get started.");
     private Messenger service;
     private final Messenger replies=new Messenger(new Handler(Looper.getMainLooper(),message->{
         Bundle b=message.getData();running=b.getBoolean("running");busy=b.getBoolean("busy");tools=b.getBoolean("tools");permille=b.getInt("permille",-1);serverState=b.getString("state","");serverDetail=b.getString("detail","");
@@ -63,7 +63,7 @@ public final class MainActivity extends Activity {
     private void launchAfterIndex(){}
     private final ServiceConnection connection=new ServiceConnection(){
         public void onServiceConnected(ComponentName name,IBinder binder){service=new Messenger(binder);query(1);}
-        public void onServiceDisconnected(ComponentName name){service=null;running=false;busy=false;serverState="Server stopped";serverDetail=Text.of("Tap Play to restart.");refresh();}
+        public void onServiceDisconnected(ComponentName name){service=null;running=false;busy=false;serverState="Server stopped";serverDetail=Text.of("Tap Deploy to start it again.");refresh();}
     };
     private void query(int code){if(service==null)return;Message m=Message.obtain(null,code);m.replyTo=replies;try{service.send(m);}catch(RemoteException ignored){}}
 
@@ -77,7 +77,7 @@ public final class MainActivity extends Activity {
     /** One LABEL  value row of a panel; a button in the row sits at the far right. */
     /** A row in a panel that opens something: its name, what it holds, and a chevron. */
     private View link(LinearLayout panel,String name,String what,View.OnClickListener open){
-        LinearLayout r=new LinearLayout(this);r.setGravity(Gravity.CENTER_VERTICAL);r.setMinimumHeight(dp(48));r.setPadding(dp(4),dp(4),dp(4),dp(4));
+        LinearLayout r=new LinearLayout(this);r.setGravity(Gravity.CENTER_VERTICAL);r.setMinimumHeight(dp(compact?40:48));int v=dp(compact?2:4);r.setPadding(dp(4),v,dp(4),v);
         r.setBackground(new RippleDrawable(ColorStateList.valueOf(look.line),null,new android.graphics.drawable.ColorDrawable(0xffffffff)));
         LinearLayout words=new LinearLayout(this);words.setOrientation(LinearLayout.VERTICAL);
         TextView title=look.monoText(name,13,look.ink);title.setLetterSpacing(.12f);title.setTypeface(null,Typeface.BOLD);words.addView(title);
@@ -109,8 +109,10 @@ public final class MainActivity extends Activity {
         super.onCreate(state);
         look=Look.of(this);look.apply(this);
         addMenuShortcut();
-        autoAttempted=state!=null?state.getBoolean("attempted"):getIntent().getBooleanExtra("manage",false);
-        launchWhenReady=state!=null?state.getBoolean("launch"):!getIntent().getBooleanExtra("manage",false);
+        // Auto deploy off (⋮ menu): opened as "manage" is, the launcher stays until DEPLOY.
+        boolean manage=getIntent().getBooleanExtra("manage",false)||!autoDeploy(this);
+        autoAttempted=state!=null?state.getBoolean("attempted"):manage;
+        launchWhenReady=state!=null?state.getBoolean("launch"):!manage;
         // A screen on its side with room for two columns puts the panels side
         // by side; a short one (a phone) also tightens and drops the footer.
         android.content.res.Configuration config=getResources().getConfiguration();
@@ -118,7 +120,7 @@ public final class MainActivity extends Activity {
         compact=twoColumns&&config.screenHeightDp<600;
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setBackground(look.paper());
         FrameLayout frame=new FrameLayout(this);scroll.addView(frame,new FrameLayout.LayoutParams(-1,-1));
-        LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);body.setPadding(dp(18),dp(compact?10:18),dp(18),dp(compact?10:0));
+        LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);body.setPadding(dp(18),dp(compact?4:18),dp(18),dp(compact?6:0));
         frame.addView(body,new FrameLayout.LayoutParams(Math.min(getResources().getDisplayMetrics().widthPixels,dp(twoColumns?960:520)),-1,Gravity.CENTER_HORIZONTAL));
         scroll.setOnApplyWindowInsetsListener((view,insets)->{view.setPadding(insets.getSystemWindowInsetLeft(),insets.getSystemWindowInsetTop(),insets.getSystemWindowInsetRight(),insets.getSystemWindowInsetBottom());return insets;});
         // Top bar: where you are, and the options.
@@ -138,9 +140,10 @@ public final class MainActivity extends Activity {
         titles.addView(nameRow);
         top.addView(titles,new LinearLayout.LayoutParams(0,-2,1));
         Button more=look.outlined("⋮");more.setTextSize(20);more.setLetterSpacing(0);more.setPadding(0,0,0,0);more.setContentDescription(Text.of("Options"));more.setOnClickListener(this::showOptions);
-        top.addView(more,new LinearLayout.LayoutParams(dp(compact?40:44),dp(compact?40:44)));
-        LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(-1,-2);tp.setMargins(0,0,0,dp(compact?8:20));body.addView(top,tp);
-        // [ UPDATE ]: shown when a newer Bunker is released.
+        top.addView(more,new LinearLayout.LayoutParams(dp(compact?36:44),dp(compact?36:44)));
+        LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(-1,-2);tp.setMargins(0,0,0,dp(compact?6:20));body.addView(top,tp);
+        // [ UPDATE ]: shown when a newer Bunker is released. Two rows: the message with WHAT'S NEW,
+        // then UPDATE (or WEB BUILDER when this app can't update itself), LATER and SKIP.
         updatePanel=panel();updatePanel.setVisibility(View.GONE);
         updateText=look.monoText("",12,look.ink);LinearLayout.LayoutParams up=new LinearLayout.LayoutParams(-1,-2);up.setMargins(0,dp(6),0,dp(12));updatePanel.addView(updateText,up);
         updateButton=look.solid(Text.of("UPDATE"));updateButton.setOnClickListener(v->{if(Updater.updating()){if(Updater.cancellable())Updater.cancelled=true;}else startUpdate();});
@@ -164,7 +167,7 @@ public final class MainActivity extends Activity {
         progressText=look.monoText("",12,look.ink);system.addView(progressText);
         // [ PLAY ]: what happens next, and Deploy.
         LinearLayout launch=panel();
-        detail=look.monoText("",12,look.ink);LinearLayout.LayoutParams dp1=new LinearLayout.LayoutParams(-1,-2);dp1.setMargins(0,dp(6),0,dp(compact?8:12));launch.addView(detail,dp1);
+        detail=look.monoText("",12,look.ink);LinearLayout.LayoutParams dp1=new LinearLayout.LayoutParams(-1,-2);dp1.setMargins(0,dp(compact?2:6),0,dp(compact?8:12));launch.addView(detail,dp1);
         play=look.solid(Text.of("DEPLOY  ▶"));play.setContentDescription(Text.of("Deploy: start the game"));
         play.setOnClickListener(v->{launchWhenReady=true;autoAttempted=true;if(running){launchWhenReady=false;openGame();}else run(ServerService.START,null);});
         LinearLayout.LayoutParams bp2=new LinearLayout.LayoutParams(-1,dp(compact?48:56));bp2.setMargins(0,0,0,dp(6));launch.addView(play,bp2);
@@ -180,7 +183,7 @@ public final class MainActivity extends Activity {
             LinearLayout right=new LinearLayout(this);right.setOrientation(LinearLayout.VERTICAL);
             block(left,Text.of("System"),system,0);
             ((LinearLayout.LayoutParams)system.getLayoutParams()).height=0;((LinearLayout.LayoutParams)system.getLayoutParams()).weight=1;
-            block(right,Text.of("Play"),launch,compact?12:20);
+            block(right,Text.of("Play"),launch,compact?10:20);
             block(right,Text.of("Programs"),toolLinks,0);
             LinearLayout columns=new LinearLayout(this);
             LinearLayout.LayoutParams lc=new LinearLayout.LayoutParams(0,-1,1);lc.setMargins(0,0,dp(18),0);columns.addView(left,lc);
@@ -237,7 +240,7 @@ public final class MainActivity extends Activity {
             if(message!=null)updateFailed(message);
             return;
         }
-        boolean manage=intent.getBooleanExtra("manage",false);
+        boolean manage=intent.getBooleanExtra("manage",false)||!autoDeploy(this);
         autoAttempted=manage;launchWhenReady=!manage;
         query(1);
     }
@@ -278,17 +281,17 @@ public final class MainActivity extends Activity {
         else if("Saves exported".equals(serverState))message=Text.of("Backup saved.");
         else if("Save imported".equals(serverState))message=serverDetail;
         else if(hasAssets&&!hasMaster){message=Text.of("Import master data from the ⋮ menu.");warning=true;}
-        else if(!hasAssets&&FilesStore.linkedFolder(this)!=null){warning=true;message=FilesStore.canUseInPlace()?Text.of("Your game files folder is missing: ")+FilesStore.linkedFolder(this)+Text.of(". Put it back or choose the files again."):Text.of("Allow All files access for NieR in Settings to read your game files folder, or choose the files again.");}
+        else if(!hasAssets&&FilesStore.linkedFolder(this)!=null){warning=true;message=FilesStore.canUseInPlace()?Text.of("Can't find your game files folder: ")+FilesStore.linkedFolder(this)+Text.of(". Put it back, or choose the files again."):Text.of("Allow All files access for NieR in Settings to read your game files folder, or choose the files again.");}
         else if("Server stopped".equals(serverState)&&!serverDetail.isEmpty()
-                &&!serverDetail.equals(Text.of("Import your game files to get started."))
-                &&!serverDetail.equals(Text.of("Tap Play to restart."))
-                &&!serverDetail.equals(Text.of("Your saves are stored on this phone.")))message=serverDetail;
-        if(message.isEmpty())message=tools?Text.of("Close Pod Programs to deploy again."):running?Text.of("Lunar Tear is running. The game connects to it on this phone. No internet is needed."):ready?Text.of("Deploy starts Lunar Tear, then opens the game."):Text.of("Choose the game files to begin: the resource dump's .7z or its extracted folder.");
+                &&!serverDetail.equals(Text.of("Choose your game files to get started."))
+                &&!serverDetail.equals(Text.of("Tap Deploy to start it again."))
+                &&!serverDetail.equals(Text.of("Your save stays on this device.")))message=serverDetail;
+        if(message.isEmpty())message=tools?Text.of("Close Pod Programs, then tap Deploy."):running?Text.of("Lunar Tear is running on this device. The game needs no internet."):ready?Text.of("Deploy starts Lunar Tear, then opens the game."):Text.of("Choose the game files to begin: the resource dump's .7z or its extracted folder.");
         message=Text.of(message);detail.setText(warning?"> "+message:message);detail.setTextColor(warning?look.alert:look.ink);
     }
     private void chooseAssets(){
         dialog().setTitle(Text.of("Choose the game files"))
-            .setItems(new String[]{Text.of("Extracted folder: copy into the app"),Text.of("Extracted folder: use in place"),Text.of("Archive (.7z or .zip)")},(dialog,which)->{
+            .setItems(new String[]{Text.of("Extracted folder: copy it in"),Text.of("Extracted folder: use in place"),Text.of("Archive (.7z or .zip)")},(dialog,which)->{
                 if(which==0)chooseFolder(ASSETS);
                 else if(which==1)useInPlace();
                 // The resource dump's .7z can be chosen directly; only revision 0 is unpacked.
@@ -321,15 +324,17 @@ public final class MainActivity extends Activity {
         if(running||busy)option(panel,menu,1,busy?Text.of("Cancel operation"):Text.of("Stop Lunar Tear"),true);
         if(running)option(panel,menu,10,Text.of("Check Lunar Tear"),true);
         section(panel,Text.of("Data"));
-        if(!idle){TextView note=look.monoText(Text.of("> Stop Lunar Tear to import or export saves."),11,look.alert);note.setPadding(0,0,0,dp(4));panel.addView(note);}
+        if(!idle){TextView note=look.monoText(Text.of("> Stop Lunar Tear first to import or export a save backup."),11,look.alert);note.setPadding(0,0,0,dp(4));panel.addView(note);}
         option(panel,menu,2,Text.of("Import master data"),idle);
         option(panel,menu,3,Text.of("Export save backup"),idle&&new File(FilesStore.data(this),"game.db").isFile());
         option(panel,menu,9,Text.of("Import save backup"),idle);
         section(panel,Text.of("Support"));
         option(panel,menu,4,Text.of("Lunar Tear log"),true);
         option(panel,menu,11,Text.of("Export Lunar Tear log"),true);
+        option(panel,menu,15,Text.of("Auto deploy: ")+(autoDeploy(this)?Text.of("On"):Text.of("Off")),true);
         option(panel,menu,12,Text.of("Display: ")+Character.toUpperCase(Look.display(this).charAt(0))+Look.display(this).substring(1),true);
-        option(panel,menu,13,Text.of("Check for updates: ")+(Updater.enabled(this)?"On":"Off"),true);
+        option(panel,menu,13,Text.of("Check for updates: ")+(Updater.enabled(this)?Text.of("On"):Text.of("Off")),true);
+        option(panel,menu,14,Text.of("Check for updates now"),true);
         option(panel,menu,5,Text.of("App settings"),true);
         option(panel,menu,6,Text.of("Help"),true);
         option(panel,menu,7,Text.of("About"),true);
@@ -367,15 +372,20 @@ public final class MainActivity extends Activity {
     private void chooseDisplay(){
         String[] modes={"system","light","dark"};
         int current=java.util.Arrays.asList(modes).indexOf(Look.display(this));
-        dialog().setTitle(Text.of("Display")).setSingleChoiceItems(new String[]{Text.of("System (follow the phone)"),Text.of("Light"),Text.of("Dark")},Math.max(0,current),(d,which)->{
+        dialog().setTitle(Text.of("Display")).setSingleChoiceItems(new String[]{Text.of("System (follow the device)"),Text.of("Light"),Text.of("Dark")},Math.max(0,current),(d,which)->{
             d.dismiss();
             if(which==current)return;
             Look.display(this,modes[which]);
             recreate();
         }).setNegativeButton(Text.of("Cancel"),null).show();
     }
+    /** Auto deploy (⋮ menu, on by default): opening Bunker starts Lunar Tear and the game; off, it opens on the launcher. */
+    static boolean autoDeploy(Context c){return c.getSharedPreferences("launcher",MODE_PRIVATE).getBoolean("autoDeploy",true);}
     private void onOption(int id){
         switch(id){
+            case 15: {boolean on=!autoDeploy(this);getSharedPreferences("launcher",MODE_PRIVATE).edit().putBoolean("autoDeploy",on).apply();
+                if(!on){autoAttempted=true;launchWhenReady=false;}   // off now: nothing starts by itself from here
+                Toast.makeText(this,on?"Auto deploy on: the game starts when Bunker opens":"Auto deploy off: Bunker opens here; tap DEPLOY to play",Toast.LENGTH_SHORT).show();break;}
             case 12: chooseDisplay();break;
             case 13: Updater.enabled(this,!Updater.enabled(this));if(Updater.enabled(this))Updater.recheck(this,r->renderUpdate());break;
             case 1: autoAttempted=true;launchWhenReady=false;run(ServerService.STOP,null);break;
@@ -393,7 +403,7 @@ public final class MainActivity extends Activity {
     }
     private void confirmSaveImport(){
         dialog().setTitle(Text.of("Import a save backup?"))
-            .setMessage(Text.of("This replaces the save on this phone with the backup you choose: a ZIP from Export save backup, or a game.db file. Your current save is kept as a safety copy."))
+            .setMessage(Text.of("This replaces the save on this device with the backup you choose: a ZIP from Export save backup, or a game.db file. Your current save is kept as a copy first."))
             .setNegativeButton(Text.of("Cancel"),null)
             .setPositiveButton(Text.of("Choose backup"),(dialog,which)->{Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE);startActivityForResult(i,SAVE);})
             .show();
@@ -411,8 +421,12 @@ public final class MainActivity extends Activity {
             if(game!=null) intent=new Intent().setClassName(this,game);
             else intent=getPackageManager().getLaunchIntentForPackage("com.square_enix.android_googleplay.nierspww");
         } catch(PackageManager.NameNotFoundException ignored){}
-        if(intent==null)dialog().setTitle(Text.of("Install the patched game")).setMessage(Text.of("Install the APK patched for 127.0.0.1. The original game APK cannot connect to this server.")).setPositiveButton("OK",null).show();
-        else startActivity(intent);
+        if(intent==null)dialog().setTitle(Text.of("Install the Bunker game")).setMessage(Text.of("Install the game built by the Bunker. The original game can't connect to Lunar Tear.")).setPositiveButton("OK",null).show();
+        else {
+            String unity=DisplayPatch.unityArguments(this);
+            if(unity!=null)intent.putExtra("unity",unity);
+            startActivity(intent);
+        }
     }
     private void openUrl(String url){
         try{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(url)));}catch(ActivityNotFoundException ignored){}
@@ -452,7 +466,7 @@ public final class MainActivity extends Activity {
         Updater.status=message;Updater.statusFailed=true;renderUpdate();
     }
     private void help(){
-        dialog().setTitle(Text.of("Help")).setMessage(Text.of("This is the Bunker. Lunar Tear is the game's server, running on this phone.\n\nChoose the game files once: the resource dump's .7z, or an extracted folder to copy or use in place. Master data is already included. When your files are ready, Lunar Tear starts and Deploy opens the game.\n\nTap the Lunar Tear notification to return here. Stop Lunar Tear from ⋮ before changing files or exporting saves. Export a backup before uninstalling or clearing app storage. Import save backup restores a backup from this phone or another Android phone. Pod Programs edits your save and chooses events.\n\nIf Samsung pauses Lunar Tear, set Battery usage to Unrestricted in App settings."))
+        dialog().setTitle(Text.of("Help")).setMessage(Text.of("This is the Bunker. Lunar Tear, the game's server, runs only on this device.\n\nChoose the game files once: the resource dump's .7z, or an extracted folder to copy or use in place. Master data is already included. When your files are ready, Lunar Tear starts and Deploy opens the game. With Auto deploy (in ⋮) off, the Bunker stays here when you open it until you tap Deploy.\n\nTap the Lunar Tear notification to come back here. Export a save backup before uninstalling the app or clearing its storage.\n\nImport save backup (in ⋮) restores a backup from this device.\n\nPod Programs (in ⋮) edits your save and chooses which events and shops appear. Opened while you play, it sends the game back to its title screen to load each change.\n\nStop Lunar Tear (in ⋮) before changing the game files or exporting a save backup.\n\nIf Samsung pauses Lunar Tear, set Battery usage to Unrestricted in App settings."))
             .setPositiveButton(Text.of("Close"),null).show();
     }
     private void showLog(){query(2);}
@@ -470,12 +484,12 @@ public final class MainActivity extends Activity {
                 text.append("\n");
             }
         }catch(Exception e){text.append(Text.of("Lunar Tear is not running."));}
-        dialog().setTitle(ok?Text.of("Lunar Tear is reachable"):Text.of("Lunar Tear check failed")).setMessage(text.toString().trim()).setPositiveButton(Text.of("Close"),null).show();
+        dialog().setTitle(ok?Text.of("Lunar Tear is reachable"):Text.of("Couldn't reach Lunar Tear")).setMessage(text.toString().trim()).setPositiveButton(Text.of("Close"),null).show();
     }
     private void displayLog(String nativeStatus){
         String value;
         try{JSONObject s=new JSONObject(nativeStatus);value=s.optString("logs",Text.of("No server log yet."));if(value.isEmpty())value=Text.of("No server log yet.");}
-        catch(Throwable e){value=Text.of("Unable to load native server: ")+e.getMessage();}
+        catch(Throwable e){value=Text.of("Lunar Tear couldn't load: ")+e.getMessage();}
         TextView t=look.monoText(value,12,look.ink);t.setTextIsSelectable(true);t.setPadding(dp(18),dp(12),dp(18),dp(12));ScrollView sc=new ScrollView(this);sc.addView(t);
         dialog().setTitle(Text.of("Lunar Tear log")).setView(sc).setPositiveButton(Text.of("Close"),null).show();
     }
@@ -485,7 +499,7 @@ public final class MainActivity extends Activity {
         new Thread(()->{
             String error;
             try(ParcelFileDescriptor fd=getContentResolver().openFileDescriptor(uri,"rwt")){
-                error=fd==null?Text.of("Cannot open the chosen file"):NativeBridge.exportLogs(FilesStore.logs(this).getAbsolutePath(),fd.getFd(),info);
+                error=fd==null?Text.of("Can't open that file"):NativeBridge.exportLogs(FilesStore.logs(this).getAbsolutePath(),fd.getFd(),info);
             }catch(Exception e){error=e.getMessage();}
             String result=error;
             runOnUiThread(()->dialog().setTitle(result==null||result.isEmpty()?Text.of("Lunar Tear log exported"):Text.of("Export failed"))

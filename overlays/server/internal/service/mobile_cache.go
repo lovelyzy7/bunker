@@ -11,7 +11,12 @@ func ResetOctoCaches() {
 			pending = append(pending, load.done)
 		}
 		if len(pending) == 0 {
-			listBinCache = make(map[string]listBinIndex)
+			for _, idx := range listBinCache {
+				if idx != nil && idx.file != nil {
+					idx.file.Close()
+				}
+			}
+			listBinCache = make(map[string]*listBinIndex)
 			listBinCacheMu.Unlock()
 			break
 		}

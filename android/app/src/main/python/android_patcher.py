@@ -63,6 +63,20 @@ def permanent_chapters():
     return sorted(r["EventQuestChapterId"] for r in rows if isinstance(r, dict) and r.get("EventQuestType") in PERMANENT_EVENT_TYPES)
 
 
+def medal_exchanges():
+    """Every shop selling for a summon medal or shard (m_gacha_medal). The
+    configuration lists the exchanges of its own summons only, but with the
+    calendar off Lunar Tear opens every summon (the weekly ones, the
+    multi-steps, those recovered from notices), and a summon gives its shard
+    only while its exchange is open."""
+    table = lambda name: [r for r in runtime.read_json(config.MASTERDATA_DIR / f"EntityM{name}Table.json", []) or [] if isinstance(r, dict)]
+    medals = {r.get("ConsumableItemId") for r in table("GachaMedal")}
+    items = {r.get("ShopItemId") for r in table("ShopItem") if r.get("PriceType") == 1 and r.get("PriceId") in medals}
+    cells = {r.get("ShopItemCellId") for r in table("ShopItemCell") if r.get("ShopItemId") in items}
+    groups = {r.get("ShopItemCellGroupId") for r in table("ShopItemCellGroup") if r.get("ShopItemCellId") in cells}
+    return sorted(r["ShopId"] for r in table("Shop") if r.get("ShopItemCellGroupId") in groups and isinstance(r.get("ShopId"), int))
+
+
 def arguments(preset, cfg):
     if preset not in dict(PRESETS + SPLITS):
         raise ValueError("Unknown preset")
@@ -90,6 +104,10 @@ def arguments(preset, cfg):
             events += ", " + get("EVENTS_" + family.upper() + "_" + index)
             if family == "Rec":
                 shops += ", " + get("SHOPS_EVENT_" + index)
+    if preset in ("Full", "Gacha") or preset.startswith("Gacha_"):
+        exchanges = medal_exchanges()
+        if exchanges:
+            shops = ", ".join(filter(None, [shops, ", ".join(str(s) for s in exchanges)]))
     permanent = permanent_chapters()
     if permanent:
         events = ", ".join(filter(None, [events, ", ".join(str(c) for c in permanent)]))
@@ -125,15 +143,26 @@ def master_history():
     return sorted(folder().glob("master_*.bin.e"), reverse=True)
 
 
+def _sync(handle):
+    """Flushes a file to disk before it is swapped into place. Windows refuses
+    fsync on a read-only handle, where there is nothing buffered to flush."""
+    try:
+        os.fsync(handle.fileno())
+    except OSError:
+        pass
+
+
 def activate(candidate, label):
+    import android_challenges as challenges
     validate_master(candidate)
+    challenges.on_activate(candidate)  # Mods › Challenges, applied once
     master = config.find_master_data_bin()
     backup = folder() / ("master_" + datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f") + ".bin.e")
-    shutil.copyfile(master, backup)
+    shutil.copyfile(challenges.unchallenged(master), backup)  # snapshots hold the game data without challenges
     with backup.open("rb") as handle:
-        os.fsync(handle.fileno())
+        _sync(handle)
     with candidate.open("rb") as handle:
-        os.fsync(handle.fileno())
+        _sync(handle)
     os.replace(candidate, master)
     try:
         runtime.prepare_data()
@@ -142,16 +171,59 @@ def activate(candidate, label):
         rollback = master.with_suffix(".rollback")
         shutil.copyfile(backup, rollback)
         os.replace(rollback, master)
+        challenges.finish(master)  # the backup holds the game data without challenges
         (config.DATA_DIR / "catalog-version.json").unlink(missing_ok=True)
         runtime.prepare_data()
         raise
     runtime.write_json(folder() / "active.json", {"label": label, "sha256": runtime.fingerprint(master)})
     for old in master_history()[10:]:
         old.unlink()
+    challenges.after_activate()
 
 
 def redirect(**kwargs):
     return RedirectResponse("/patcher?" + urlencode(kwargs), status_code=303)
+
+
+# Start a new day: day-start.json beside the save holds when it was pressed
+# (real time); the server's day starts there until the next game day
+# (gametime.StartOfDay), so everything daily starts over. The game keeps day
+# markers in memory, so it is closed (android_runtime.CLOSES) and the markers
+# are cleared before it starts again (client-days.reset).
+def day_start_file():
+    return config.GAME_DB_PATH.parent / "day-start.json"
+
+
+def start_new_day(now_ms=None):
+    import android_calendar as calendar
+    now_ms = calendar.now_ms() if now_ms is None else int(now_ms)
+    pending = day_start_file().with_suffix(".tmp")
+    pending.write_text(json.dumps({"pressedRealMillis": now_ms}) + "\n")
+    os.replace(pending, day_start_file())
+    calendar.mark_client_days_reset()
+
+
+def new_day_today(now_ms=None):
+    """Whether Start a new day was pressed on today's game day (it pauses the
+    challenge bonus until the next one, as gametime.NewDayPausesBonus)."""
+    import android_calendar as calendar
+    saved = runtime.read_json(day_start_file())
+    pressed = saved.get("pressedRealMillis") if isinstance(saved, dict) else None
+    if not isinstance(pressed, int) or pressed <= 0:
+        return False
+    now_ms = calendar.now_ms() if now_ms is None else int(now_ms)
+    state = calendar.peek_state()
+    game = (lambda real: calendar.game_now(state, real)) if state else (lambda real: real)
+    return calendar.start_of_day(game(now_ms)) <= game(pressed) <= game(now_ms)
+
+
+@router.post("/patcher/new-day")
+def new_day():
+    try:
+        start_new_day()
+    except Exception as exc:
+        return redirect(error=str(exc))
+    return redirect(message="A new day has started: everything daily starts over. Close Pod Programs and tap Deploy.")
 
 
 @router.get("/patcher")
@@ -292,4 +364,5 @@ def import_origin(source: UploadFile = File(...)):
 
 @router.get("/patcher/export")
 def export():
-    return FileResponse(config.find_master_data_bin(), filename="20240404193219.bin.e", media_type="application/octet-stream")
+    import android_challenges as challenges
+    return FileResponse(challenges.unchallenged_master(), filename="20240404193219.bin.e", media_type="application/octet-stream")
