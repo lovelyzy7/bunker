@@ -126,8 +126,14 @@ class PublishedTest(unittest.TestCase):
         published = {path for path in build_site.PYTHON if path.endswith(".py")}
         missing = []
         for path in sorted(published):
-            folders = [(build_site.ROOT / path).parent] + added_paths(build_site.ROOT / path)
-            for node in ast.walk(ast.parse((build_site.ROOT / path).read_text(encoding="utf-8"))):
+            source = build_site.ROOT / path
+            if not source.is_file():
+                # prepare.py generates these (the patcher tree from the pinned
+                # submodules and patches); a clean checkout carries only the
+                # sources. Their imports are checked the same way once built.
+                continue
+            folders = [source.parent] + added_paths(source)
+            for node in ast.walk(ast.parse(source.read_text(encoding="utf-8"))):
                 if isinstance(node, ast.Import):
                     names = [alias.name for alias in node.names]
                 elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
