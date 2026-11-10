@@ -16,6 +16,14 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 final class FilesStore {
+    /** The name the file was picked by, or "" when the provider doesn't say. */
+    static String displayName(Context c, Uri uri) {
+        try (Cursor cur = c.getContentResolver().query(uri, new String[]{"_display_name"}, null, null, null)) {
+            if (cur != null && cur.moveToFirst() && !cur.isNull(0)) return cur.getString(0);
+        } catch (RuntimeException ignored) {}
+        return "";
+    }
+
     static final String MASTER = "20240404193219.bin.e";
     interface Progress {
         void update(String text);
@@ -54,7 +62,8 @@ final class FilesStore {
         File temp = new File(out.getParentFile(), ".master-import");
         try {
             copy(c, uri, temp, progress, Text.of("Importing master data"));
-            if (temp.length() == 0) throw new IOException(Text.of("The selected file is empty"));
+            String error = NativeBridge.checkMaster(temp.getAbsolutePath(), displayName(c, uri));
+            if (error == null || !error.isEmpty()) throw new IOException(error == null ? Text.of("Lunar Tear didn't respond") : error);
             move(temp, out);
         } finally { temp.delete(); }
     }

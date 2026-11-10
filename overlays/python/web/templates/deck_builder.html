@@ -110,7 +110,7 @@
   .summary p{margin:0;font-size:var(--fs-small);line-height:1.5}
   /* the criteria: a popup behind the Filters button (a sheet from the bottom on phones) */
   .open-filters{display:inline-flex;gap:6px;align-items:center}
-  .sheet-dim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:19}
+  .sheet-dim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:60}
   .chip.e.e-light,.chip.e.e-light.on,.chip.e.e-light:hover{color:#1e1c18!important}  /* light's gold is too pale for light text */
   .chip:hover:not(.on){background:color-mix(in srgb,var(--fg-dark) 8%,transparent)!important;color:inherit!important}
   .chip.e:hover:not(.on){filter:brightness(1.08);color:#f3efe2!important}
@@ -136,14 +136,14 @@
   .filters-panel input[type="range"]{accent-color:var(--fg-dark)}
   .filters-panel .chips .chip{font-size:var(--fs-label);letter-spacing:.06em;padding:4px 8px}
   @media (max-width:700px){.f-body{grid-template-columns:minmax(0,1fr)}}
-  .filters-panel{position:fixed;z-index:20;left:50%;top:6vh;transform:translateX(-50%);width:min(980px,calc(100vw - 32px));max-height:88vh;overflow-y:auto;
+  .filters-panel{position:fixed;z-index:61;left:50%;top:6vh;transform:translateX(-50%);width:min(980px,calc(100vw - 32px));max-height:88vh;overflow-y:auto;
     background:var(--bg-cream);color:var(--fg-dark);border:2px solid var(--fg-dark);padding:10px 16px 0;box-sizing:border-box;animation:pop .15s ease-out}
   .sheet-dim[hidden],.filters-panel[hidden]{display:none}
   @keyframes pop{from{opacity:0}}
   .sheet-head{display:flex;justify-content:space-between;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--db-line);margin-bottom:12px}
   .sheet-head b{font-size:var(--fs-body);letter-spacing:.12em;text-transform:uppercase;margin-right:auto}
   .sheet-foot{display:grid;grid-template-columns:1fr 2fr;gap:8px;position:sticky;bottom:0;padding:10px 0 12px;margin-top:12px;background:var(--bg-cream);border-top:1px solid var(--db-line)}
-  .deck-sheet{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;background:var(--bg-cream);color:var(--fg-dark)}
+  .deck-sheet{position:fixed;inset:0;z-index:62;display:flex;flex-direction:column;background:var(--bg-cream);color:var(--fg-dark)}
   .deck-sheet[hidden]{display:none}
   .ds-head{display:flex;align-items:center;gap:10px;padding:8px max(14px,var(--hole-right,0px)) 8px max(14px,var(--hole-left,0px));border-bottom:1px solid var(--db-line)}
   .ds-head .ds-name{flex:1;min-width:0}

@@ -425,6 +425,8 @@ def create_app(token, origin):
             try:
                 response = await call_next(request)
             except Exception as exc:
+                import traceback
+                traceback.print_exc()  # to python.stderr -> logcat
                 return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
         if "lunar_region" not in request.cookies:
             response.set_cookie("lunar_region", config.BUILD_REGION, path="/", samesite="strict")
@@ -448,6 +450,11 @@ def start(data_root, asset_root, tools_root, reporter, region="en"):
     pause_game = lambda: str(service.pauseForTools())
     resume_game = lambda title=True: str(service.resumeForTools(bool(title)))
     configure(data_root, asset_root, tools_root, native.edit, reporter.report, region)
+    global TEXTURE
+    # The game's texture decoder (same one android_archive uses): the Deck
+    # Builder's costume portraits and the Schedule's banner art come from the
+    # game's own files through it.
+    TEXTURE = lambda bundle, target, size: str(native.texture(bundle, target, size))
     prepare_data()
     import uvicorn
     sock = socket.socket()

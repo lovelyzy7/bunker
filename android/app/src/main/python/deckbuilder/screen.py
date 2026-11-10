@@ -36,7 +36,10 @@ def _deck(costume_id, schema, tables, can_awaken) -> model.Deck:
         if sql:
             con.execute(sql)
     uid = schema.uid
-    tc = dict(schema.one("select * from user_costumes where user_id=? limit 1"))
+    # A fresh save has no rows to borrow as templates: the deck here is
+    # synthetic (rows are built from these, not read), so fall back to the
+    # barest shape and let _insert's dict fill the rest.
+    tc = dict(schema.one("select * from user_costumes where user_id=? limit 1") or {"user_id": uid})
     tw = schema.one("select * from user_weapons where user_id=? limit 1")
     weapons = equip.main_candidates(equip.element_of(costume_id, tables), equip._weapon_type(costume_id, tables))
     specs = []

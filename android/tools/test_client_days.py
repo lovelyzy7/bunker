@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
-"""The game's own day markers, cleared when "Show original dates" changes.
+"""The game's own day markers, cleared when Pod Programs moves the game's
+clock back.
 
-The Java test needs a JDK (javac and java on PATH).
+Upstream checks the same keys in both launchers; iOS is out of this fork's
+scope, so only the Android table is verified. The old "original dates" mode
+test followed the pre-1.10 design (ClientDays.originalDates parsed
+calendar.json); that helper is gone upstream in favour of the
+android_calendar.client_days_file marker (ClientDays.RESET_FILE).
 """
 from pathlib import Path
-import re, shutil, subprocess, tempfile, unittest
+import re, unittest
 
 root = Path(__file__).resolve().parents[2]
 JAVA = root / "android/app/src/main/java/org/veritr1x/bunker/ClientDays.java"
@@ -32,27 +37,11 @@ class Keys(unittest.TestCase):
     def test_android_clears_every_marker(self):
         self.assertEqual(keys(JAVA.read_text(encoding="utf-8"), "KEYS = {", "};"), MARKERS)
 
-
-@unittest.skipUnless(shutil.which("javac") and shutil.which("java"), "needs a JDK")
-class Mode(unittest.TestCase):
-    CASES = {
-        "": False,
-        '{"loop": 1, "loopStart": 1793152800000}': False,
-        '{\n  "loopStart": 1793152800000,\n  "originalDates": false\n}': False,
-        '{\n  "loopStart": 1793152800000,\n  "originalDates": true\n}': True,
-        '{"loopStart":1793152800000,"originalDates":true}': True,
-    }
-
-    def test_original_dates_read_from_calendar_json(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            main = Path(tmp) / "Main.java"
-            # Each argument is a calendar.json text; "-" stands for no file.
-            main.write_text("package org.veritr1x.bunker;\npublic class Main { public static void main(String[] args) {\n"
-                            "for (String a : args) System.out.println(ClientDays.originalDates(a.equals(\"-\") ? null : a));\n"
-                            "} }\n")
-            subprocess.run(["javac", "-d", tmp, str(JAVA), str(main)], check=True)
-            out = subprocess.run(["java", "-cp", tmp, "org.veritr1x.bunker.Main", *self.CASES, "-"], check=True, capture_output=True, text=True).stdout.split()
-        self.assertEqual(out, [str(v).lower() for v in self.CASES.values()] + ["false"])
+    def test_reset_file_matches_the_calendar_marker(self):
+        """GameProcessProvider looks for exactly the file android_calendar leaves."""
+        self.assertIn('RESET_FILE = "client-days.reset"', JAVA.read_text(encoding="utf-8"))
+        cal = (root / "android/app/src/main/python/android_calendar.py").read_text(encoding="utf-8")
+        self.assertIn("client-days.reset", cal)
 
 
 if __name__ == "__main__":

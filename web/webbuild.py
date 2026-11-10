@@ -112,9 +112,22 @@ def detect_release(apk):
     return region.region_of_apk(Path(apk))[0]
 
 
+def bundle_version(companion) -> str:
+    """The Bunker version the launcher bundle carries ("1.10.5"), or "" when it
+    has none. The "+dev.<sha>" development suffix is dropped so the product
+    name stays the release version."""
+    import zipfile
+    try:
+        with zipfile.ZipFile(companion) as z:
+            v = z.read("assets/lunar/bunker-version.txt").decode().strip()
+        return v.split("+", 1)[0]
+    except Exception:
+        return ""
+
+
 def build_android(apk, master, companion, output=None, log=print, port_offset=0, modmenu=None,
                   verify_inputs=True, hand_over=None):
-    """Build, sign and verify one product: nier-jp.apk or nier-en.apk (§9.1).
+    """Build, sign and verify one product: nier-jp-<ver>.apk or nier-en-<ver>.apk (§9.1).
 
     output is a path or None (§9.1 auto-names the product). hand_over takes the
     signed APK in pieces — the 4205647 contract where output itself is "a path,
@@ -155,9 +168,17 @@ def build_android(apk, master, companion, output=None, log=print, port_offset=0,
     elif menu:
         log(f"Mod Menu payload: {len(menu['dex'])} dex, 1 library.")
     # Product naming contract (§9.1): auto-named from the client detection,
-    # not from a caller-chosen file name.
+    # not from a caller-chosen file name, with the Bunker version added for
+    # the web build: nier-jp-1.10.5.apk / nier-en-1.10.5.apk. The bare contract
+    # names (nier-jp.apk) remain what the profiles and the gates speak.
     if output is None:
-        output = Path(profile["product_name"])
+        base = profile["product_name"]
+        ver = bundle_version(companion)
+        if ver:
+            stem, dot, ext = base.rpartition(".")
+            output = Path(f"{stem}-{ver}{dot}{ext}" if stem else f"{base}-{ver}")
+        else:
+            output = Path(base)
     output = Path(output)
     built = assemble_apk.assemble(Path(apk), Path(master), Path(companion), output,
                                   log=log, port_offset=int(port_offset), menu=menu,
@@ -266,8 +287,8 @@ def main():
                         help="Original master data: 20240404193219.bin.e (Global) or 20240405123139.bin.e (Japanese)")
     parser.add_argument("--companion-apk", type=Path, required=True, help="Built launcher APK (android/app)")
     parser.add_argument("--output", type=Path, default=None,
-                        help="Output APK (default: the detected client's product name, "
-                             "nier-jp.apk / nier-en.apk; §9.1)")
+                        help="Output APK (default: the detected client's product name with the "
+                             "Bunker version, nier-jp-<ver>.apk / nier-en-<ver>.apk; §9.1)")
     parser.add_argument("--port-offset", type=int, default=0)
     parser.add_argument("--mod-menu", nargs="?", const=str(REPO / "web/modmenu"), default=None,
                         help="Add the Mod Menu; optionally name the payload folder or zip")

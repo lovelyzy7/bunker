@@ -4,7 +4,11 @@ package main
 #include <stdlib.h>
 */
 import "C"
-import "lunar-tear/server/mobile"
+import (
+	"log"
+
+	"lunar-tear/server/mobile"
+)
 
 //export LunarStart
 func LunarStart(data, assets *C.char) *C.char {
@@ -31,6 +35,7 @@ func LunarSelfTest() *C.char { return C.CString(mobile.SelfTest()) }
 
 //export LunarStop
 func LunarStop() { mobile.Stop() }
+
 // LunarRequestTitle sends the running game back to its title screen on its
 // next call, so it loads a change Pod Programs made beside it.
 //
@@ -78,6 +83,11 @@ func LunarImportSaves(data, source *C.char) *C.char {
 	return C.CString(mobile.ImportSaves(C.GoString(data), C.GoString(source)))
 }
 
+//export LunarCheckMaster
+func LunarCheckMaster(path, name *C.char) *C.char {
+	return C.CString(mobile.CheckMaster(C.GoString(path), C.GoString(name)))
+}
+
 //export LunarImportArchive
 func LunarImportArchive(source, stage *C.char) *C.char {
 	return C.CString(mobile.ImportArchive(C.GoString(source), C.GoString(stage)))
@@ -87,6 +97,11 @@ func LunarImportArchive(source, stage *C.char) *C.char {
 //
 //export LunarSetLogDir
 func LunarSetLogDir(dir *C.char) *C.char { return C.CString(mobile.SetLogDir(C.GoString(dir))) }
+
+// LunarLog adds a line from the launcher to the server log.
+//
+//export LunarLog
+func LunarLog(line *C.char) { log.Print(C.GoString(line)) }
 
 // LunarSetBackupDir sets where the save snapshot before an update goes (Pod Programs' snapshots).
 //

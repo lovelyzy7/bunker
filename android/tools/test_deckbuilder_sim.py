@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Deck Builder: the status-aware Arena simulator (deckbuilder/sim)."""
 import collections
 import csv
@@ -241,8 +241,14 @@ class MechanicsTest(unittest.TestCase):
             return hp0 - tgt.hp
         tgt.st = []
         base = dmg()
+        # Keep the status ops alive: the sim keys re-applies by id(op), and a
+        # freed temporary can be reallocated at the same address (id reuse),
+        # which would make the second cut look like a re-apply of the first.
+        kept = []
         for v in (0.5, 0.3):
-            b.apply(tgt, status(18, True, taken_mult=v, **{}) | {}, None)
+            o = status(18, True, taken_mult=v, **{})
+            kept.append(o)
+            b.apply(tgt, o, None)
         tgt.st = [dict(s, cnt=3) for s in tgt.st]
         self.assertAlmostEqual(dmg() / base, 0.3, places=6)
         self.assertEqual(sorted(s["cnt"] for s in tgt.st), [2, 2])
