@@ -143,6 +143,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REF: ${{ needs.resolve.outputs.ref }}
         run: gh release download "$REF" --pattern android.zip --dir launcher --repo "$GITHUB_REPOSITORY"
+      - name: Prepare sources
+        # build_site.py packs the prepared patcher tree (the gift rows in
+        # patch_masterdata.py) into the site's sources; a clean checkout has
+        # only the submodules and patches to build it from.
+        run: python3 scripts/prepare.py
       - name: Build the site
         # A second source for the 25 MB launcher bundle, if the repository has
         # one (Settings > Variables > BUNDLE_MIRROR). It must send a CORS header.

@@ -163,6 +163,11 @@ jobs:
           --out dist
       # The launcher bundle the web builder downloads, attached here so the page
       # can offer a GitHub download proxy (the asset itself sends no CORS header).
+      - name: Prepare sources
+        # build_site.py packs the prepared patcher tree (the gift rows in
+        # patch_masterdata.py) into the site's sources; a clean checkout has
+        # only the submodules and patches to build it from.
+        run: python3 scripts/prepare.py
       - name: The site's launcher bundle
         run: python3 web/build_site.py --companion-apk bundles/android/app-debug.apk --output site --no-pyodide
       - name: Create the release
